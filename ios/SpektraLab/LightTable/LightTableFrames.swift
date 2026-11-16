@@ -7,6 +7,7 @@
 
 import CoreGraphics
 import Foundation
+import ImageIO
 
 /// A library photo as the table needs it. Equatable: a changed look or thumbnail is a new value, and
 /// the controller reads its size and picture again (`LightTableController.sync`).
@@ -15,6 +16,9 @@ struct LibraryFrame: Equatable, Sendable {
     /// Its size on the table, mm, as its picture lies unturned.
     var sizeMM: CGSize
     var thumbnail: URL
+    /// A 2048 px develop kept for the table and the slide show (`<id>-large.jpg`), made when a film is shown larger
+    /// than its thumbnail; stale (and remade) once the thumbnail is newer, i.e. the look changed.
+    var large: URL
     /// Changes when the thumbnail is written again, so the texture is read again.
     var stamp: Date
     var caption: String
@@ -38,8 +42,26 @@ enum LightTableSource: Equatable, Sendable {
 
 struct LightTableFullRef: Equatable, Sendable { var key: String }
 
+/// This app's "full render": the 2048 px develop on disk. The ref's key is "path|stamp", so a new develop is a new key.
 enum LightTableFullRead {
-    static func image(_ ref: LightTableFullRef, edge: Int) -> CGImage? { nil }
+    static func image(_ ref: LightTableFullRef, edge: Int) -> CGImage? {
+        let path = String(ref.key.split(separator: "|", maxSplits: 1).first ?? "")
+        guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
+        else { return nil }
+        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                        kCGImageSourceCreateThumbnailWithTransform: true,
+                                        kCGImageSourceShouldCacheImmediately: true,
+                                        kCGImageSourceThumbnailMaxPixelSize: edge]
+        return CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary)
+    }
+
+    /// The frame's large develop, if there is one at least as new as its thumbnail.
+    static func ref(_ frame: LibraryFrame) -> LightTableFullRef? {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
+        guard let large = (try? frame.large.resourceValues(forKeys: keys))?.contentModificationDate,
+              large >= frame.stamp else { return nil }
+        return LightTableFullRef(key: frame.large.path + "|" + String(large.timeIntervalSince1970))
+    }
 }
 
 enum LightTableSizing {
@@ -63,8 +85,10 @@ enum LightTableFrames {
     /// A photo's size on the table. With the film edge: the strip's width across its short side
     /// (35 mm film, 61 mm for 120). Without: the uncut frame's long edge is `filmFormatMM` (35 mm
     /// film by default), and a crop is a smaller piece of that negative.
-    static func sizeMM(of photo: LibraryPhoto) -> CGSize {
+    static func sizeMM(of photo: LibraryPhoto, print: Bool = false) -> CGSize {
         let aspect = max(photo.aspect, 0.01)               // the thumbnail as shown, crop and edge included
+        // Print size (this app's default): a 5-inch print, 127 mm on its long side, whatever the negative.
+        if print { return aspect >= 1 ? CGSize(width: 127, height: 127 / aspect) : CGSize(width: 127 * aspect, height: 127) }
         let r = photo.recipe
         if r.filmBorderEnabled {
             let gate = FilmGateCatalog.resolve(selection: r.overscanFormat, imageAspect: photo.sourceAspect)

@@ -9,15 +9,79 @@ import SwiftUI
 extension ViewModel {
     /// Every photo of the library as the light table reads it.
     var lightTableFrames: [LibraryFrame] {
-        library.map { p in
+        let print = UserDefaults.standard.object(forKey: Self.lightTablePrintKey) as? Bool ?? true
+        let scales = UserDefaults.standard.dictionary(forKey: Self.lightTableScalesKey) as? [String: Double] ?? [:]
+        return library.map { p in
             let url = thumbnailURL(for: p.id)
+            let base = LightTableFrames.sizeMM(of: p, print: print)
+            let k = scales[p.id.uuidString] ?? 1
             let stamp = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-            return LibraryFrame(id: p.id, sizeMM: LightTableFrames.sizeMM(of: p), thumbnail: url, stamp: stamp,
+            return LibraryFrame(id: p.id, sizeMM: CGSize(width: base.width * k, height: base.height * k), thumbnail: url,
+                                large: largeDevelopURL(for: p.id), stamp: stamp,
                                 caption: filmName(for: p.recipe.filmStock))
         }
     }
 
     var lightTableStoreURL: URL { libraryRootURL.appendingPathComponent(LightTableStore.fileName) }
+
+    /// Films lie at print size (true) or as the negative (false).
+    static let lightTablePrintKey = "SpektraLab.lightTablePrint"
+    /// Each film's own scale from a pinch, by photo id.
+    static let lightTableScalesKey = "SpektraLab.lightTableScales"
+
+    /// A pinch ended: the film's scale against its base size, kept for next time.
+    func setLightTableSize(_ id: UUID, _ size: CGSize) {
+        guard let p = library.first(where: { $0.id == id }) else { return }
+        let print = UserDefaults.standard.object(forKey: Self.lightTablePrintKey) as? Bool ?? true
+        let base = LightTableFrames.sizeMM(of: p, print: print)
+        var scales = UserDefaults.standard.dictionary(forKey: Self.lightTableScalesKey) as? [String: Double] ?? [:]
+        scales[id.uuidString] = Double(size.width / max(base.width, 0.01))
+        UserDefaults.standard.set(scales, forKey: Self.lightTableScalesKey)
+    }
+
+    /// The 2048 px develop kept beside the thumbnail for the light table and the slide show.
+    func largeDevelopURL(for id: UUID) -> URL { libraryRootURL.appendingPathComponent("\(id.uuidString)-large.jpg") }
+
+    /// That develop, made now if missing or older than the thumbnail. Nil while the engine is busy elsewhere.
+    func largeDevelop(for id: UUID) async -> UIImage? {
+        let url = largeDevelopURL(for: id)
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
+        let thumb = (try? thumbnailURL(for: id).resourceValues(forKeys: keys))?.contentModificationDate ?? .distantPast
+        if let made = (try? url.resourceValues(forKeys: keys))?.contentModificationDate, made >= thumb,
+           let image = UIImage(contentsOfFile: url.path) { return image }
+        guard let image = await slideImage(for: id) else { return nil }
+        if let data = image.jpegData(compressionQuality: 0.9) { try? data.write(to: url, options: .atomic) }
+        return image
+    }
+}
+
+/// Makes the films' large develops one at a time, as the table asks for them, and tells it when one lands.
+@MainActor
+final class LargeDevelops {
+    private var queue: [UUID] = []
+    private var running = false
+    weak var table: LightTableController?
+    let model: ViewModel
+    init(model: ViewModel) { self.model = model }
+
+    func want(_ ids: Set<UUID>) {
+        for id in ids.sorted(by: { $0.uuidString < $1.uuidString }) where !queue.contains(id) { queue.append(id) }
+        pump()
+    }
+
+    private func pump() {
+        guard !running, !queue.isEmpty else { return }
+        running = true
+        let id = queue.removeFirst()
+        table?.setMaking([id: -1])
+        Task { @MainActor in
+            let made = await model.largeDevelop(for: id) != nil
+            running = false
+            table?.setMaking([:])
+            if made { table?.rendersChanged() } else { queue.removeAll() }      // engine busy: asked again later
+            pump()
+        }
+    }
 }
 
 struct LightTablePane: View {
@@ -38,6 +102,13 @@ struct LightTablePane: View {
     @AppStorage("SpektraLab.lightTableLoupe") private var loupeMag = 3.0
     @State private var lampOn = true
     @State private var showing = false
+    /// The film a long press opened full screen (nil: the slide show from the first).
+    @State private var showingFrom: UUID?
+    @State private var largeDevelops: LargeDevelops?
+    /// The film tray: the library's photos not on the table, along the bottom, to tap or drag onto it.
+    @State private var trayOpen = false
+    /// Films at print size (a 5-inch print) or as the negative.
+    @AppStorage(ViewModel.lightTablePrintKey) private var printSize = true
 
     private struct Undo: Equatable {
         var kept: LightTableModel
@@ -59,6 +130,7 @@ struct LightTablePane: View {
         .onAppear(perform: open)
         .onDisappear { table?.close() }
         .onChange(of: glow) { _, _ in applyGlow() }
+        .onChange(of: printSize) { _, _ in table?.sync(model.lightTableFrames) }
         .onChange(of: edr) { _, _ in applyGlow() }
         .onChange(of: loupeMag) { _, m in
             LightTable.mag = m
@@ -66,7 +138,7 @@ struct LightTablePane: View {
         }
         .onChange(of: model.library.map(\.id)) { _, _ in table?.sync(model.lightTableFrames) }
         .fullScreenCover(isPresented: $showing) {
-            LightTableSlideShow(model: model, ids: table?.model.order ?? [])
+            LightTableSlideShow(model: model, ids: table?.model.order ?? [], start: showingFrom)
         }
         .sheet(isPresented: $adding) {
             LightTableAddSheet(model: model, onTable: Set(table?.model.order ?? []),
@@ -79,6 +151,13 @@ struct LightTablePane: View {
         let c = LightTableController(frames: model.lightTableFrames, bodySeed: 0,
                                      store: LightTableStore(url: model.lightTableStoreURL))
         c.select(nil)
+        let develops = LargeDevelops(model: model)
+        develops.table = c
+        largeDevelops = develops
+        c.fullRender = { LightTableFullRead.ref($0) }
+        c.canMakeFull = { _ in true }
+        c.wantsFull = { develops.want($0) }
+        c.onResized = { [model] id, size in model.setLightTableSize(id, size) }
         c.glow = lampGlow
         LightTable.mag = loupeMag
         table = c
@@ -107,13 +186,22 @@ struct LightTablePane: View {
                 Text("观片台").font(.headline)
                 Spacer()
             }
-            Button { toggleLamp() } label: {
-                Image(systemName: lampOn ? "lightbulb.fill" : "lightbulb.slash")
-                    .font(.system(size: 16, weight: .semibold)).frame(width: 40, height: 44)
-                    .foregroundStyle(lampOn ? Color.labCream : Color.labCream.opacity(0.5))
+            if loupeMode {
+                HStack(spacing: 2) {
+                    ForEach([2.0, 3.0, 5.0, 8.0], id: \.self) { m in
+                        Button { loupeMag = m } label: {
+                            Text("\(Int(m))×").font(.system(size: 12, weight: .bold, design: .monospaced))
+                                .foregroundStyle(loupeMag == m ? Color.black : Color.labCream)
+                                .frame(width: 34, height: 28)
+                                .background(loupeMag == m ? Color.labCream : Color.clear, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(2)
+                .background(Color.white.opacity(0.08), in: Capsule())
             }
-            .accessibilityLabel(lampOn ? "关灯" : "开灯")
-            Button { showing = true } label: {
+            Button { showingFrom = nil; showing = true } label: {
                 Image(systemName: "play.rectangle").font(.system(size: 16, weight: .semibold)).frame(width: 40, height: 44)
             }
             .disabled(count == 0)
@@ -126,8 +214,24 @@ struct LightTablePane: View {
                     Text("背光 · 最亮").tag(4.0)
                 }
                 .disabled(!edr)
-                Picker("放大镜倍率", selection: $loupeMag) {
-                    ForEach([2.0, 3.0, 5.0, 8.0], id: \.self) { Text("放大镜 · \(Int($0))×").tag($0) }
+                Divider()
+                Picker("照片尺寸", selection: $printSize) {
+                    Text("照片 · 相片尺寸").tag(true)
+                    Text("照片 · 底片实际尺寸").tag(false)
+                }
+                Button {
+                    UserDefaults.standard.removeObject(forKey: ViewModel.lightTableScalesKey)
+                    table?.sync(model.lightTableFrames)
+                } label: { Label("照片恢复原大小", systemImage: "arrow.uturn.backward") }
+                Divider()
+                Button { table?.fit() } label: { Label("适合屏幕", systemImage: "arrow.down.right.and.arrow.up.left") }
+                Picker("纸张", selection: Binding(get: { table?.model.paper ?? .a4 }, set: { setTable(paper: $0) })) {
+                    ForEach(LightTablePaper.allCases) { paper in
+                        Text("灯箱 · \(paper.name)（\(Int(paper.size.width))×\(Int(paper.size.height)) mm）").tag(paper)
+                    }
+                }
+                Button { setTable(portrait: !(table?.model.portrait ?? true)) } label: {
+                    Label((table?.model.portrait ?? true) ? "灯箱转成横向" : "灯箱转成竖向", systemImage: "rectangle.portrait.rotate")
                 }
                 Divider()
                 Group {
@@ -155,6 +259,17 @@ struct LightTablePane: View {
                 LightTableView(controller: table, inset: .init(top: 10, left: 10, bottom: 10, right: 10)) { view in
                     view.ringColor = LightTableMetalView.ringWhite
                     LightTableGestures.attach(to: view, loupeMode: { loupeMode })
+                    // This app: a long press anywhere on the table is the immersive loupe (upstream has no long press).
+                    LongPressOpen.attach(to: view) { p in
+                        if let p {
+                            if !LightTable.bigLens { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
+                            table.immersiveLoupe(at: p)
+                        } else {
+                            table.immersiveLoupe(at: nil)
+                            // Back to the loupe tool's lens if it was on.
+                            if loupeMode { table.loupe(at: CGPoint(x: table.viewport.size.width / 2, y: table.viewport.size.height / 2)) }
+                        }
+                    }
                     view.describe = { id in (table.caption(id), "") }
                     view.activate = { id in
                         if table.selected == id { table.select(nil) } else { table.select(id); table.bringToTop(id) }
@@ -162,8 +277,15 @@ struct LightTablePane: View {
                     view.escape = { table.select(nil) }
                 }
                 .clipped()
-                if table.model.order.isEmpty {
-                    Button { adding = true } label: {
+                .dropDestination(for: String.self) { items, location in
+                    let ids = items.compactMap(UUID.init(uuidString:))
+                    guard !ids.isEmpty else { return false }
+                    undo = nil
+                    table.add(ids.filter { !table.model.order.contains($0) }, at: table.viewport.toWorld(location))
+                    return true
+                }
+                if table.model.order.isEmpty && !trayOpen {
+                    Button { withAnimation(.snappy(duration: 0.25)) { trayOpen = true } } label: {
                         Label("从图库添加", systemImage: "plus")
                             .font(.system(size: 15, weight: .semibold))
                             .padding(.horizontal, 20).frame(height: 46)
@@ -191,13 +313,7 @@ struct LightTablePane: View {
 
     private var band: some View {
         VStack(spacing: 10) {
-            if loupeMode {
-                Picker("倍率", selection: $loupeMag) {
-                    ForEach([2.0, 3.0, 5.0, 8.0], id: \.self) { Text("\(Int($0))×").tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 260)
-            }
+            if trayOpen && table?.selected == nil { tray }
             HStack(spacing: 8) {
                 Text(status).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                 if undo != nil {
@@ -219,38 +335,56 @@ struct LightTablePane: View {
                     }
                     action("完成", "checkmark") { table.select(nil) }
                 } else {
-                    action("添加", "plus") {
+                    action("胶片托盘", "tray", lit: trayOpen) {
                         if loupeMode { toggleLoupe() }
-                        adding = true
+                        withAnimation(.snappy(duration: 0.25)) { trayOpen.toggle() }
                     }
-                    .disabled(count >= LightTable.films)
+                    action(lampOn ? "关灯" : "开灯", lampOn ? "lightbulb.fill" : "lightbulb.slash", lit: !lampOn) { toggleLamp() }
                     action("放大镜", "magnifyingglass", lit: loupeMode) { toggleLoupe() }
-                    action("适合", "arrow.down.right.and.arrow.up.left") { table?.fit() }
-                    Menu {
-                        ForEach(LightTablePaper.allCases) { paper in
-                            Button {
-                                setTable(paper: paper)
-                            } label: {
-                                let s = paper.size
-                                if table?.model.paper == paper {
-                                    Label("\(paper.name) · \(Int(s.width))×\(Int(s.height)) mm", systemImage: "checkmark")
-                                } else {
-                                    Text("\(paper.name) · \(Int(s.width))×\(Int(s.height)) mm")
-                                }
-                            }
-                        }
-                    } label: {
-                        actionLabel(table?.model.paper.name ?? "A4", nil)
-                    }
-                    action("方向", (table?.model.portrait ?? true) ? "rectangle.portrait.rotate" : "rectangle.landscape.rotate") {
-                        setTable(portrait: !(table?.model.portrait ?? true))
-                    }
                 }
             }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
         .foregroundStyle(Color.labCream)
+    }
+
+    /// The film tray: photos not on the table, newest first. A tap lays one in the middle; a drag lays it where it is
+    /// dropped; the grid at the end picks several at once.
+    private var tray: some View {
+        let onTable = Set(table?.model.order ?? [])
+        let waiting = model.library.filter { !onTable.contains($0.id) }
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                if waiting.isEmpty {
+                    Text("图库里的照片都在台上了").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 8)
+                }
+                ForEach(waiting) { photo in
+                    Image(uiImage: photo.thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 58, height: 58)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .contentShape(Rectangle())
+                        .onTapGesture { layDown([photo.id]) }
+                        .draggable(photo.id.uuidString) {
+                            Image(uiImage: photo.thumbnail).resizable().scaledToFit().frame(width: 90)
+                        }
+                        .accessibilityLabel("放上台：\(model.filmName(for: photo.recipe.filmStock))")
+                }
+                Button { adding = true } label: {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(width: 44, height: 58)
+                        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 4))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("多选添加")
+            }
+            .padding(.horizontal, 4)
+        }
+        .frame(height: 62)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private func action(_ title: String, _ symbol: String, lit: Bool = false, _ run: @escaping () -> Void) -> some View {
@@ -271,6 +405,7 @@ struct LightTablePane: View {
         guard let t = table else { return "" }
         if let undo { return undo.text }
         if loupeMode { return "放大镜 · \(Int(loupeMag))× · 手指按哪里看哪里，按住不动凑近" }
+        if trayOpen && t.selected == nil { return "点一下放到中间，或者拖到台上" }
         if !lampOn { return "灯关着" }
         let n = t.model.order.count
         if let id = t.selected, let it = t.model.item(id) {
@@ -404,4 +539,41 @@ struct LightTableAddSheet: View {
         .tint(Color.labRed)
         .preferredColorScheme(.dark)
     }
+}
+
+/// A long press beside the table's own gestures: it begins only when the finger stays put (a drag that starts
+/// first carries the film instead). Once it has begun the table's other gestures are switched off until the finger
+/// lifts, and the press reports where the finger is (nil when it lifts).
+final class LongPressOpen: NSObject, UIGestureRecognizerDelegate {
+    private let track: (CGPoint?) -> Void
+    private static var kept: [LongPressOpen] = []
+
+    private init(_ track: @escaping (CGPoint?) -> Void) { self.track = track }
+
+    @MainActor static func attach(to view: UIView, track: @escaping (CGPoint?) -> Void) {
+        let target = LongPressOpen(track)
+        kept.append(target)
+        let press = UILongPressGestureRecognizer(target: target, action: #selector(pressed(_:)))
+        press.minimumPressDuration = 0.45
+        press.allowableMovement = 8
+        press.cancelsTouchesInView = false
+        press.delegate = target
+        view.addGestureRecognizer(press)
+    }
+
+    @MainActor @objc private func pressed(_ r: UILongPressGestureRecognizer) {
+        guard let v = r.view else { return }
+        let others = (v.gestureRecognizers ?? []).filter { $0 !== r }
+        switch r.state {
+        case .began:
+            others.forEach { $0.isEnabled = false; $0.isEnabled = true }      // cancels a carry or a hold in progress
+            track(r.location(in: v))
+        case .changed:
+            track(r.location(in: v))
+        default:
+            track(nil)
+        }
+    }
+
+    func gestureRecognizer(_ a: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith b: UIGestureRecognizer) -> Bool { true }
 }

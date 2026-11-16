@@ -11,6 +11,8 @@ import SwiftUI
 struct LightTableSlideShow: View {
     @ObservedObject var model: ViewModel
     let ids: [UUID]
+    /// Opened on one film (a long press on the table): starts there, controls hidden.
+    var start: UUID? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var order: [UUID] = []
     @State private var index = 0
@@ -22,6 +24,11 @@ struct LightTableSlideShow: View {
     @State private var offset: CGFloat = 0
     @State private var settle: CGFloat = 1
     @State private var drag: CGFloat = 0
+    /// Looking closer: pinch or double-tap; while zoomed a drag pans instead of changing slide.
+    @State private var zoom: CGFloat = 1
+    @State private var zoomBase: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    @State private var panBase: CGSize = .zero
 
     private var current: UUID? { order.indices.contains(index) ? order[index] : nil }
 
@@ -33,8 +40,8 @@ struct LightTableSlideShow: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
-                        .scaleEffect(settle)
-                        .offset(x: offset + drag)
+                        .scaleEffect(settle * zoom)
+                        .offset(x: offset + drag + pan.width, y: pan.height)
                         .padding(.vertical, 8)
                         .id(id)
                 }
@@ -43,13 +50,32 @@ struct LightTableSlideShow: View {
             }
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 20)
-                .onChanged { drag = $0.translation.width * 0.6 }
+                .onChanged { v in
+                    if zoom > 1.01 {
+                        pan = CGSize(width: panBase.width + v.translation.width, height: panBase.height + v.translation.height)
+                    } else {
+                        drag = v.translation.width * 0.6
+                    }
+                }
                 .onEnded { v in
+                    if zoom > 1.01 { panBase = pan; return }
                     let dx = v.translation.width
                     withAnimation(.easeOut(duration: 0.12)) { drag = 0 }
                     if dx < -60 { advance(1, width: geo.size.width) } else if dx > 60 { advance(-1, width: geo.size.width) }
                 })
+            .simultaneousGesture(MagnifyGesture()
+                .onChanged { v in zoom = min(max(zoomBase * v.magnification, 1), 6) }
+                .onEnded { _ in
+                    zoomBase = zoom
+                    if zoom <= 1.01 { withAnimation(.snappy) { resetZoom() } }
+                })
+            .onTapGesture(count: 2) {
+                withAnimation(.snappy) {
+                    if zoom > 1.01 { resetZoom() } else { zoom = 2.5; zoomBase = 2.5 }
+                }
+            }
             .onTapGesture { p in
+                if zoom > 1.01 { return }
                 if p.x < geo.size.width * 0.25 { advance(-1, width: geo.size.width) }
                 else if p.x > geo.size.width * 0.75 { advance(1, width: geo.size.width) }
                 else { withAnimation(.easeInOut(duration: 0.2)) { chrome.toggle() } }
@@ -66,7 +92,10 @@ struct LightTableSlideShow: View {
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .preferredColorScheme(.dark)
-        .onAppear { order = ids }
+        .onAppear {
+            order = ids
+            if let start, let i = ids.firstIndex(of: start) { index = i; chrome = false }
+        }
         .task(id: current) { await develop() }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .onChange(of: auto) { _, on in UIApplication.shared.isIdleTimerDisabled = on }
@@ -103,6 +132,10 @@ struct LightTableSlideShow: View {
         .padding(16)
     }
 
+    private func resetZoom() {
+        zoom = 1; zoomBase = 1; pan = .zero; panBase = .zero
+    }
+
     private func shuffle() {
         shuffled.toggle()
         let keep = current
@@ -120,6 +153,7 @@ struct LightTableSlideShow: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(150))
             index = next
+            resetZoom()
             offset = CGFloat(step) * width * 0.35
             settle = 1.02
             withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) { offset = 0; settle = 1 }
@@ -130,10 +164,10 @@ struct LightTableSlideShow: View {
     /// This slide at 2048 px, then the next one ahead; at most three kept.
     private func develop() async {
         guard let id = current else { return }
-        if images[id] == nil, let image = await model.slideImage(for: id) { images[id] = image }
+        if images[id] == nil, let image = await model.largeDevelop(for: id) { images[id] = image }
         guard order.count > 1 else { return }
         let ahead = order[(index + 1) % order.count]
-        if images[ahead] == nil, let image = await model.slideImage(for: ahead) { images[ahead] = image }
+        if images[ahead] == nil, let image = await model.largeDevelop(for: ahead) { images[ahead] = image }
         let keep = Set([id, ahead, order[(index - 1 + order.count) % order.count]])
         for k in images.keys where !keep.contains(k) { images[k] = nil }
     }

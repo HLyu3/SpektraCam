@@ -72,6 +72,8 @@ enum LightTable {
     /// (`LENS_PAD`): a little past the lens, for the refraction at its rim.
     /// The loupe's magnification (this app lets the page change it: 2, 3, 5, 8).
     nonisolated(unsafe) static var mag = 3.0
+    /// This app: the immersive loupe (a long press) — the lens nearly as wide as the view, the table round it dark.
+    nonisolated(unsafe) static var bigLens = false
     static let lensPad = 1.5
 
     /// JavaScript's `Math.round`: halves go up, towards +∞. Swift's `rounded()` takes them away from
@@ -868,7 +870,9 @@ struct LightTableViewport: Equatable, Sendable {
     }
 
     /// The loupe's lens radius and glass rim, points: the website's for a narrow window.
-    var lensRadius: Double { size.width < 600 ? 72 : 102 }
+    var lensRadius: Double {
+        LightTable.bigLens ? max(72, min(size.width, size.height) * 0.40) : (size.width < 600 ? 72 : 102)
+    }
     var lensRim: Double { size.width < 600 ? 5 : 7 }
 }
 

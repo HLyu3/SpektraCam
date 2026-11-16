@@ -258,12 +258,15 @@ final class LightTableRenderer: @unchecked Sendable {
         enc.label = "light table"
         encode(scene, Camera(centre: centre, spanMM: CGSize(width: view.width / s, height: view.height / s), bias: -0.35), enc)
         if let loupe, let lensTexture {
-            var q = LoupeQ(at: SIMD4(Float(loupe.at.x), Float(loupe.at.y), Float(2 * (loupe.radius + loupe.rim + 36)), 0),
+            // Immersive: the quad covers the whole view, so the table round the lens can be darkened.
+            let side = LightTable.bigLens ? 3 * max(view.width, view.height) : 2 * (loupe.radius + loupe.rim + 36)
+            var q = LoupeQ(at: SIMD4(Float(loupe.at.x), Float(loupe.at.y), Float(side), 0),
                            view: SIMD4(Float(view.width), Float(view.height), 0, 0))
-            var u = SIMD4(Float(loupe.radius), Float(loupe.rim), Float(LightTable.lensPad), Float(loupe.alpha))
+            var u = [SIMD4(Float(loupe.radius), Float(loupe.rim), Float(LightTable.lensPad), Float(loupe.alpha)),
+                     SIMD4(LightTable.bigLens ? 0.86 : 0, 0, 0, 0)]
             enc.setRenderPipelineState(loupeState)
             enc.setVertexBytes(&q, length: MemoryLayout<LoupeQ>.stride, index: 0)
-            enc.setFragmentBytes(&u, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+            u.withUnsafeBytes { enc.setFragmentBytes($0.baseAddress!, length: $0.count, index: 0) }
             enc.setFragmentTexture(lensTexture, index: 0)
             enc.setFragmentSamplerState(linearSampler, index: 0)
             enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)

@@ -394,26 +394,41 @@ struct PhotoLibraryView: View {
                         chip("RAW", "raw")
                         if count("pair") > 0 { chip("双拼", "pair") }
                         filmChip
-                        let unexported = model.unexportedShots().count
-                        if unexported > 0 {
-                            Button { culling = true } label: {
-                                Label("挑片 \(unexported)", systemImage: "checkmark.rectangle.stack")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .padding(.horizontal, 11).frame(height: 30)
-                                    .foregroundStyle(Color.labRed)
-                                    .overlay(Capsule().strokeBorder(Color.labRed.opacity(0.5), lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                        }
                     }
                     .padding(.horizontal, 1)
                 }
                 // Clipped, with a soft edge: the chips used to run on under the sort button.
                 .mask(LinearGradient(stops: [.init(color: .black, location: 0.9), .init(color: .clear, location: 1)],
                                      startPoint: .leading, endPoint: .trailing))
-                if showingSystemPhotos { PhotoAlbumMenu(feed: photosFeed) } else { sortMenu.fixedSize() }
+                if showingSystemPhotos { PhotoAlbumMenu(feed: photosFeed) } else { cullButton; sortMenu.fixedSize() }
             }
         }
+    }
+
+    /// 挑片, always in reach beside the sort (it was the last chip of the row, off screen); the count of
+    /// never-exported shots on it.
+    private var cullButton: some View {
+        let unexported = model.unexportedShots().count
+        return Button { culling = true } label: {
+            Image(systemName: "checkmark.rectangle.stack")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(unexported > 0 ? Color.labRed : Color.labCream.opacity(0.85))
+                .frame(width: 32, height: 32)
+                .background(Color.white.opacity(unexported > 0 ? 0.12 : 0.06), in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    if unexported > 0 {
+                        Text("\(unexported)")
+                            .font(.system(size: 9, weight: .bold).monospacedDigit())
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 4).frame(minWidth: 16, minHeight: 16)
+                            .background(Color.labRed, in: Capsule())
+                            .offset(x: 6, y: -5)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .accessibilityLabel(unexported > 0 ? "挑片，\(unexported) 张没导出" : "挑片")
     }
 
     /// One filter, a tap away; the chosen one lit in amber.

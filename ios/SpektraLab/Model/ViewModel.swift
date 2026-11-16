@@ -731,7 +731,10 @@ final class ViewModel: ObservableObject {
         let gone = Set(library.filter { $0.assetID.map { !alive.contains($0) } ?? false }.map(\.id))
             .subtracting(editingPhotoID.map { [$0] } ?? [])
         guard !gone.isEmpty else { return }
-        for id in gone { try? FileManager.default.removeItem(at: thumbnailURL(for: id)) }
+        for id in gone {
+            try? FileManager.default.removeItem(at: thumbnailURL(for: id))
+            try? FileManager.default.removeItem(at: largeDevelopURL(for: id))
+        }
         if let source = recipeSourcePhotoID, gone.contains(source) {
             recipeSourcePhotoID = nil
             UserDefaults.standard.removeObject(forKey: Self.clipboardRecipeSourceKey)
@@ -882,8 +885,9 @@ final class ViewModel: ObservableObject {
         libraryRoot.appendingPathComponent(photo.fileName)
     }
 
+    /// A film's or a paper's display name (callers pass either: a roll's paper went through here and showed its id).
     func filmName(for stock: String) -> String {
-        films.first { $0.id == stock }?.name ?? stock
+        (films.first { $0.id == stock } ?? papers.first { $0.id == stock })?.name ?? stock
     }
 
     /// A film's name for a small tile: the maker dropped, two words at most ("Kodak Portra 400" → "Portra 400").
@@ -1147,6 +1151,7 @@ final class ViewModel: ObservableObject {
                 try? FileManager.default.removeItem(at: originalURL(for: photo))
             }
             try? FileManager.default.removeItem(at: thumbnailURL(for: id))
+            try? FileManager.default.removeItem(at: largeDevelopURL(for: id))
         }
         if let editing = editingPhotoID, ids.contains(editing) {
             editingPhotoID = nil

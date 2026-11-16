@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.proRAW.rawValue
     @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 0
+    @AppStorage("SpektraLab.cameraLensLabel") private var lensLabel = "x"
     @AppStorage(ViewModel.reopenKey) private var reopenTo = UserDefaults.standard.bool(forKey: "SpektraLab.openToCamera") ? "camera" : "last"
     @AppStorage("SpektraLab.cameraToPhotos") private var toPhotos = false
     @AppStorage("SpektraLab.haptics") private var haptics = true
@@ -64,6 +65,10 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.navigationLink)
+                    Picker("镜头显示", selection: $lensLabel) {
+                        Text("倍率").tag("x")
+                        Text("焦段").tag("mm")
+                    }
                     Picker("重新打开时", selection: $reopenTo) {
                         Text("回到上次的位置").tag("last")
                         Text("回到照片库").tag("library")

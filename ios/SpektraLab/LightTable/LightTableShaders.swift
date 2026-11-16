@@ -247,7 +247,7 @@ enum LightTableShaders {
     // at: the lens's centre on the screen and the quad's side, points; view: the target, points.
     struct LoupeQ { float4 at; float4 view; };
     // R, rim, pad, fade.
-    struct Loupe { float4 lens; };
+    struct Loupe { float4 lens; float4 extra; };   // extra.x: how dark the table round the lens (this app's immersive loupe)
     struct LOut { float4 position [[position]]; float2 vP; };
 
     vertex LOut lt_loupe_vertex(uint vid [[vertex_id]], constant LoupeQ &q [[buffer(0)]]) {
@@ -294,7 +294,8 @@ enum LightTableShaders {
       float disc = 1. - smoothstep(uR + uRim - fw, uR + uRim + fw, d);
       float sd = length(vP + float2(0., 9.)) - (uR + uRim);
       float shadow = .17 * (1. - smoothstep(-12., 16., sd));
-      return float4(col * disc, disc + shadow * (1. - disc)) * uA;
+      float outside = max(shadow, u.extra.x);
+      return float4(col * disc, disc + outside * (1. - disc)) * uA;
       #undef toUv
     }
     """

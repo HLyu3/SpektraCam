@@ -25,6 +25,8 @@ struct CameraView: View {
     @AppStorage(ViewModel.autoDevelopKey) private var autoDevelop = true
     /// The viewfinder in the roll's colours (a cube baked through the engine), or plain.
     @AppStorage("SpektraLab.cameraFilmLook") private var filmLook = true
+    /// The lens row's labels: "x" zoom factors as the Camera app shows them (0.5, 1×, 2, 4), or "mm" focal lengths.
+    @AppStorage("SpektraLab.cameraLensLabel") private var lensLabel = "x"
     @State private var finder = FilmViewfinderRenderer()
     @State private var baking = false
     @State private var choosingRoll = false
@@ -41,6 +43,8 @@ struct CameraView: View {
     @State private var focal: Double = 24
     @State private var pinchFrom: Double?
     @State private var showingSettings = false
+    /// The controls turned upright for how the phone is held (`LevelMeter.uiTurn`); the layout stays portrait.
+    @State private var turn: Double = 0
     @State private var deletingLast = false
     /// The newest shot this camera put in the library (a 无胶卷 shot goes to Photos, not here).
     private var latestShot: LibraryPhoto? { model.library.filter(\.captured).max { $0.createdAt < $1.createdAt } }
@@ -109,6 +113,7 @@ struct CameraView: View {
         }
         .onDisappear { camera.stop(); level.stop() }
         .sheet(isPresented: $showingSettings) { SettingsView(model: model) }
+        .onReceive(level.$uiTurn) { t in withAnimation(.snappy(duration: 0.3)) { turn = t } }
         .confirmationDialog("删除刚拍的这张？", isPresented: $deletingLast, titleVisibility: .visible) {
             Button("删除", role: .destructive) {
                 if let latest = latestShot {
@@ -165,6 +170,10 @@ struct CameraView: View {
                 Toggle("拍完自动冲洗", isOn: $autoDevelop)
                 Toggle("同时存入“照片”", isOn: $toPhotos)
                 Divider()
+                Picker("镜头显示", selection: $lensLabel) {
+                    Text("倍率（0.5 · 1 · 2 · 4）").tag("x")
+                    Text("焦段（13 · 24 · 48 · 100 mm）").tag("mm")
+                }
                 Toggle("网格", isOn: $showGrid)
                 Toggle("水平仪", isOn: $showLevel)
                 Divider()
@@ -172,6 +181,7 @@ struct CameraView: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 15, weight: .semibold))
+                    .rotationEffect(.degrees(turn))
                     .frame(width: 36, height: 36)
                     .labGlassInteractive(in: Circle())
             }
@@ -186,6 +196,7 @@ struct CameraView: View {
         Button(action: run) {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: .semibold))
+                .rotationEffect(.degrees(turn))
                 .frame(width: 36, height: 36)
                 .labGlassInteractive(in: Circle())
         }
@@ -250,7 +261,7 @@ struct CameraView: View {
         )
         .overlay(alignment: .bottom) {
             if pinchFrom != nil {
-                Text(String(format: "%.1f× · %d mm", focal / 24, Int(focal.rounded())))
+                Text("\(zoomText(focal))× · \(Int(focal.rounded())) mm")
                     .font(.system(size: 12, weight: .semibold).monospacedDigit())
                     .foregroundStyle(Color.labCream)
                     .padding(.horizontal, 10).frame(height: 26)
@@ -307,6 +318,7 @@ struct CameraView: View {
             if !noFilm {
                 // The frame counter, as a film camera's window shows it.
                 Text("\(CameraBody.nextFrame)")
+                    .rotationEffect(.degrees(turn))
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.labRed)
                     .frame(minWidth: 30, minHeight: 26)
@@ -333,6 +345,7 @@ struct CameraView: View {
             Button { withAnimation(.snappy) { pro.toggle() } } label: {
                 Text("M")
                     .font(.system(size: 14, weight: .heavy))
+                    .rotationEffect(.degrees(turn))
                     .foregroundStyle(pro ? Color.black : Color.labCream)
                     .frame(width: 36, height: 36)
                     .background(pro ? Color.labRed : Color.white.opacity(0.1), in: Circle())
@@ -345,14 +358,15 @@ struct CameraView: View {
                     ForEach(stops, id: \.self) { mm in
                         let on = nearestStop == mm
                         Button { aim(Double(mm)) } label: {
-                            Text(on && abs(focal - Double(mm)) > 0.5 ? "\(Int(focal.rounded()))" : "\(mm)")
+                            Text(lensText(on && abs(focal - Double(mm)) > 0.5 ? focal : Double(mm), selected: on))
                                 .font(.system(size: on ? 14 : 12, weight: .bold, design: .monospaced))
+                                .rotationEffect(.degrees(turn))
                                 .foregroundStyle(on ? Color.black : Color.labCream.opacity(0.8))
                                 .frame(minWidth: 40, minHeight: 32)
                                 .background(on ? Color.labRed : Color.clear, in: Capsule())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(mm) 毫米")
+                        .accessibilityLabel("\(mm) 毫米，\(zoomText(Double(mm)))倍")
                     }
                 }
                 .padding(3)
@@ -495,6 +509,7 @@ struct CameraView: View {
         Button { roll = id } label: {
             face()
                 .frame(width: 34, height: 44)
+                .rotationEffect(.degrees(turn))
                 .foregroundStyle(Color.labCream.opacity(0.8))
                 .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
                 .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(on ? Color.labRed : .clear, lineWidth: 2))
@@ -520,6 +535,7 @@ struct CameraView: View {
             }
             .frame(width: 52, height: 52)
             .clipShape(RoundedRectangle(cornerRadius: 9))
+            .rotationEffect(.degrees(turn))
             .overlay(alignment: .topTrailing) {
                 if shot > 0 {
                     Text("\(shot)")
@@ -575,6 +591,7 @@ struct CameraView: View {
             } label: {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 17, weight: .semibold))
+                    .rotationEffect(.degrees(turn))
                     .foregroundStyle(Color.labCream)
                     .frame(width: 52, height: 52)
                     .background(Color.white.opacity(0.1), in: Circle())
@@ -607,6 +624,26 @@ struct CameraView: View {
         let tele = camera.lenses.first { $0.device.deviceType == .builtInTelephotoCamera }?.millimetres
         if lensesOnly { return own }
         return Array(Set(own + [main, tele].compactMap { $0.map { $0 * 2 } })).sorted()
+    }
+
+    /// The main camera's focal length: 1× (24 mm on a 48 MP main camera, 26 before).
+    private var mainMM: Double {
+        Double(camera.lenses.first { $0.device.deviceType == .builtInWideAngleCamera }?.millimetres ?? 24)
+    }
+
+    /// A focal length as the Camera app names its zoom: 0.5, 1, 2, 4, 8; between stops one decimal (1.7).
+    private func zoomText(_ mm: Double) -> String {
+        let f = mm / mainMM
+        // Apple's names for its lenses: 100 mm over a 24 mm main is 4.17, called 4; 13 mm is 0.54, called 0.5.
+        if let named = [0.5, 1, 2, 3, 4, 5, 8, 10].first(where: { abs(f / $0 - 1) < 0.1 }) {
+            return named < 1 ? "0.5" : "\(Int(named))"
+        }
+        return String(format: "%.1f", f)
+    }
+
+    /// A lens row label: the zoom (the chosen one with ×, as the Camera app does) or the focal length.
+    private func lensText(_ mm: Double, selected: Bool) -> String {
+        lensLabel == "mm" ? "\(Int(mm.rounded()))" : zoomText(mm) + (selected ? "×" : "")
     }
 
     private var nearestStop: Int? {

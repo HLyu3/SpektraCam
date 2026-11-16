@@ -470,6 +470,9 @@ private final class PhotoDelegate: NSObject, AVCapturePhotoCaptureDelegate, @unc
 final class LevelMeter: ObservableObject {
     /// Degrees the horizon is tilted, −180…180 (0 = level in portrait).
     @Published private(set) var roll: Double = 0
+    /// How far the camera's controls turn so they read upright, degrees (0, 90, -90): changes only when the phone
+    /// is turned past 45° to a landscape side (upside down keeps portrait, as the Camera app does).
+    @Published private(set) var uiTurn: Double = 0
     private let motion = CMMotionManager()
 
     func start() {
@@ -480,6 +483,8 @@ final class LevelMeter: ObservableObject {
             let angle = atan2(g.x, -g.y) * 180 / .pi
             MainActor.assumeIsolated {
                 self?.roll = angle
+                let turn: Double = abs(angle) < 45 || abs(angle) > 135 ? 0 : (angle > 0 ? -90 : 90)
+                if self?.uiTurn != turn { self?.uiTurn = turn }
                 // Which way up the photo is: portrait 90°, landscape left 0°, right 180°, upside down 270°.
                 CameraController.heldAngle = abs(angle) < 45 ? 90 : abs(angle) > 135 ? 270 : angle > 0 ? 180 : 0
             }

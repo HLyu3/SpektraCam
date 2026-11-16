@@ -753,6 +753,30 @@ final class LightTableController {
         }
     }
 
+    @ObservationIgnored private var immersiveEnd: Task<Void, Never>?
+    /// The immersive loupe (a long press): a lens most of the view wide, centred on the finger, the table round it
+    /// dark; it follows the finger (`loupe(at:)`) and goes when the finger lifts.
+    func immersiveLoupe(at p: CGPoint?) {
+        immersiveEnd?.cancel()
+        if let p {
+            LightTable.bigLens = true
+            // Held clear of the finger as the small lens is (`LightTableLoupePlace`): centred on it, the finger
+            // sat in the middle of what it looked at.
+            lensOnPointer = false
+            loupe(at: p)
+        } else {
+            loupe(at: nil)
+            // Let the fade finish at its size before the lens goes back to the small one.
+            immersiveEnd = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
+                LightTable.bigLens = false
+                self?.lensOnPointer = false
+                self?.kick()
+            }
+        }
+    }
+
     @ObservationIgnored private var lampTask: Task<Void, Never>?
     /// The lamp switched: off dims the pad (and the films on it) to an unlit diffuser; on comes up past where it
     /// settles, a tube striking, then falls back (the other project's "短暂过曝回落").
@@ -931,6 +955,23 @@ final class LightTableController {
         model.keepOn(c.id)
         if c.turns, let it = model.item(c.id) { say(L("\(caption(c.id)), at \(LightTable.degrees(it.rot)).")) }
         store.save(model)
+        changed(textures: true)
+    }
+
+    // MARK: this app: a film resized by a pinch
+
+    /// Told the film's new size when a resize ends (the page keeps it as the film's scale).
+    @ObservationIgnored var onResized: ((UUID, CGSize) -> Void)?
+
+    func resizeFilm(_ id: UUID, to size: CGSize) {
+        model.setSize(id, size)
+        changed(textures: true)
+    }
+
+    func endResize(_ id: UUID) {
+        model.keepOn(id)
+        store.save(model)
+        if let it = model.item(id) { onResized?(id, it.size) }
         changed(textures: true)
     }
 

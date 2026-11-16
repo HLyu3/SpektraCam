@@ -59,6 +59,8 @@ final class LightTableGestures: NSObject, UIGestureRecognizerDelegate {
     /// to turn it or to zoom.
     private enum Owner: Equatable {
         case none, view, film(UUID), twist(UUID), pending(UUID, [CGPoint]), loupe
+        /// This app: two fingers spreading on the chosen film resize it (from its size when they began).
+        case resize(UUID, s0: Double, base: CGSize)
         /// Mac: a film turned by the pointer from just outside a corner, about its centre: the turn it began
         /// at, the pointer's last angle about the centre, and how far the pointer has turned since.
         case corner(UUID, r0: Double, prev: Double, turned: Double)
@@ -70,6 +72,7 @@ final class LightTableGestures: NSObject, UIGestureRecognizerDelegate {
             case .twist: "twist"
             case .pending: "pending"
             case .loupe: "loupe"
+            case .resize: "resize"
             case .corner: "corner"
             }
         }
@@ -365,6 +368,10 @@ final class LightTableGestures: NSObject, UIGestureRecognizerDelegate {
             c.loupe(at: points[0])
         case .pending(let id, let start):
             resolve(id, start, points)
+        case .resize(let id, let s0, let base):
+            guard points.count >= 2, s0 > 1 else { break }
+            let k = min(max(LightTableTouchMath.spread(points) / s0, 0.2), 6)
+            c.resizeFilm(id, to: CGSize(width: base.width * k, height: base.height * k))
         case .corner(let id, let r0, let prev, let turned):
             // Free, settling square within 4°; with ⇧ in 15° steps (Photoshop's free transform, the website's).
             guard let a = angle(about: id, points[0]) else { break }
@@ -396,7 +403,10 @@ final class LightTableGestures: NSObject, UIGestureRecognizerDelegate {
             if points.count >= 2 { owner = .pending(id, points) } else { decide(points, starts: points) }
         case .none:
             decide(points, starts: points)
-        case .view, .film, .twist, .loupe, .corner:
+        case .resize where points.count < 2:
+            if case .resize(let id, _, _) = owner { c.endResize(id) }
+            owner = .none
+        case .view, .film, .twist, .loupe, .corner, .resize:
             break       // the hold takes itself again (`LightTableFingers`, `LightTableCarry`)
         }
     }
@@ -408,9 +418,9 @@ final class LightTableGestures: NSObject, UIGestureRecognizerDelegate {
         let c = view.controller
         let s0 = LightTableTouchMath.spread(start), s1 = LightTableTouchMath.spread(points)
         let a0 = LightTableTouchMath.angle(start) ?? 0, a1 = LightTableTouchMath.angle(points) ?? 0
-        if s0 > 1, abs(s1 / s0 - 1) >= Self.spreadStart {
-            owner = .view
-            c.beginHold(points)
+        if s0 > 1, abs(s1 / s0 - 1) >= Self.spreadStart, let it = c.model.item(id) {
+            // This app: a pinch on the chosen film resizes it (upstream zoomed the view here).
+            owner = .resize(id, s0: s1, base: it.size)
         } else if abs(LightTable.unwind(a1 - a0)) >= Self.turnStart {
             owner = .twist(id)
             c.beginCarry(id, start, turns: true)
@@ -424,6 +434,7 @@ final class LightTableGestures: NSObject, UIGestureRecognizerDelegate {
         switch owner {
         case .view: c.endHold(about: middle)
         case .film, .twist: c.endCarry()
+        case .resize(let id, _, _): c.endResize(id)
         case .corner(let id, _, _, _): c.endTurn(id)
         case .loupe: leanTimer?.cancel(); c.loupeLean(false)
         case .pending, .none: break
