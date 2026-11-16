@@ -922,7 +922,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				OTHER_LDFLAGS = "-framework Metal -framework QuartzCore -framework CoreText -framework CoreGraphics -framework Accelerate";
-				PRODUCT_BUNDLE_IDENTIFIER = com.hanze.spektralab;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.hlyu3.spektracam;
 				PRODUCT_NAME = SpektraLab;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
@@ -977,7 +977,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = NO;
 				OTHER_LDFLAGS = "-framework Metal -framework QuartzCore -framework CoreText -framework CoreGraphics -framework Accelerate";
-				PRODUCT_BUNDLE_IDENTIFIER = com.hanze.spektralab;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.hlyu3.spektracam;
 				PRODUCT_NAME = SpektraLab;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;

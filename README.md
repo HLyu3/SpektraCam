@@ -1,14 +1,14 @@
-# SpektraLab for iOS · 暗房版
+# Spektra Cam
 
-在 iPhone 上用物理模拟冲洗照片：胶片曝光、染料层、颗粒、光晕、放大机与相纸，一路算下来，而不是给照片套一张 LUT。
+一台在 iPhone 上用物理模拟冲洗照片的胶片相机：胶片曝光、染料层、颗粒、光晕、放大机与相纸，一路算下来，而不是给照片套一张 LUT。
 
-> 这是社区移植版 [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS) 的个人分支，不是 SpektraLab 官方 App。
-> 核心引擎来自 [JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（本版用 2.4.0 引擎）。
-> 目标是在功能上追上官方 App Store 版，界面是重新设计的。
+> Spektra Cam 是独立项目，不是 SpektraLab 官方 App。
+> 胶片引擎来自 [JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（本版用 2.4.0 引擎）；
+> 起点是它的 iOS 社区移植版 [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS) 1.2.0，之后界面重做、功能大幅扩展。
 
 ## 下载与安装
 
-到 **[Releases](../../releases/latest)** 下载 `SpektraLab-2.0.0-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
+到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.0.0-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
 
 | 工具 | 做法 |
 |---|---|
@@ -19,10 +19,10 @@
 - 免费 Apple ID 的签名 7 天后过期，要重新安装。
 - IPA 里带了全部引擎资源，第一次打开不需要联网下载。
 
-## 2.0.0 相对社区版 1.2.0 的变化
+## 2.0.0：相对社区移植版 1.2.0 的变化
 
 **界面：暗房**
-- 全新配色（石墨黑、相纸白、安全灯琥珀色）、胶片颗粒背景、新图标。
+- 新名字、新图标；全新配色（石墨黑、相纸白、安全灯琥珀色）、胶片颗粒背景。
 - 底栏三处：**底片**（图库）· **拍摄** · **观片台**。
 
 **底片（图库）**
@@ -51,13 +51,15 @@
 - 把照片按真实毫米尺寸摆在 A4 / A5 / A6 灯箱上，拖动、旋转、整理、打乱。
 - EDR 背光、开关灯、放大镜（2–8×，按住不动凑近）、全屏幻灯。
 
+工程、目标和内部代码仍沿用 `SpektraLab` 这个名字（`ios/SpektraLab.xcodeproj`），只有 App 显示为 Spektra Cam。
+
 ## 本地构建
 
 需要 Apple silicon Mac、Xcode 27.2+、iOS 27 SDK、Python 3.10+。
 
 ```bash
 git clone <本仓库地址>
-cd SpektraLab-iOS
+cd SpektraCam
 
 # 引擎：上游 2.4.0
 GITHUB_TOKEN="<你的 GitHub Token>" python3 tools/fetch-engine.py \
@@ -93,8 +95,8 @@ open ios/SpektraLab.xcodeproj
 ## 许可与致谢
 
 - 核心引擎与胶片过程模型：[JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab)，GPL-3.0-or-later。
-- iOS 社区移植：[Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS)，GPL-3.0-or-later。
+- 起点代码：iOS 社区移植版 [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS)，GPL-3.0-or-later。
 - 胶片模型、实测配置与放大 LUT：[Andrea Volpato/spektrafilm](https://github.com/andreavolpato/spektrafilm)，CC BY-SA 4.0。
 - RAW 回退解码：[LibRaw](https://github.com/LibRaw/LibRaw) 0.22.2，LGPL-2.1 / CDDL-1.0。
 
-代码按 **GPL-3.0-or-later** 分发；胶片与相纸配置按 **CC BY-SA 4.0** 分发。胶片、相纸的名称和商标归各自权利人所有。
+Spektra Cam 的代码按 **GPL-3.0-or-later** 分发；胶片与相纸配置按 **CC BY-SA 4.0** 分发。胶片、相纸的名称和商标归各自权利人所有。

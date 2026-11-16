@@ -1725,7 +1725,7 @@ final class ViewModel: ObservableObject {
             if toPhotos {
                 // A copy for Photos: `saveImage` removes the file it is given.
                 let copy = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("SpektraLab_capture_\(id.uuidString).\(isRAW ? "dng" : "heic")")
+                    .appendingPathComponent("SpektraCam_capture_\(id.uuidString).\(isRAW ? "dng" : "heic")")
                 do {
                     try data.write(to: copy)
                     try await PhotoLibrary.saveImage(at: copy)
@@ -2332,7 +2332,7 @@ enum ExportWriter {
                                   sourceData: Data?, gainMap: HDRGainMap.Attachment? = nil) throws -> URL {
         let stamp = Self.fileStamp()
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("SpektraLab_\(stamp).\(options.format.fileExtension)")
+            .appendingPathComponent("SpektraCam_\(stamp).\(options.format.fileExtension)")
         try? FileManager.default.removeItem(at: url)
         let metadata = sourceData.flatMap { Self.metadata(from: $0) } ?? [:]
 
@@ -2485,7 +2485,7 @@ enum ExportWriter {
                 if let value = srcTIFF[key] { tiff[key] = value }
             }
         }
-        tiff[kCGImagePropertyTIFFSoftware] = "SpektraLab"
+        tiff[kCGImagePropertyTIFFSoftware] = "Spektra Cam"
         tiff[kCGImagePropertyTIFFOrientation] = 1
         out[kCGImagePropertyTIFFDictionary] = tiff
         out[kCGImagePropertyOrientation] = 1

@@ -118,7 +118,7 @@ struct CameraView: View {
                 }
             }
         } message: {
-            Text("SpektraLab 里的底片会删掉；已经存进“照片”或冲洗好的成片不受影响。")
+            Text("Spektra Cam 里的底片会删掉；已经存进“照片”或冲洗好的成片不受影响。")
         }
         .sheet(isPresented: $choosingRoll) {
             RollSheet(model: model, current: roll) { roll = $0 }.equatable()

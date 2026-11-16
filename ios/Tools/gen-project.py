@@ -75,7 +75,7 @@ SIGNING_STYLE = os.environ.get("SPEKTRAFILM_SIGNING_STYLE", "Manual")
 # The bundle id the provisioning profile is bound to. It has to match the
 # profile exactly -- a profile is issued for one bundle id -- so it is
 # configuration rather than a constant here.
-BUNDLE_ID = os.environ.get("SPEKTRAFILM_BUNDLE_ID") or "com.hanze.spektralab"
+BUNDLE_ID = os.environ.get("SPEKTRAFILM_BUNDLE_ID") or "io.github.hlyu3.spektracam"
 
 
 def uid(key: str) -> str:

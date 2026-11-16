@@ -82,7 +82,7 @@ struct SettingsView: View {
                 } header: {
                     Text("相机")
                 } footer: {
-                    Text("拍完自动冲洗：每张按装好的胶卷或配方在后台全尺寸冲洗，成片存进“照片”（格式按导出设置）；“无胶卷”不冲洗。\n底片：用 SpektraLab 相机拍的原片。导出到“照片”以后，过了保留期会自动删除，成片留在“照片”里。没导出过的照片默认一直保留，拍了 3 天以上会在照片库提醒你挑片；选了“N 天后删除”才会自动删，删除前一天照片库会提醒。\n机身号决定片边上和相机有关的细节；每张新照片按顺序占一格，片边印的就是这一格的帧号（1–36 循环）。“拍摄”里的尺寸，换到没有这个尺寸的镜头（如长焦）时用那颗镜头最大的尺寸；48 MP 照片可以全尺寸导出。\n“重新打开时”在启动 App，或离开超过 2 分钟再回来时生效；正在编辑的照片会先保存。")
+                    Text("拍完自动冲洗：每张按装好的胶卷或配方在后台全尺寸冲洗，成片存进“照片”（格式按导出设置）；“无胶卷”不冲洗。\n底片：用 Spektra Cam 相机拍的原片。导出到“照片”以后，过了保留期会自动删除，成片留在“照片”里。没导出过的照片默认一直保留，拍了 3 天以上会在照片库提醒你挑片；选了“N 天后删除”才会自动删，删除前一天照片库会提醒。\n机身号决定片边上和相机有关的细节；每张新照片按顺序占一格，片边印的就是这一格的帧号（1–36 循环）。“拍摄”里的尺寸，换到没有这个尺寸的镜头（如长焦）时用那颗镜头最大的尺寸；48 MP 照片可以全尺寸导出。\n“重新打开时”在启动 App，或离开超过 2 分钟再回来时生效；正在编辑的照片会先保存。")
                 }
 
                 Section("反馈") {
@@ -106,7 +106,7 @@ struct SettingsView: View {
 
                 Section {
                     Picker("来源", selection: $source) {
-                        Text("SpektraLab 图库").tag("app")
+                        Text("Spektra Cam 图库").tag("app")
                         Text("系统相册").tag("photos")
                     }
                     .onChange(of: source) { _, new in filter = new == "photos" ? "photos" : "all" }
@@ -122,16 +122,18 @@ struct SettingsView: View {
                             refreshStorage()
                         }
                     } message: {
-                        Text("这些是用 SpektraLab 相机拍的原片，成片已经导出到“照片”。删除后不能再重新冲洗，成片不受影响。")
+                        Text("这些是用 Spektra Cam 相机拍的原片，成片已经导出到“照片”。删除后不能再重新冲洗，成片不受影响。")
                     }
                 } header: {
                     Text("照片库")
                 } footer: {
-                    Text("从相册添加照片时，只关联不复制，原图留在相册里。\n“系统相册”：照片库里多一个“系统相册”视图，直接冲洗相册里的照片——原图留在相册里不动，SpektraLab 只记下配方和冲洗后的缩略图；RAW + JPEG 的照片按 RAW 冲洗。")
+                    Text("从相册添加照片时，只关联不复制，原图留在相册里。\n“系统相册”：照片库里多一个“系统相册”视图，直接冲洗相册里的照片——原图留在相册里不动，Spektra Cam 只记下配方和冲洗后的缩略图；RAW + JPEG 的照片按 RAW 冲洗。")
                 }
 
                 Section("关于") {
-                    Text("胶片和相纸特性文件来自 Andrea Volpato 的 spektrafilm，引擎与黑白描述档来自 SpektraLab（GPL-3）。这是个人使用的社区移植版。")
+                    LabeledContent("Spektra Cam",
+                                   value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
+                    Text("基于 SpektraLab 引擎（JamesQiu2005/SpektraLab）与它的 iOS 社区移植版（Minerchu/SpektraLab-iOS），GPL-3。胶片和相纸特性文件来自 Andrea Volpato 的 spektrafilm（CC BY-SA 4.0）。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

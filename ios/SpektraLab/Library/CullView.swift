@@ -69,7 +69,7 @@ struct CullView: View {
                     model.deletePhotos(Set(rest.map(\.id)))
                 }
             } message: {
-                Text("这些照片还没导出过，SpektraLab 里的底片是唯一的一份，删除后找不回来。")
+                Text("这些照片还没导出过，Spektra Cam 里的底片是唯一的一份，删除后找不回来。")
             }
             .sheet(item: $looking) { photo in
                 Image(uiImage: photo.thumbnail)

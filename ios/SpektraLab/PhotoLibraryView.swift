@@ -220,7 +220,7 @@ struct PhotoLibraryView: View {
             }
             Button("取消", role: .cancel) { deleteIDs = [] }
         } message: {
-            Text("原图和缩略图都会从 SpektraLab 的照片库移除，不会影响系统相册。")
+            Text("原图和缩略图都会从 Spektra Cam 的照片库移除，不会影响系统相册。")
         }
         .task(id: model.libraryMessage) {
             guard model.libraryMessage != nil else { return }
@@ -234,7 +234,7 @@ struct PhotoLibraryView: View {
     private var header: some View {
         HStack(alignment: .bottom, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("SPEKTRA LAB · 暗房")
+                Text("SPEKTRA CAM · 暗房")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .tracking(1.6)
                     .foregroundStyle(Color.labRed.opacity(0.9))

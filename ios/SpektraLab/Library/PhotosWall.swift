@@ -93,7 +93,7 @@ struct PhotosWall: View {
             if feed.denied {
                 VStack(spacing: 10) {
                     Text("没有相册权限").font(.headline).foregroundStyle(Color.labCream)
-                    Text("在“设置 > SpektraLab > 照片”里选“所有照片”，或把来源改回 SpektraLab 图库。")
+                    Text("在“设置 > Spektra Cam > 照片”里选“所有照片”，或把来源改回 Spektra Cam 图库。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

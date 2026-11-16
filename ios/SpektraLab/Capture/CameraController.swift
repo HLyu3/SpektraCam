@@ -115,7 +115,7 @@ final class CameraController: NSObject, @unchecked Sendable {
         case .notDetermined:
             guard await AVCaptureDevice.requestAccess(for: .video) else { return "没有相机权限" }
         case .authorized: break
-        default: return "没有相机权限，请在“设置 > SpektraLab”里打开相机"
+        default: return "没有相机权限，请在“设置 > Spektra Cam”里打开相机"
         }
         return await withCheckedContinuation { done in
             queue.async {
