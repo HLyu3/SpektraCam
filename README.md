@@ -6,6 +6,16 @@
 > 胶片引擎来自 [JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（本版用 2.4.0 引擎）；
 > 起点是它的 iOS 社区移植版 [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS) 1.2.0，之后界面重做、功能大幅扩展。
 
+## 截图
+
+| 底片 | 编辑 | 拍摄 |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/library.png" width="240"> | <img src="docs/screenshots/editor.png" width="240"> | <img src="docs/screenshots/camera.png" width="240"> |
+| **观片台** | **设置** | **配方与胶片** |
+| <img src="docs/screenshots/lighttable.png" width="240"> | <img src="docs/screenshots/settings.png" width="240"> | <img src="docs/screenshots/recipes.png" width="240"> |
+
+截图在 iPhone 17 Pro Max 上用“iPhone 镜像”截取；拍摄页的取景画面在镜像时会被系统遮黑。
+
 ## 下载与安装
 
 到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.0.0-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
