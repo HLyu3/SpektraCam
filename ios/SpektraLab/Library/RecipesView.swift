@@ -26,7 +26,7 @@ struct RecipesView: View {
                     }
                     ForEach(model.savedRecipes) { saved in
                         row(title: saved.name,
-                            detail: "\(model.filmName(for: saved.recipe.filmStock)) · \(model.filmName(for: saved.recipe.printStock))",
+                            detail: "\(model.filmName(for: saved.recipe.filmID)) · \(model.filmName(for: saved.recipe.printStock))",
                             symbol: "wand.and.stars", loaded: roll == saved.roll) { load(saved.roll, saved.name) }
                         .contextMenu {
                             Button { load(saved.roll, saved.name) } label: { Label("装进相机", systemImage: "camera") }

@@ -132,6 +132,8 @@ final class LightTableController {
     @ObservationIgnored var lensOnPointer = false
     /// This app: the backlight past SDR white (linear; 1 = upstream's). The page caps it at the screen's headroom.
     @ObservationIgnored var glow = 1.0 { didSet { kick() } }
+    /// This app: films cover one another (opaque) rather than multiply like slides on the light; the page sets it.
+    @ObservationIgnored var prints = false { didSet { kick() } }
     /// The eye's drift is off: a still picture (the snapshot harness), or Reduce Motion.
     @ObservationIgnored var still = false
     /// The desk under the pad on the screen: the app's black (the page), or the website's white
@@ -276,8 +278,11 @@ final class LightTableController {
             if selected == it.id { selected = nil }
         }
         for it in model.items {
-            guard let f = next[it.id], f != self.frames[it.id] else { continue }
-            model.setSize(it.id, LightTableFrames.size(of: f, bodySeed: bodySeed))
+            // Against the film's size as it lies too: a pinch (this app) resizes it without a new frame.
+            guard let f = next[it.id] else { continue }
+            let size = LightTableFrames.size(of: f, bodySeed: bodySeed)
+            guard f != self.frames[it.id] || it.size != size else { continue }
+            model.setSize(it.id, size)
         }
         self.frames = next
         refreshSources()
@@ -756,8 +761,15 @@ final class LightTableController {
     @ObservationIgnored private var immersiveEnd: Task<Void, Never>?
     /// The immersive loupe (a long press): a lens most of the view wide, centred on the finger, the table round it
     /// dark; it follows the finger (`loupe(at:)`) and goes when the finger lifts.
-    func immersiveLoupe(at p: CGPoint?) {
+    /// `keep`: the loupe tool is on, so when the finger lifts the small lens stays where the finger was.
+    func immersiveLoupe(at p: CGPoint?, keep: Bool = false) {
         immersiveEnd?.cancel()
+        if p == nil, keep {
+            LightTable.bigLens = false
+            lensOnPointer = false
+            loupe(at: loupePoint)       // the small lens, at the finger's last place
+            return
+        }
         if let p {
             LightTable.bigLens = true
             // Held clear of the finger as the small lens is (`LightTableLoupePlace`): centred on it, the finger
@@ -1198,8 +1210,10 @@ final class LightTableController {
             films.append(LightTableRenderer.Film(centre: CGPoint(x: s.px, y: s.py), angle: s.angle, size: s.drawnSize,
                                                  presence: s.presence, shadow: s.shadow, texture: textures?.texture(id)))
         }
-        return LightTableRenderer.Scene(half: drawnHalf ?? model.half, films: films, sheen: SIMD3(Float(sheen.x), Float(sheen.y), Float(sheen.z)),
-                                        darkDesk: darkDesk, glow: Float(glow))
+        var scene = LightTableRenderer.Scene(half: drawnHalf ?? model.half, films: films, sheen: SIMD3(Float(sheen.x), Float(sheen.y), Float(sheen.z)),
+                                             darkDesk: darkDesk, glow: Float(glow))
+        scene.prints = prints
+        return scene
     }
 
     /// The lens: grown with its fade, round the finger and clear of it, inside the view

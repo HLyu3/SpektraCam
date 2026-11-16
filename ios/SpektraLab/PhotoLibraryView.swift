@@ -80,6 +80,10 @@ struct PhotoLibraryView: View {
     @State private var showingFileImporter = false
     @State private var selecting = false
     @State private var selected: Set<UUID> = []
+    /// Long-press-and-slide selection: each tile's frame in the wall, and the slide under way.
+    @State private var tileFrames: [UUID: CGRect] = [:]
+    @State private var slide: SlideRun?
+    private struct SlideRun { var order: [UUID]; var anchor: Int; var adding: Bool; var base: Set<UUID> }
     @State private var pairing: PairSpec?
     @State private var showingPicker = false
     @Environment(\.scenePhase) private var scenePhase
@@ -137,6 +141,8 @@ struct PhotoLibraryView: View {
                         PhotosWall(model: model, feed: photosFeed, selecting: selecting, selected: $selectedAssets,
                                    columnCount: min(max(columnCount, 1), 14))
                     } else if model.library.isEmpty {
+                        // The chips stay while 系统相册 is on: without them an empty 全部 had no way back.
+                        if source == "photos" { sectionHeader }
                         emptyState
                     } else {
                         sectionHeader
@@ -148,6 +154,15 @@ struct PhotoLibraryView: View {
                 .padding(.bottom, selecting ? 148 : 24)
             }
             .scrollIndicators(.hidden)
+            // Photos scrolling under the status bar fade out instead of showing through it.
+            .overlay(alignment: .top) {
+                GeometryReader { g in
+                    LinearGradient(colors: [Color.labInk, Color.labInk.opacity(0)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: g.safeAreaInsets.top + 18)
+                        .offset(y: -g.safeAreaInsets.top)
+                }
+                .allowsHitTesting(false)
+            }
             // Pinch the wall for more or fewer tiles a row.
             // Pinch as in Photos: the wall steps through its levels while the fingers move (spread = bigger tiles).
             .simultaneousGesture(MagnifyGesture()
@@ -208,6 +223,21 @@ struct PhotoLibraryView: View {
                       allowsMultipleSelection: true) { result in
             guard case .success(let urls) = result else { return }
             Task { @MainActor in await model.importFiles(from: urls) }
+        }
+        .alert(model.importFailures.map { "\($0.lines.count) 张没能导入" } ?? "",
+               isPresented: Binding(get: { model.importFailures != nil }, set: { if !$0 { model.importFailures = nil } }),
+               presenting: model.importFailures) { _ in
+            Button("好") {}
+        } message: { f in
+            Text(f.summary + "\n\n" + f.lines.joined(separator: "\n"))
+        }
+        .confirmationDialog("这 \(model.reimportOffer?.count ?? 0) 张都导入过了",
+                            isPresented: Binding(get: { model.reimportOffer != nil }, set: { if !$0 { model.reimportOffer = nil } }),
+                            titleVisibility: .visible, presenting: model.reimportOffer) { offer in
+            Button("再导入一次") { Task { @MainActor in await model.importFiles(from: offer.urls, again: true) } }
+            Button("取消", role: .cancel) {}
+        } message: { _ in
+            Text("会作为新照片再加进底片，已有的不受影响。")
         }
         .confirmationDialog("删除这些照片？",
                             isPresented: $showingDelete,
@@ -354,7 +384,7 @@ struct PhotoLibraryView: View {
             Text("剪贴板配方")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.labCream.opacity(0.48))
-            Text(model.filmName(for: recipe.filmStock))
+            Text(model.filmName(for: recipe.filmID))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Color.labCream.opacity(0.92))
                 .lineLimit(1)
@@ -374,7 +404,7 @@ struct PhotoLibraryView: View {
     private var sectionHeader: some View {
         HStack(alignment: .center, spacing: 8) {
             if selecting {
-                Text("轻点以选择")
+                Text("轻点选择 · 横向滑动连选")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.labCream.opacity(0.76))
                 Spacer()
@@ -454,7 +484,7 @@ struct PhotoLibraryView: View {
     private var filmChip: some View {
         let on = filter.hasPrefix("film:")
         return Menu {
-            let films = Dictionary(grouping: model.library, by: \.recipe.filmStock).sorted { $0.value.count > $1.value.count }
+            let films = Dictionary(grouping: model.library, by: \.recipe.filmID).sorted { $0.value.count > $1.value.count }
             ForEach(films, id: \.key) { film, photos in
                 Button("\(model.filmName(for: film)) · \(photos.count)") { filter = "film:" + film }
             }
@@ -483,7 +513,7 @@ struct PhotoLibraryView: View {
         case "edited": return p.isEdited
         case "pair": return p.pair != nil
         default:
-            if f.hasPrefix("film:") { return p.recipe.filmStock == String(f.dropFirst(5)) }
+            if f.hasPrefix("film:") { return p.recipe.filmID == String(f.dropFirst(5)) }
             return true
         }
     }
@@ -494,7 +524,7 @@ struct PhotoLibraryView: View {
         let newest: [LibraryPhoto]
         if sort == "film" {
             newest = shown.sorted {
-                let a = model.filmName(for: $0.recipe.filmStock), b = model.filmName(for: $1.recipe.filmStock)
+                let a = model.filmName(for: $0.recipe.filmID), b = model.filmName(for: $1.recipe.filmID)
                 return a == b ? $0.createdAt > $1.createdAt : a.localizedStandardCompare(b) == .orderedAscending
             }
             return oldestFirst ? Array(newest.reversed()) : newest
@@ -548,7 +578,7 @@ struct PhotoLibraryView: View {
         for p in visiblePhotos {
             let key: String, title: String
             if sort == "film" {
-                key = p.recipe.filmStock
+                key = p.recipe.filmID
                 title = model.filmName(for: key)
             } else {
                 let date = sort == "shot" ? (p.capturedAt ?? p.createdAt) : p.createdAt
@@ -573,6 +603,23 @@ struct PhotoLibraryView: View {
         return out
     }
 
+    /// Hold a tile, then slide: every tile from it to the finger (in the wall's order) is selected, or
+    /// deselected when the first one already was — as in Photos.
+    /// shortcut: no auto-scroll at the screen's edge; lift, scroll and slide again.
+    private func slideSelect(at point: CGPoint) {
+        guard let hit = tileFrames.first(where: { $0.value.contains(point) })?.key else { return }
+        if slide == nil {
+            let order = sections.flatMap { $0.photos.map(\.id) }
+            guard let i = order.firstIndex(of: hit) else { return }
+            slide = SlideRun(order: order, anchor: i, adding: !selected.contains(hit), base: selected)
+        }
+        guard let run = slide, let i = run.order.firstIndex(of: hit) else { return }
+        var range = Set(run.order[min(run.anchor, i)...max(run.anchor, i)])
+        if let source = model.recipeSourcePhotoID { range.remove(source) }
+        let next = run.adding ? run.base.union(range) : run.base.subtracting(range)
+        if next != selected { selected = next }
+    }
+
     private var wall: some View {
         LazyVGrid(columns: columns, spacing: 3, pinnedViews: [.sectionHeaders]) {
             ForEach(sections, id: \.key) { section in
@@ -581,23 +628,32 @@ struct PhotoLibraryView: View {
                         wallTile(photo)
                     }
                 } header: {
-                    HStack(spacing: 6) {
-                        Text(section.title).font(.system(size: 13, weight: .semibold))
-                        Text("\(section.photos.count) 张").font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Color.labCream.opacity(0.4))
+                    // A floating label, as Photos pins its dates: a full-width bar stuck at the top looked abrupt.
+                    HStack {
+                        HStack(spacing: 6) {
+                            Text(section.title).font(.system(size: 13, weight: .semibold))
+                            Text("\(section.photos.count) 张").font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(Color.labCream.opacity(0.55))
+                        }
+                        .foregroundStyle(Color.labCream)
+                        .padding(.horizontal, 11)
+                        .frame(height: 28)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .background(Color.labInk.opacity(0.35), in: Capsule())
                         Spacer()
                     }
-                    .foregroundStyle(Color.labCream)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 2)
-                    .background(Color.labInk.opacity(0.92))
+                    .padding(.vertical, 6)
                 }
             }
         }
+        .coordinateSpace(.named("wall"))
+        .gesture(SlideSelectRecognizer(enabled: selecting) { slideSelect(at: $0) } ended: { slide = nil })
     }
 
     private func wallTile(_ photo: LibraryPhoto) -> some View {
             Group {
+                // While selecting, a long press starts a slide, not the menu.
+                if selecting { photoTile(photo) } else {
                 photoTile(photo)
                     .contextMenu {
                         Button {
@@ -623,7 +679,10 @@ struct PhotoLibraryView: View {
                             Label("删除", systemImage: "trash")
                         }
                     }
+                }
             }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("wall")) } action: { tileFrames[photo.id] = $0 }
+            .onDisappear { tileFrames[photo.id] = nil }
     }
 
     private func photoTile(_ photo: LibraryPhoto) -> some View {
@@ -664,7 +723,7 @@ struct PhotoLibraryView: View {
                                 Text("HDR").font(.system(size: 6.5, weight: .heavy)).foregroundStyle(Color.labRed)
                             }
                             if columnCount < 5 && !dense {
-                            Text(model.shortFilmName(for: photo.recipe.filmStock))
+                            Text(model.shortFilmName(for: photo.recipe.filmID))
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.92))
                                 .lineLimit(1)
@@ -816,19 +875,18 @@ struct PhotoLibraryView: View {
                         .foregroundStyle(Color.labCream.opacity(0.40))
                 }
                 Spacer()
+                let all = !selectablePhotoIDs.isEmpty && selected == selectablePhotoIDs
                 Button {
-                    selected = selectablePhotoIDs
+                    selected = all ? [] : selectablePhotoIDs
                 } label: {
-                    Text(selected == selectablePhotoIDs && !selectablePhotoIDs.isEmpty
-                         ? "已全选" : "全选")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.labCream.opacity(0.74))
-                        .padding(.horizontal, 12)
+                    Text(all ? "取消全选" : "全选")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.labCream)
+                        .padding(.horizontal, 13)
                         .frame(height: 32)
-                        .background(Color.white.opacity(0.08), in: Capsule())
+                        .background(Color.white.opacity(0.16), in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .disabled(selected == selectablePhotoIDs)
             }
 
             HStack(spacing: 9) {
@@ -878,7 +936,7 @@ struct PhotoLibraryView: View {
                         Image(systemName: "doc.on.clipboard")
                         Text(model.clipboardRecipe == nil ? "先复制一个配方" : "粘贴配方")
                         if let recipe = model.clipboardRecipe {
-                            Text("· \(model.filmName(for: recipe.filmStock))")
+                            Text("· \(model.filmName(for: recipe.filmID))")
                                 .lineLimit(1)
                                 .font(.system(size: 10, weight: .medium))
                                 .opacity(0.62)
@@ -908,14 +966,16 @@ struct PhotoLibraryView: View {
                     Image(systemName: "trash")
                         .font(.system(size: 14, weight: .semibold))
                         .frame(width: 46, height: 46)
-                        .background(Color.white.opacity(0.08), in: Circle())
-                        .foregroundStyle(Color.labCream.opacity(selected.isEmpty ? 0.35 : 0.8))
+                        .background(selected.isEmpty ? Color.white.opacity(0.08) : Color.red.opacity(0.22), in: Circle())
+                        .foregroundStyle(selected.isEmpty ? Color.labCream.opacity(0.35) : Color(red: 1, green: 0.55, blue: 0.5))
                 }
                 .buttonStyle(.plain)
                 .disabled(selected.isEmpty)
             }
         }
         .padding(14)
+        // A dark base under the glass: over bright photos the glass alone washed the buttons out.
+        .background(Color.labInk.opacity(0.72), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .labGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -978,7 +1038,7 @@ struct PhotoLibraryView: View {
             Section("套用配方") {
                 ForEach(model.savedRecipes) { saved in
                     Button { Task { @MainActor in await apply(saved) } } label: {
-                        Label { Text(saved.name); Text(model.filmName(for: saved.recipe.filmStock)) } icon: {
+                        Label { Text(saved.name); Text(model.filmName(for: saved.recipe.filmID)) } icon: {
                             Image(systemName: "wand.and.stars")
                         }
                     }
@@ -1123,5 +1183,97 @@ struct PhotoLibraryView: View {
             .labGlass(in: Capsule())
             .shadow(color: .black.opacity(0.32), radius: 20, y: 8)
         .allowsHitTesting(false)
+    }
+}
+
+/// Slide across the wall to select (as in Photos): a pan that starts sideways selects at once; one that starts up
+/// or down is the scroll view's. While selecting, a finger near the top or bottom edge scrolls the wall on.
+/// UIKit, not a SwiftUI drag: a drag gesture inside the scroll view took every touch on iOS 27.
+struct SlideSelectRecognizer: UIGestureRecognizerRepresentable {
+    var enabled: Bool
+    var moved: (CGPoint) -> Void
+    var ended: () -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let r = UIPanGestureRecognizer()
+        r.delegate = context.coordinator
+        r.maximumNumberOfTouches = 1
+        return r
+    }
+
+    func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        recognizer.isEnabled = enabled
+        context.coordinator.moved = moved
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        let c = context.coordinator
+        switch recognizer.state {
+        case .began, .changed:
+            let wall = context.converter.location(in: .named("wall"))
+            let local = recognizer.location(in: recognizer.view)
+            c.offset = CGPoint(x: wall.x - local.x, y: wall.y - local.y)   // the wall in the recognizer's view
+            c.track(recognizer)
+            moved(wall)
+        default:
+            c.stop()
+            ended()
+        }
+    }
+
+    @MainActor final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var moved: (CGPoint) -> Void = { _ in }
+        var offset = CGPoint.zero
+        private weak var recognizer: UIPanGestureRecognizer?
+        private var link: CADisplayLink?
+
+        /// Sideways first, or it is a scroll.
+        func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+            guard let pan = g as? UIPanGestureRecognizer else { return true }
+            let v = pan.velocity(in: pan.view)
+            return abs(v.x) > abs(v.y)
+        }
+
+        /// The scroll view's pan waits until a sideways start has been ruled out.
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+            other.view is UIScrollView
+        }
+
+        func track(_ r: UIPanGestureRecognizer) {
+            recognizer = r
+            guard link == nil else { return }
+            let l = CADisplayLink(target: self, selector: #selector(tick))
+            l.add(to: .main, forMode: .common)
+            link = l
+        }
+
+        func stop() { link?.invalidate(); link = nil }
+
+        /// Near an edge of the visible wall: scroll that way, faster the closer the finger, and select on.
+        @objc private func tick() {
+            guard let r = recognizer, let view = r.view, let scroll = Self.scrollView(above: view) else { return }
+            let y = r.location(in: scroll).y - scroll.contentOffset.y        // in the visible frame
+            let band: CGFloat = 80
+            let top = scroll.adjustedContentInset.top, bottom = scroll.bounds.height - scroll.adjustedContentInset.bottom
+            var step: CGFloat = 0
+            if y < top + band { step = -(top + band - y) / band * 14 }
+            else if y > bottom - band { step = (y - (bottom - band)) / band * 14 }
+            guard step != 0 else { return }
+            let minY = -scroll.adjustedContentInset.top
+            let maxY = max(minY, scroll.contentSize.height + scroll.adjustedContentInset.bottom - scroll.bounds.height)
+            let next = min(max(scroll.contentOffset.y + step, minY), maxY)
+            guard next != scroll.contentOffset.y else { return }
+            scroll.contentOffset.y = next
+            let local = r.location(in: view)
+            moved(CGPoint(x: local.x + offset.x, y: local.y + offset.y))
+        }
+
+        private static func scrollView(above view: UIView) -> UIScrollView? {
+            var v: UIView? = view
+            while let s = v { if let scroll = s as? UIScrollView { return scroll }; v = s.superview }
+            return nil
+        }
     }
 }

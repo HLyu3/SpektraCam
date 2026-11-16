@@ -51,6 +51,8 @@ final class LightTableRenderer: @unchecked Sendable {
     private let padState: MTLRenderPipelineState
     private let shadowState: MTLRenderPipelineState
     private let stripState: MTLRenderPipelineState
+    /// This app: prints, not transparencies — a film drawn over what is under it, not multiplied with it.
+    private let printState: MTLRenderPipelineState
     private let loupeState: MTLRenderPipelineState
     /// Trilinear and clamped: a film and the figures, mipmapped (`texture(bitmap, true)`).
     private let mipSampler: MTLSamplerState
@@ -93,6 +95,7 @@ final class LightTableRenderer: @unchecked Sendable {
             a.sourceAlphaBlendFactor = .zero; a.destinationAlphaBlendFactor = .one
         }
         loupeState = try state("lt_loupe_vertex", "lt_loupe", normal)
+        printState = try state("lt_vertex", "lt_strip", normal)
 
         let m = MTLSamplerDescriptor()
         m.minFilter = .linear; m.magFilter = .linear; m.mipFilter = .linear
@@ -132,6 +135,8 @@ final class LightTableRenderer: @unchecked Sendable {
         /// An export's look (`LightTableExport`): x 0 the table as drawn; 1 the table alone on nothing
         /// under a window's shadow, whose sigma, drop and strength (mm) are y, z, w; 2 the sheet alone, flat.
         var look = SIMD4<Float>(0, 0, 0, 0)
+        /// This app: films are prints (opaque, laid over each other) rather than slides on the light.
+        var prints = false
         /// The backlight past SDR white, linear (1 = upstream's look); the films lie on it, so they brighten too.
         var glow: Float = 1
     }
@@ -220,7 +225,7 @@ final class LightTableRenderer: @unchecked Sendable {
             var fu = Strip(sizeQuad: SIMD4(Float(w), Float(h), Float(qw), Float(qh)),
                            sheen: SIMD4(scene.sheen.x, scene.sheen.y, scene.sheen.z, camera.bias),
                            misc: SIMD4(Float(f.presence), 0, 0, 0))
-            enc.setRenderPipelineState(stripState)
+            enc.setRenderPipelineState(scene.prints ? printState : stripState)
             enc.setVertexBytes(&fq, length: MemoryLayout<Quad>.stride, index: 0)
             enc.setFragmentBytes(&fu, length: MemoryLayout<Strip>.stride, index: 0)
             enc.setFragmentTexture(texture, index: 0)

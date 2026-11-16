@@ -57,7 +57,7 @@ APP = "SpektraLab"
 PRODUCT_NAME = "SpektraLab"
 IOS_MIN = "27.0"
 MARKETING_VERSION = "2.1.0"
-BUILD_NUMBER = "7"
+BUILD_NUMBER = "8"
 
 # Signing, from the environment: a development certificate is not in this
 # repository and must not be.
@@ -76,6 +76,27 @@ SIGNING_STYLE = os.environ.get("SPEKTRAFILM_SIGNING_STYLE", "Manual")
 # profile exactly -- a profile is issued for one bundle id -- so it is
 # configuration rather than a constant here.
 BUNDLE_ID = os.environ.get("SPEKTRAFILM_BUNDLE_ID") or "io.github.hlyu3.spektracam"
+
+
+# The App Group the share extension hands pictures to the app through.
+GROUP_ID = "group." + BUNDLE_ID
+
+# App extensions: (target/folder name under ios/, product type, embedded in, bundle id suffix, has entitlements,
+# compiles ios/Shared). The share extension feeds the app's Inbox; the control and the capture extension are the
+# Camera Control button's camera (the control runs SpektraCaptureIntent, which all three of its users compile).
+EXTENSIONS = [
+    ("ShareExtension", "com.apple.product-type.app-extension", "plugins", "share", True, False),
+    ("ControlExtension", "com.apple.product-type.app-extension", "plugins", "control", False, True),
+    ("CaptureExtension", "com.apple.product-type.extensionkit-extension", "extensions", "capture", False, True),
+]
+# A side-loaded IPA (SideStore / AltStore re-sign with a new bundle id): those tools rewrite the ids of the
+# extensions in PlugIns/ but not of ExtensionKit extensions in Extensions/, and the install then fails with
+# "Mismatched bundle IDs ... com.….capture". SPEKTRAFILM_SIDELOAD=1 leaves out the capture extension and the
+# Camera Control control that needs it; the share extension stays.
+# Camera Control launch (the control + the capture extension) is off for now (2026-11-16, the owner): SideStore
+# cannot install the capture extension, and the feature is not essential. SPEKTRAFILM_CAMERA_CONTROL=1 builds it in.
+if os.environ.get("SPEKTRAFILM_CAMERA_CONTROL") != "1" or os.environ.get("SPEKTRAFILM_SIDELOAD") == "1":
+    EXTENSIONS = [e for e in EXTENSIONS if e[0] == "ShareExtension"]
 
 
 def uid(key: str) -> str:
@@ -189,6 +210,13 @@ def build() -> str:
     tools_files: list[tuple[str, Path]] = []
     app_group = p.group(ROOT / APP, app_files)
     tools_group = p.group(ROOT / "Tools", tools_files)
+    shared_files: list[tuple[str, Path]] = []
+    shared_group = p.group(ROOT / "Shared", shared_files)
+    ext_files: dict[str, list[tuple[str, Path]]] = {}
+    ext_groups: list[str] = []
+    for name, *_ in EXTENSIONS:
+        ext_files[name] = []
+        ext_groups.append(p.group(ROOT / name, ext_files[name]))
 
     # The engine's translation units, as references outside the project tree.
     engine_files: list[tuple[str, Path]] = []
@@ -216,13 +244,22 @@ def build() -> str:
           f'{{isa = PBXFileReference; explicitFileType = wrapper.application; '
           f'includeInIndex = 0; path = {PRODUCT_NAME}.app; sourceTree = BUILT_PRODUCTS_DIR; }}',
           f"{PRODUCT_NAME}.app")
+    ext_products: dict[str, str] = {}
+    for name, ptype, *_ in EXTENSIONS:
+        ext_products[name] = uid(f"product:{name}")
+        wrapper = "wrapper.extensionkit-extension" if "extensionkit" in ptype else "wrapper.app-extension"
+        p.add(ext_products[name],
+              f'{{isa = PBXFileReference; explicitFileType = "{wrapper}"; '
+              f'includeInIndex = 0; path = {name}.appex; sourceTree = BUILT_PRODUCTS_DIR; }}', f"{name}.appex")
     products = uid("group:products")
+    product_kids = "".join(f",\n\t\t\t\t{pid}" for pid in ext_products.values())
     p.add(products,
-          f'{{\n\t\t\tisa = PBXGroup;\n\t\t\tchildren = (\n\t\t\t\t{app_product}\n\t\t\t);\n'
+          f'{{\n\t\t\tisa = PBXGroup;\n\t\t\tchildren = (\n\t\t\t\t{app_product}{product_kids}\n\t\t\t);\n'
           f'\t\t\tname = Products;\n\t\t\tsourceTree = "<group>";\n\t\t}}', "Products")
     main_group = uid("group:main")
+    ext_kids = "".join(f"\t\t\t\t{g},\n" for g in [shared_group] + ext_groups)
     p.add(main_group,
-          f'{{\n\t\t\tisa = PBXGroup;\n\t\t\tchildren = (\n\t\t\t\t{app_group},\n'
+          f'{{\n\t\t\tisa = PBXGroup;\n\t\t\tchildren = (\n\t\t\t\t{app_group},\n{ext_kids}'
           f'\t\t\t\t{engine_group},\n\t\t\t\t{tools_group},\n\t\t\t\t{products}\n\t\t\t);\n'
           f'\t\t\tsourceTree = "<group>";\n\t\t}}')
 
@@ -248,7 +285,7 @@ def build() -> str:
     # `Resources/` directory makes CoreFoundation classify a shallow iOS app
     # as a deep macOS-style bundle and look for Info.plist in the wrong place.
     is_res = lambda q: q.suffix in (".xcassets", ".png") or q.name == "engine-assets.bin"
-    app_sources = phase("PBXSourcesBuildPhase", app_files + engine_files, is_src, "app-sources")
+    app_sources = phase("PBXSourcesBuildPhase", app_files + shared_files + engine_files, is_src, "app-sources")
     app_resources = phase("PBXResourcesBuildPhase", app_files, is_res, "app-resources")
     app_frameworks = phase("PBXFrameworksBuildPhase", [], lambda q: False, "app-frameworks")
 
@@ -319,7 +356,7 @@ def build() -> str:
     app_cfg = {
         **common,
         "PRODUCT_NAME": PRODUCT_NAME,
-        "PRODUCT_BUNDLE_IDENTIFIER": BUNDLE_ID,
+        "PRODUCT_BUNDLE_IDENTIFIER": '"$(SPEKTRA_APP_ID)"',
         "INFOPLIST_FILE": f"{APP}/Info.plist",
         "CODE_SIGN_ENTITLEMENTS": f"{APP}/{APP}.entitlements",
         "LD_RUNPATH_SEARCH_PATHS": '"$(inherited) @executable_path/Frameworks"',
@@ -420,20 +457,84 @@ def build() -> str:
           'fi\\n";\n'
           '\t\t}', "Prepare compiled resources")
 
-    app_target = uid("target:app")
     project = uid("project")
+    ext_targets: list[str] = []
+    embed = {"plugins": [], "extensions": []}
+    dependencies: list[str] = []
+    for name, ptype, where, suffix, has_ent, uses_shared in EXTENSIONS:
+        files = ext_files[name] + (shared_files if uses_shared else [])
+        sources = phase("PBXSourcesBuildPhase", files, is_src, f"{name}-sources")
+        resources = phase("PBXResourcesBuildPhase", ext_files[name], lambda q: q.suffix == ".xcassets", f"{name}-resources")
+        frameworks = phase("PBXFrameworksBuildPhase", [], lambda q: False, f"{name}-frameworks")
+        settings = {k: common[k] for k in (
+            "SWIFT_VERSION", "SWIFT_STRICT_CONCURRENCY", "IPHONEOS_DEPLOYMENT_TARGET", "SDKROOT",
+            "TARGETED_DEVICE_FAMILY", "CODE_SIGN_STYLE", "CODE_SIGN_IDENTITY", "DEVELOPMENT_TEAM",
+            "CLANG_ENABLE_MODULES", "MARKETING_VERSION", "CURRENT_PROJECT_VERSION", "SWIFT_EMIT_LOC_STRINGS",
+            "GENERATE_INFOPLIST_FILE")}
+        settings.update({
+            "PRODUCT_NAME": name,
+            # The app's id + a suffix, through one project-level variable, so the prefix cannot drift.
+            "PRODUCT_BUNDLE_IDENTIFIER": f'"$(SPEKTRA_APP_ID).{suffix}"',
+            "INFOPLIST_FILE": f"{name}/Info.plist",
+            "SKIP_INSTALL": "YES",
+            "APPLICATION_EXTENSION_API_ONLY": "YES",
+            "LD_RUNPATH_SEARCH_PATHS": '"$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"',
+        })
+        if has_ent:
+            settings["CODE_SIGN_ENTITLEMENTS"] = f"{name}/{name}.entitlements"
+        if PROVISIONING_PROFILE:
+            settings["PROVISIONING_PROFILE_SPECIFIER"] = common["PROVISIONING_PROFILE_SPECIFIER"]
+        tid = uid(f"target:{name}")
+        p.add(tid,
+              f'{{\n\t\t\tisa = PBXNativeTarget;\n'
+              f'\t\t\tbuildConfigurationList = {cfg_list(name, settings)};\n'
+              f'\t\t\tbuildPhases = (\n\t\t\t\t{sources},\n\t\t\t\t{frameworks},\n\t\t\t\t{resources}\n\t\t\t);\n'
+              f'\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n\t\t\t);\n'
+              f'\t\t\tname = {name};\n\t\t\tproductName = {name};\n'
+              f'\t\t\tproductReference = {ext_products[name]};\n'
+              f'\t\t\tproductType = "{ptype}";\n\t\t}}', name)
+        ext_targets.append(tid)
+        proxy = uid(f"proxy:{name}")
+        p.add(proxy, f'{{\n\t\t\tisa = PBXContainerItemProxy;\n\t\t\tcontainerPortal = {project};\n'
+                     f'\t\t\tproxyType = 1;\n\t\t\tremoteGlobalIDString = {tid};\n\t\t\tremoteInfo = {name};\n\t\t}}',
+              "PBXContainerItemProxy")
+        dep = uid(f"dependency:{name}")
+        p.add(dep, f'{{\n\t\t\tisa = PBXTargetDependency;\n\t\t\ttarget = {tid};\n\t\t\ttargetProxy = {proxy};\n\t\t}}',
+              "PBXTargetDependency")
+        dependencies.append(dep)
+        bid = uid(f"build:embed:{name}")
+        p.add(bid, f'{{isa = PBXBuildFile; fileRef = {ext_products[name]}; '
+                   f'settings = {{ATTRIBUTES = (RemoveHeadersOnCopy, ); }}; }}', f"{name}.appex")
+        embed[where].append(f"\t\t\t\t{bid} /* {name}.appex */")
+
+    def embed_phase(where: str, spec: int, dst: str, title: str) -> str:
+        pid = uid(f"phase:app:embed-{where}")
+        p.add(pid,
+              f'{{\n\t\t\tisa = PBXCopyFilesBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n'
+              f'\t\t\tdstPath = "{dst}";\n\t\t\tdstSubfolderSpec = {spec};\n'
+              f'\t\t\tfiles = (\n' + ",\n".join(embed[where]) + '\n\t\t\t);\n'
+              f'\t\t\tname = "{title}";\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t}}', title)
+        return pid
+    # After "Prepare compiled resources": that script clears the executable bit of every file in the bundle.
+    embed_plugins = embed_phase("plugins", 13, "", "Embed Foundation Extensions")
+    embed_extensions = embed_phase("extensions", 16, "$(EXTENSIONS_FOLDER_PATH)", "Embed ExtensionKit Extensions")
+
+    app_target = uid("target:app")
     p.add(app_target,
           f'{{\n\t\t\tisa = PBXNativeTarget;\n'
           f'\t\t\tbuildConfigurationList = {cfg_list("app", app_cfg)};\n'
           f'\t\t\tbuildPhases = (\n\t\t\t\t{check_script},\n\t\t\t\t{app_sources},\n'
           f'\t\t\t\t{app_frameworks},\n\t\t\t\t{app_resources},\n'
-          f'\t\t\t\t{sign_resources_script}\n\t\t\t);\n'
-          f'\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n\t\t\t);\n'
+          f'\t\t\t\t{sign_resources_script},\n\t\t\t\t{embed_plugins},\n\t\t\t\t{embed_extensions}\n\t\t\t);\n'
+          f'\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n'
+          + "".join(f"\t\t\t\t{d},\n" for d in dependencies) + f'\t\t\t);\n'
           f'\t\t\tname = {APP};\n\t\t\tproductName = {APP};\n'
           f'\t\t\tproductReference = {app_product};\n'
           f'\t\t\tproductType = "com.apple.product-type.application";\n\t\t}}', APP)
 
     proj_cfg = cfg_list("project", {
+        # Every target's bundle id starts with this (the app's own id).
+        "SPEKTRA_APP_ID": BUNDLE_ID,
         "SWIFT_VERSION": "6.0", "IPHONEOS_DEPLOYMENT_TARGET": IOS_MIN,
         "SDKROOT": "iphoneos", "ALWAYS_SEARCH_USER_PATHS": "NO",
         "CLANG_ENABLE_OBJC_ARC": "YES", "ENABLE_STRICT_OBJC_MSGSEND": "YES",
@@ -453,7 +554,8 @@ def build() -> str:
           f'\t\t\tmainGroup = {main_group};\n'
           f'\t\t\tproductRefGroup = {products};\n'
           f'\t\t\tprojectDirPath = "";\n\t\t\t\tprojectRoot = "";\n'
-          f'\t\t\ttargets = (\n\t\t\t\t{app_target}\n\t\t\t);\n\t\t}}', "Project object")
+          f'\t\t\ttargets = (\n\t\t\t\t{app_target}' + "".join(f",\n\t\t\t\t{t}" for t in ext_targets)
+          + '\n\t\t\t);\n\t\t}', "Project object")
 
     body = "\n".join(p.objects)
     return (f"// !$*UTF8*$!\n{{\n\tarchiveVersion = 1;\n\tclasses = {{\n\t}};\n"
@@ -546,6 +648,24 @@ def write_infoplist_bundle_id() -> None:
         print(f"wrote {path} (CFBundleIdentifier = {BUNDLE_ID})")
 
 
+def write_entitlements() -> None:
+    """The app's and the share extension's entitlements, with the App Group named from the bundle id."""
+    plist = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+             '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+             '<plist version="1.0">\n<dict>\n{}</dict>\n</plist>\n')
+    group = (f'\t<key>com.apple.security.application-groups</key>\n\t<array>\n'
+             f'\t\t<string>{GROUP_ID}</string>\n\t</array>\n')
+    files = {
+        ROOT / APP / f"{APP}.entitlements": group + '\t<key>com.apple.developer.kernel.increased-memory-limit</key>\n\t<true/>\n',
+        ROOT / "ShareExtension" / "ShareExtension.entitlements": group,
+    }
+    for path, body in files.items():
+        text = plist.format(body)
+        if not path.exists() or path.read_text(encoding="utf-8") != text:
+            path.write_text(text, encoding="utf-8")
+            print(f"wrote {path}")
+
+
 def main() -> None:
     out = ROOT / f"{APP}.xcodeproj" / "project.pbxproj"
     text = build()
@@ -571,6 +691,7 @@ def main() -> None:
         return
 
     write_infoplist_bundle_id()
+    write_entitlements()
     out.parent.mkdir(exist_ok=True)
     out.write_text(text, encoding="utf-8")
     print(f"wrote {out}")

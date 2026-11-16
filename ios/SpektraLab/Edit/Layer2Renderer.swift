@@ -55,7 +55,8 @@ final class Layer2Renderer: @unchecked Sendable {
         identityCurves = curves
     }
 
-    static let previewSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+    /// The preview's space: Display P3, the engine's preview output (`ParamDefaults`) and the canvas's.
+    static let previewSpace = CGColorSpace(name: CGColorSpace.displayP3)!
 
     // MARK: the picture in
 

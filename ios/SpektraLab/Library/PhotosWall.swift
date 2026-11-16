@@ -178,7 +178,7 @@ private struct AssetCell: View {
                 if let linked {
                     HStack(spacing: 4) {
                         if linked.isEdited { Circle().fill(Color.labRed).frame(width: 4, height: 4) }
-                        Text(model.shortFilmName(for: linked.recipe.filmStock))
+                        Text(model.shortFilmName(for: linked.recipe.filmID))
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.92))
                             .lineLimit(1)
@@ -214,7 +214,7 @@ private struct AssetCell: View {
                 guard linked == nil else { return }
                 image = await PhotoAssets.thumbnail(asset, side: 300, manager: images)
             }
-            .accessibilityLabel(linked.map { "已冲洗，\(model.filmName(for: $0.recipe.filmStock))" } ?? "相册照片")
+            .accessibilityLabel(linked.map { "已冲洗，\(model.filmName(for: $0.recipe.filmID))" } ?? "相册照片")
             .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

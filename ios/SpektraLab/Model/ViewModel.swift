@@ -86,6 +86,10 @@ final class ViewModel: ObservableObject {
 
     /// The cheapest work that brings the canvas to the new look.
     private func respond(from a: PhotoRecipe, to b: PhotoRecipe) {
+        if a.noFilm != b.noFilm {
+            reloadPreviewForFilmEffect()     // the film edge may have gone with it: decode the frame again
+            return
+        }
         if a.filmStock != b.filmStock || a.printStock != b.printStock {
             reopenAndRender()
             return
@@ -98,7 +102,11 @@ final class ViewModel: ObservableObject {
         }
         var onlyHDR = a
         onlyHDR.hdr = b.hdr
-        if onlyHDR == b { refreshHDR(); return }
+        if onlyHDR == b {
+            // A slide's HDR changes its develop (the stretch): render again; the render refreshes the HDR.
+            if catalog.stock(b.filmStock)?.type == .positive { paramsDirty = true; scheduleRender() } else { refreshHDR() }
+            return
+        }
         var onlyFinish = a
         onlyFinish.adjustments = b.adjustments
         onlyFinish.hdr = b.hdr
@@ -148,6 +156,11 @@ final class ViewModel: ObservableObject {
         if r.diffusionStrength == 0.5 { r.diffusionStrength = nil }
         if r.lensCharacter?.isEmpty == true { r.lensCharacter = nil }
         if r.lensAmount == 1 { r.lensAmount = nil }
+        if r.noFilm == true {
+            r.hdr = nil                     // no film, no film highlights to lift
+            r.filmBorderEnabled = false     // nor a film edge
+            if r.dateBackPlacement == DateBackPlacement.rebate.rawValue { r.dateBackPlacement = DateBackPlacement.frame.rawValue }
+        } else { r.noFilm = nil }
         return r
     }
 
@@ -261,6 +274,9 @@ final class ViewModel: ObservableObject {
     /// editor's engine session.
     @Published private(set) var libraryBusy: String?
     @Published var libraryMessage: String?
+    /// Files picked again that were all imported before: the wall asks whether to import them anyway.
+    @Published var reimportOffer: ReimportOffer?
+    struct ReimportOffer: Identifiable { let id = UUID(); let urls: [URL]; let count: Int }
     /// The last copied look. Kept in UserDefaults as well as memory, so
     /// closing the app does not lose a recipe the person just copied.
     @Published private(set) var clipboardRecipe: PhotoRecipe?
@@ -277,6 +293,9 @@ final class ViewModel: ObservableObject {
     /// The stocks, in the order the scrolling strip shows them.
     var films: [Stock] { catalog.films + catalog.slides }
     var papers: [Stock] { catalog.papers }
+
+    /// The editor's name for the look: "无胶片" or the film.
+    var currentLookName: String { recipe.noFilm == true ? "无胶片" : currentFilmName }
 
     var currentFilmName: String {
         films.first { $0.id == filmStock }?.name ?? filmStock
@@ -485,7 +504,7 @@ final class ViewModel: ObservableObject {
             }
             await Task.yield()
         }
-        libraryBusy = nil
+        await developImportThumbnails()
         libraryMessage = failed == 0
             ? "已导入 \(imported) 张照片"
             : "已导入 \(imported) 张，\(failed) 张无法读取"
@@ -496,17 +515,14 @@ final class ViewModel: ObservableObject {
     /// Files and folders from the Files app, a memory card or another app. A folder is read through (a card's
     /// DCIM and its subfolders); of a RAW + JPEG pair only the RAW comes in; a file imported before (same name,
     /// size and date) is skipped, so a card can be imported again and only its new frames arrive.
-    func importFiles(from urls: [URL]) async {
+    func importFiles(from urls: [URL], again: Bool = false) async {
         guard !urls.isEmpty else { return }
         var scoped: [URL] = []
         for url in urls where url.startAccessingSecurityScopedResource() { scoped.append(url) }
         defer { for url in scoped { url.stopAccessingSecurityScopedResource() } }
 
         let keys: [URLResourceKey] = [.isDirectoryKey, .contentTypeKey, .fileSizeKey, .contentModificationDateKey]
-        func picture(_ u: URL) -> Bool {
-            let type = (try? u.resourceValues(forKeys: [.contentTypeKey]))?.contentType ?? UTType(filenameExtension: u.pathExtension)
-            return type.map { $0.conforms(to: .image) || $0.conforms(to: .rawImage) } ?? false
-        }
+        func picture(_ u: URL) -> Bool { RAWTypes.isPicture(u) }
         var files: [URL] = []
         for url in urls {
             if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
@@ -518,53 +534,71 @@ final class ViewModel: ObservableObject {
             }
         }
         // RAW + JPEG from one exposure: the RAW is the negative.
-        func isRAW(_ u: URL) -> Bool { UTType(filenameExtension: u.pathExtension)?.conforms(to: .rawImage) ?? false }
+        func isRAW(_ u: URL) -> Bool { RAWTypes.hint(forExtension: u.pathExtension)?.conforms(to: .rawImage) ?? false }
         let rawStems = Set(files.filter(isRAW).map { $0.deletingPathExtension().path.lowercased() })
         files = files.filter { isRAW($0) || !rawStems.contains($0.deletingPathExtension().path.lowercased()) }
         files.sort { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
 
-        var seen = Set(UserDefaults.standard.stringArray(forKey: Self.importedSourcesKey) ?? [])
+        let present = Set(library.compactMap(\.importedFrom))
         func identity(_ u: URL) -> String {
             let v = try? u.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
             return "\(u.lastPathComponent)|\(v?.fileSize ?? 0)|\(Int(v?.contentModificationDate?.timeIntervalSince1970 ?? 0))"
         }
-        let fresh = files.filter { !seen.contains(identity($0)) }
+        let fresh = again ? files : files.filter { !present.contains(identity($0)) }
         let skipped = files.count - fresh.count
         guard !fresh.isEmpty else {
-            libraryMessage = files.isEmpty ? "没有找到照片或 RAW 文件" : "这 \(skipped) 张都导入过了"
+            if files.isEmpty { libraryMessage = "没有找到照片或 RAW 文件" } else { reimportOffer = ReimportOffer(urls: urls, count: skipped) }
             return
         }
         libraryBusy = "正在导入 0/\(fresh.count)"
         var imported = 0
-        var failed = 0
+        var failures: [String] = []
         for (index, url) in fresh.enumerated() {
             libraryBusy = "正在导入 \(index + 1)/\(fresh.count)"
+            NSLog("SpektraLab import: %d/%d %@", index + 1, fresh.count, url.lastPathComponent)
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             do {
                 let data = try Data(contentsOf: url, options: [.mappedIfSafe])
                 guard !data.isEmpty else { throw DecodeError.unreadable("文件为空") }
-                let hint = UTType(filenameExtension: url.pathExtension)
+                let hint = RAWTypes.hint(forExtension: url.pathExtension)
                 try await addPhoto(data: data,
                                    name: url.deletingPathExtension().lastPathComponent,
-                                   typeHint: hint)
-                seen.insert(identity(url))
+                                   typeHint: hint, importedFrom: identity(url))
                 imported += 1
             } catch {
-                failed += 1
+                failures.append("\(url.lastPathComponent)：\(Self.importFailureReason(error, url: url))")
             }
             await Task.yield()
         }
-        // shortcut: the remembered list keeps the last 50,000 files; enough for years of cards.
-        UserDefaults.standard.set(Array(seen.suffix(50_000)), forKey: Self.importedSourcesKey)
-        libraryBusy = nil
+        await developImportThumbnails()
         var parts = ["已导入 \(imported) 张"]
         if skipped > 0 { parts.append("\(skipped) 张导入过，已跳过") }
-        if failed > 0 { parts.append("\(failed) 张无法读取") }
-        libraryMessage = parts.joined(separator: "，")
+        if !failures.isEmpty {
+            importFailures = ImportFailures(summary: parts.joined(separator: "，"), lines: failures)
+        } else {
+            libraryMessage = parts.joined(separator: "，")
+        }
     }
 
-    /// The files brought in from Files or a card (name, size, date), so importing the same card twice skips them.
+    /// Files that did not come in, one line each (name: why), shown in an alert after the import.
+    @Published var importFailures: ImportFailures?
+    struct ImportFailures: Identifiable { let id = UUID(); let summary: String; let lines: [String] }
+
+    /// Why a file did not import, in a few words.
+    private static func importFailureReason(_ error: Error, url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "x3f": return "Sigma Foveon RAW 暂不支持"
+        case "gpr": return "GoPro GPR RAW 暂不支持"
+        default: break
+        }
+        let text = error.localizedDescription
+        if text.contains("Unsupported") { return "这种 RAW 格式读不了" }
+        if text.contains("文件为空") { return "文件是空的" }
+        return "无法读取"
+    }
+
+    /// The old "imported before" list (name|size|mtime), read once by `adoptLegacyImportList`.
     static let importedSourcesKey = "SpektraLab.importedSources"
 
     /// Single-file compatibility entry point for the DEBUG probe.
@@ -574,7 +608,7 @@ final class ViewModel: ObservableObject {
 
     /// Put the bytes on disk, make the wall's thumbnail, and append the photo.
     @discardableResult
-    private func addPhoto(data: Data, name: String, typeHint: UTType?) async throws -> UUID {
+    private func addPhoto(data: Data, name: String, typeHint: UTType?, importedFrom: String? = nil) async throws -> UUID {
         let root = libraryRoot
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let id = UUID()
@@ -584,9 +618,33 @@ final class ViewModel: ObservableObject {
         try data.write(to: originalURL, options: .atomic)
 
         let made = LibraryThumbnail.from(data: data)
+        NSLog("SpektraLab import: ImageIO thumbnail %@", made == nil ? "none" : "ok")
         let thumbnail = made?.0 ?? LibraryThumbnail.placeholder()
-        let width = made?.1 ?? thumbnail.cgImage?.width ?? 0
-        let height = made?.2 ?? thumbnail.cgImage?.height ?? 0
+        var width = made?.1 ?? thumbnail.cgImage?.width ?? 0
+        var height = made?.2 ?? thumbnail.cgImage?.height ?? 0
+        var aspect = Double(thumbnail.size.width / max(thumbnail.size.height, 1))
+        // A RAW ImageIO cannot read (LibRaw's formats): its shape from LibRaw, its thumbnail developed afterwards.
+        // ImageIO's thumbnail of a RAW can be the file's own tiny preview (Mamiya MEF 192×144) or a black one
+        // (Kodak DCR): those are developed after the import too.
+        let poorThumbnail = made.map { t in
+            max(t.0.size.width, t.0.size.height) < 600 || t.0.cgImage.map { ImageDecoder.isBlack(CIImage(cgImage: $0)) } == true
+        } ?? true
+        let needsDevelopedThumbnail = poorThumbnail && typeHint?.conforms(to: .rawImage) == true
+        if needsDevelopedThumbnail {
+            // Nothing here reads it either: refuse it rather than keep a photo that never opens.
+            let frame: DecodedFrame
+            do {
+                frame = try await Task.detached(priority: .userInitiated, operation: {
+                    try ImageDecoder.decode(data: data, maxLongEdge: 1200, typeHint: typeHint)
+                }).value
+            } catch {
+                try? FileManager.default.removeItem(at: originalURL)
+                NSLog("SpektraLab import: refused %@ — %@", name, error.localizedDescription)
+                throw error
+            }
+            width = frame.width; height = frame.height
+            aspect = Double(frame.width) / Double(max(frame.height, 1))
+        }
         try LibraryThumbnail.saveJPEG(thumbnail, to: thumbnailURL(for: id))
 
         let photo = LibraryPhoto(id: id,
@@ -595,14 +653,16 @@ final class ViewModel: ObservableObject {
                                  typeIdentifier: typeHint?.identifier,
                                  pixelWidth: width,
                                  pixelHeight: height,
-                                 sourceAspect: Double(thumbnail.size.width / max(thumbnail.size.height, 1)),
+                                 sourceAspect: aspect,
                                  createdAt: Date(),
                                  recipe: newPhotoRecipe,
                                  frameNumber: CameraBody.takeFrame(),
+                                 importedFrom: importedFrom,
                                  isEdited: false,
                                  thumbnail: thumbnail)
         library.insert(photo, at: 0)
         saveLibraryManifest()
+        if needsDevelopedThumbnail { thumbnailsToDevelop.append(id) }
         return id
     }
 
@@ -643,6 +703,8 @@ final class ViewModel: ObservableObject {
                                   shootingData: shootingDataText)
         // The live tier at the preview size the photo was decoded at (Settings › 预览尺寸).
         delta["preview_long_edge"] = .number(Double(ImageDecoder.previewLongEdge))
+        // A slide with HDR on develops stretched, with one grain seed for both renditions (`HDRSlide`).
+        for (k, v) in HDRSlide.sdrWire(on: isSlideHDR, seed: editingPhotoID?.hashValue ?? 1) { delta[k] = v }
         return delta
     }
 
@@ -887,7 +949,8 @@ final class ViewModel: ObservableObject {
 
     /// A film's or a paper's display name (callers pass either: a roll's paper went through here and showed its id).
     func filmName(for stock: String) -> String {
-        (films.first { $0.id == stock } ?? papers.first { $0.id == stock })?.name ?? stock
+        if stock.isEmpty { return "无胶片" }
+        return (films.first { $0.id == stock } ?? papers.first { $0.id == stock })?.name ?? stock
     }
 
     /// A film's name for a small tile: the maker dropped, two words at most ("Kodak Portra 400" → "Portra 400").
@@ -932,14 +995,62 @@ final class ViewModel: ObservableObject {
                                 assetID: entry.assetID,
                                 exportedAt: entry.exportedAt,
                                 capturedAt: entry.capturedAt,
+                                importedFrom: entry.importedFrom,
                                 isEdited: entry.isEdited,
                                 thumbnail: thumbnail)
         }.sorted { $0.createdAt > $1.createdAt }
+        adoptLegacyImportList()
+    }
+
+    /// Before 2.1.x "imported before" was a list of its own, kept after a delete. Its entries go onto the photos
+    /// still here (an imported copy whose name matches); the rest were deleted and may come in again.
+    private func adoptLegacyImportList() {
+        guard let legacy = UserDefaults.standard.stringArray(forKey: Self.importedSourcesKey) else { return }
+        for key in legacy {
+            let file = String(key.split(separator: "|", maxSplits: 1).first ?? "")
+            let stem = (file as NSString).deletingPathExtension
+            if let i = library.firstIndex(where: { $0.importedFrom == nil && !$0.fileName.isEmpty && !$0.captured && $0.name == stem }) {
+                library[i].importedFrom = key
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: Self.importedSourcesKey)
+        saveLibraryManifest()
     }
 
     /// Reads each photo's shooting date once and keeps it in the manifest (the wall sorts by it):
     /// the Photos asset's date, the original's EXIF, else when it joined the library.
     func fillCaptureDates() async {
+        // Before 2.1.x a 无胶卷 shot was also linked into 底片 (linked + captured: nothing else makes those). It lives
+        // in Photos only now: drop the untouched entries (Photos keeps the picture); edited ones keep their look.
+        // shortcut: one-time cleanup; drop once no old library is left.
+        if editingPhotoID == nil {
+            let plain = Set(library.filter { $0.captured && $0.assetID != nil && !$0.isEdited }.map(\.id))
+            if !plain.isEmpty { deletePhotos(plain) }
+        }
+        // Before 2.1.x an import started on Portra 400 while its thumbnail showed the original: untouched ones
+        // become 无胶片 once (exported or pairs keep their film).
+        let importsKey = "SpektraLab.importsNoFilmDone"
+        if editingPhotoID == nil, !UserDefaults.standard.bool(forKey: importsKey) {
+            for i in library.indices where !library[i].captured && !library[i].isEdited && library[i].exportedAt == nil
+                && library[i].pair == nil && library[i].recipe.noFilm == nil {
+                library[i].recipe.noFilm = true
+            }
+            saveLibraryManifest()
+            UserDefaults.standard.set(true, forKey: importsKey)
+        }
+        // 2.1.0 build 7–8: a roll's look inherited the new-photo 无胶片 flag, so shots on a film roll were kept as
+        // 无胶片. Untouched ones get their roll's film back (once) and a developed thumbnail.
+        let rollKey = "SpektraLab.rollNoFilmFixed"
+        if editingPhotoID == nil, !UserDefaults.standard.bool(forKey: rollKey) {
+            for i in library.indices where library[i].captured && library[i].assetID == nil
+                && !library[i].isEdited && library[i].recipe.noFilm == true {
+                library[i].recipe.noFilm = nil
+                thumbnailsToDevelop.append(library[i].id)
+            }
+            saveLibraryManifest()
+            UserDefaults.standard.set(true, forKey: rollKey)
+            if !thumbnailsToDevelop.isEmpty { await developImportThumbnails() }
+        }
         let missing = library.filter { $0.capturedAt == nil }
         guard !missing.isEmpty else { return }
         var found: [UUID: Date] = [:]
@@ -990,6 +1101,7 @@ final class ViewModel: ObservableObject {
                                  assetID: photo.assetID,
                                  exportedAt: photo.exportedAt,
                                  capturedAt: photo.capturedAt,
+                                 importedFrom: photo.importedFrom,
                                  isEdited: photo.isEdited)
         }
         guard let data = try? JSONEncoder().encode(entries) else { return }
@@ -1094,7 +1206,7 @@ final class ViewModel: ObservableObject {
         clipboardRecipe = photo.recipe
         recipeSourcePhotoID = id
         saveClipboardRecipe(photo.recipe)
-        libraryMessage = "已复制 \(filmName(for: photo.recipe.filmStock)) 配方"
+        libraryMessage = "已复制 \(filmName(for: photo.recipe.filmID)) 配方"
         if let data = try? JSONEncoder().encode(photo.recipe) {
             UIPasteboard.general.string = "spektralab-recipe:v1:" + data.base64EncodedString()
         }
@@ -1170,6 +1282,22 @@ final class ViewModel: ObservableObject {
         libraryMessage = nil
     }
 
+    /// Imports whose thumbnail ImageIO could not make (LibRaw's formats): developed one at a time once the
+    /// import loop is done. Run alongside the loop, RAW decodes overlapped (ImageIO then refused other RAWs'
+    /// thumbnails) and each put back the status it found, leaving "正在导入 11/24" on screen.
+    private var thumbnailsToDevelop: [UUID] = []
+
+    private func developImportThumbnails() async {
+        let ids = thumbnailsToDevelop
+        thumbnailsToDevelop = []
+        for (i, id) in ids.enumerated() {
+            guard let photo = library.first(where: { $0.id == id }) else { continue }
+            libraryBusy = "正在生成缩略图 \(i + 1)/\(ids.count)"
+            await refreshThumbnail(for: id, recipe: photo.recipe)
+        }
+        libraryBusy = nil
+    }
+
     private func refreshThumbnail(for id: UUID, recipe: PhotoRecipe) async {
         guard let index = library.firstIndex(where: { $0.id == id }) else { return }
         let previousBusy = libraryBusy
@@ -1198,6 +1326,16 @@ final class ViewModel: ObservableObject {
         let data = try await originalData(for: photo)
         let hintID = photo.typeIdentifier
         let photoCrop = photo.crop
+        if recipe.noFilm == true {
+            var image = try await Task.detached(priority: .userInitiated) {
+                try Self.plainPicture(data, maxLongEdge: longEdge, crop: photoCrop, space: Layer2Renderer.previewSpace,
+                                      typeHint: hintID.flatMap(UTType.init))
+            }.value
+            if let a = recipe.adjustments, a.isActive, let layer2 = Layer2Renderer.shared {
+                image = try layer2.image(try layer2.source(image), a, space: Layer2Renderer.previewSpace)
+            }
+            return longEdge > 900 ? UIImage(cgImage: image) : LibraryThumbnail.downscale(image)
+        }
         let decoded = try await Task.detached(priority: .userInitiated) {
             try ImageDecoder.decode(data: data,
                                     maxLongEdge: max(1400, longEdge * 5 / 4),
@@ -1384,16 +1522,83 @@ final class ViewModel: ObservableObject {
     /// The film changed: its own paper comes with it (a silver film its silver paper), or the
     /// paper whose preview table was baked for it. `respond` reopens.
     func filmChanged(_ stock: String) {
-        let paired = StockCatalog.pairedPaper(forFilm: stock, in: engine?.resources ?? SpektraEngine.defaultResources())
         edit { r in
+            r.noFilm = nil
             r.filmStock = stock
-            if catalog.isMonochrome(stock) || !catalog.canPrint(film: stock, on: r.printStock),
-               let own = catalog.ownPaper(of: stock) {
-                r.printStock = own
-            } else if let paired {
-                r.printStock = paired
+            r.printStock = paper(for: stock)     // as a shot on this film prints (camera roll: the same rule)
+        }
+    }
+
+    /// The paper a film prints on when it is chosen — the editor and a camera roll use this one rule, so a shot and
+    /// the same film picked later match. A silver film: its own paper; else the recommended paper last picked for it
+    /// in the camera's 冲印 menu, or its first (`StockCatalog.recommendedPapers`); else Crystal Archive. A paper
+    /// outside the recommendations, picked in the camera, lasts one visit (`CameraView.paperPick`).
+    func paper(for film: String) -> String {
+        if catalog.isMonochrome(film), let own = catalog.ownPaper(of: film) { return own }
+        let recommended = StockCatalog.recommendedPapers(for: film).filter { catalog.canPrint(film: film, on: $0) }
+        // One of its recommended papers picked in the camera's 冲印 menu stays this film's paper.
+        if let picked = UserDefaults.standard.string(forKey: StockCatalog.filmPaperKey(film)), recommended.contains(picked) {
+            return picked
+        }
+        if let first = recommended.first { return first }
+        return catalog.canPrint(film: film, on: StockCatalog.defaultPaper) ? StockCatalog.defaultPaper
+            : (catalog.ownPaper(of: film) ?? StockCatalog.factoryPaper)
+    }
+
+    func chooseNoFilm() { edit { $0.noFilm = true } }
+
+    /// 无胶片: the original as the system renders it (RAW with its default look), scaled to `maxLongEdge`,
+    /// cut by the photo's crop, in `space`, 16-bit.
+    nonisolated static func plainPicture(_ data: Data, maxLongEdge: Int, crop: FrameCrop?,
+                                         space: CGColorSpace, typeHint: UTType? = nil) throws -> CGImage {
+        var image = CIImage(data: data, options: [.applyOrientationProperty: true])
+        // ImageIO's own size: a RAW Core Image cannot develop comes back nil or as its embedded preview.
+        let props = CGImageSourceCreateWithData(data as CFData, nil)
+            .flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] }
+        let declared = max(props?[kCGImagePropertyPixelWidth] as? Int ?? 0, props?[kCGImagePropertyPixelHeight] as? Int ?? 0)
+        let isRAW = typeHint?.conforms(to: .rawImage) == true
+        // A RAW under 1024 px is its embedded preview (Mamiya MEF's 192×144 TIFF, which ImageIO also declares).
+        if image.map({ let long = Int(max($0.extent.width, $0.extent.height))
+            return long * 2 < declared || (isRAW && (long < 1024 || ImageDecoder.isBlack($0))) }) ?? true {
+            image = try linearImage(ImageDecoder.decode(data: data, maxLongEdge: maxLongEdge, typeHint: typeHint))
+        }
+        guard var image else { throw DecodeError.unreadable("无法读取原图") }
+        let long = max(image.extent.width, image.extent.height)
+        if long > CGFloat(maxLongEdge) {
+            let s = CGFloat(maxLongEdge) / long
+            image = image.transformed(by: CGAffineTransform(scaleX: s, y: s))
+        }
+        let context = CIContext(options: [.cacheIntermediates: false])
+        let r = image.extent.integral
+        guard let whole = context.createCGImage(image, from: r, format: .RGBA16, colorSpace: space) else {
+            throw DecodeError.unreadable("无法渲染原图")
+        }
+        guard let crop, !crop.isIdentity else { return whole }
+        return crop.render(whole, space: space) ?? whole
+    }
+
+    /// A decoded frame (linear ProPhoto floats, LibRaw's for the formats Core Image cannot read) as a CIImage.
+    nonisolated private static func linearImage(_ frame: DecodedFrame) throws -> CIImage {
+        guard let linear = ImageDecoder.linearProPhoto else { throw DecodeError.unreadable("ProPhoto RGB is unavailable") }
+        let n = frame.width * frame.height
+        var rgba = [Float16](repeating: 1, count: n * 4)
+        frame.pixels.withUnsafeBufferPointer { p in
+            // LibRaw's frame is the bare sensor exposure, with none of the lift a camera's own rendering adds (a
+            // Kodak DCR looked dark next to the same photo on film, which the engine meters). Meter it like the
+            // film path: log-average luminance to 18 % grey, within ±2 EV.
+            var sum = 0.0, count = 0
+            for i in stride(from: 0, to: n, by: 7) {
+                let y = 0.288 * Double(p[i * 3]) + 0.712 * Double(p[i * 3 + 1])   // ProPhoto luminance
+                sum += log(max(y, 1e-4)); count += 1
+            }
+            let gain = Float(min(max(0.18 / exp(sum / Double(max(count, 1))), 0.25), 4))
+            for i in 0..<n {
+                rgba[i * 4] = Float16(p[i * 3] * gain); rgba[i * 4 + 1] = Float16(p[i * 3 + 1] * gain)
+                rgba[i * 4 + 2] = Float16(p[i * 3 + 2] * gain)
             }
         }
+        return CIImage(bitmapData: rgba.withUnsafeBufferPointer { Data(buffer: $0) }, bytesPerRow: frame.width * 8,
+                       size: CGSize(width: frame.width, height: frame.height), format: .RGBAh, colorSpace: linear)
     }
 
     func paperChanged(_ stock: String) {
@@ -1489,7 +1694,19 @@ final class ViewModel: ObservableObject {
             let changed = currentEngineDelta()
             let layer2 = adjustments.isActive ? Layer2Renderer.shared : nil
             let look = previewAdjustments
+            let plain: CGImage?
+            if recipe.noFilm == true, let data = originalData {
+                let edge = ImageDecoder.previewLongEdge, c = crop, hint = originalTypeHint
+                plain = try await Task.detached(priority: .userInitiated) {
+                    try Self.plainPicture(data, maxLongEdge: edge, crop: c, space: Layer2Renderer.previewSpace, typeHint: hint)
+                }.value
+            } else { plain = nil }
             let result = try await engine.perform { () -> PreviewFrame in
+                if let plain, let layer2 = Layer2Renderer.shared {
+                    let source = try layer2.source(plain)
+                    return PreviewFrame(texture: try layer2.texture(source, look), source: source,
+                                        width: plain.width, height: plain.height, elapsedMs: 0, progressID: "")
+                }
                 if dirty {
                     _ = try engine.setParams(changed)
                     // The exposure has to be recomputed when the
@@ -1547,7 +1764,43 @@ final class ViewModel: ObservableObject {
 
     /// The canvas follows the photo's switch: the session's curve asked again (it follows the paper, the
     /// exposure and the enlarger; cached by the engine), or HDR off.
+    /// A slide (scanned, never printed) with HDR on and no 后期: its HDR is its two renditions' ratio. With 后期 on,
+    /// the ratio of the engine's pictures would lift what the edit put down (upstream's review), so the curve.
+    var isSlideHDR: Bool {
+        recipe.hdr == true && catalog.stock(recipe.filmStock)?.type == .positive && !adjustments.isActive
+    }
+
+    /// The slide's two renditions on the preview session, and the canvas's gain from them.
+    private func refreshSlideGain() {
+        guard isSlideHDR, let engine, let device = renderer?.device else { renderer?.setSlideGain(nil, top: 1); return }
+        Task { @MainActor in
+            do {
+                let (sdr, hdr) = try await engine.perform { () -> (CGImage, CGImage) in
+                    let s = try engine.renderBitmap(tier: "live", reprint: true).cgImage
+                    _ = try engine.setParams(HDRSlide.renditionDelta)
+                    defer { _ = try? engine.setParams(HDRSlide.restoreDelta) }
+                    let h = try engine.renderBitmap(tier: "live", reprint: true).cgImage
+                    return (s, h)
+                }
+                let plane = await Task.detached(priority: .userInitiated) { HDRSlide.gainPlane(sdr: sdr, hdr: hdr) }.value
+                guard isSlideHDR, let plane else { renderer?.setSlideGain(nil, top: 1); return }
+                let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r32Float, width: plane.width, height: plane.height, mipmapped: false)
+                guard let tex = device.makeTexture(descriptor: d) else { return }
+                plane.log2Gain.withUnsafeBytes {
+                    tex.replace(region: MTLRegionMake2D(0, 0, plane.width, plane.height), mipmapLevel: 0,
+                                withBytes: $0.baseAddress!, bytesPerRow: plane.width * 4)
+                }
+                renderer?.setSlideGain(tex, top: plane.top)
+                NSLog("SpektraLab hdr: slide gain %dx%d, top %.2f", plane.width, plane.height, plane.top)
+            } catch {
+                NSLog("SpektraLab hdr: slide renditions failed — %@", String(describing: error))
+                renderer?.setSlideGain(nil, top: 1)
+            }
+        }
+    }
+
     func refreshHDR() {
+        refreshSlideGain()
         guard recipe.hdr == true, editingPhotoID != nil else {
             renderer?.setHDR(nil)
             if hdrAnswer != nil { hdrAnswer = nil }
@@ -1593,7 +1846,7 @@ final class ViewModel: ObservableObject {
                                         kCGImageSourceCreateThumbnailWithTransform: true,
                                         kCGImageSourceThumbnailMaxPixelSize: 2048]
         guard let whole = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary) else { return fail("no thumbnail") }
-        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+        guard let space = Layer2Renderer.previewSpace as CGColorSpace?,     // the canvas's space
               let image = crop.isIdentity ? whole : crop.render(whole, space: space),
               let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
                                       bytesPerRow: image.width * 4, space: space,
@@ -1688,7 +1941,11 @@ final class ViewModel: ObservableObject {
     var newPhotoRecipe: PhotoRecipe {
         guard UserDefaults.standard.bool(forKey: Self.newPhotoKey),
               let data = UserDefaults.standard.data(forKey: Self.lastRecipeKey),
-              let recipe = try? JSONDecoder().decode(PhotoRecipe.self, from: data) else { return .standard }
+              let recipe = try? JSONDecoder().decode(PhotoRecipe.self, from: data) else {
+            var plain = PhotoRecipe.standard
+            plain.noFilm = true          // an import starts as itself; the owner picks a film when developing
+            return plain
+        }
         return recipe
     }
 
@@ -1751,6 +2008,8 @@ final class ViewModel: ObservableObject {
     static let reopenKey = "SpektraLab.reopenTo"
     /// Set when the app should show the camera; the wall presents it and clears this.
     @Published var cameraRequested = false
+    /// `collectHandedOver` running.
+    var handingOver = false
     private var backgroundedAt: Date?
     private var launched = false
 
@@ -1758,6 +2017,8 @@ final class ViewModel: ObservableObject {
         let away = backgroundedAt.map { Date().timeIntervalSince($0) } ?? 0
         backgroundedAt = nil
         pruneExpiredNegatives()
+        takeCameraRequestFromIntent()
+        Task { await collectHandedOver() }
         guard !launched || away >= 120 else { return }
         launched = true
         let target = UserDefaults.standard.string(forKey: Self.reopenKey)
@@ -1779,8 +2040,8 @@ final class ViewModel: ObservableObject {
     /// the engine. Colour and tone only — the chart is developed with every spatial effect off
     /// (grain, halation, glare, lens, leaks, edge), on a 300 mm "film" so the couplers' 20–200 µm
     /// diffusion stays inside one sample's 8 × 8 block.
-    func viewfinderLUT(roll: String) async -> Data? {
-        guard var look = rollRecipe(roll) else { return nil }
+    func viewfinderLUT(roll: String, paper: String? = nil) async -> Data? {
+        guard var look = rollRecipe(roll, paper: paper) else { return nil }
         // A shot being developed holds the engine; the chart waits its turn.
         while batchExporting || exporting { try? await Task.sleep(nanoseconds: 300_000_000) }
         let key = (try? JSONEncoder().encode(look)).map { $0.base64EncodedString() } ?? roll
@@ -1833,7 +2094,8 @@ final class ViewModel: ObservableObject {
                     _ = try engine.open(pixels: EnginePixels(data: base, width: side, height: side), params: openDelta)
                 }
                 try engine.solve(target: "both")
-                return try engine.renderBitmap(tier: "full", reprint: false)
+                // The chart is developed to sRGB (its delta says so): tagged so, not as the preview's P3.
+                return try engine.renderBitmap(tier: "full", reprint: false, colorSpace: CGColorSpace(name: CGColorSpace.sRGB))
             }
             var chartImage = bitmap.cgImage
             if finish.isActive, let layer2 = Layer2Renderer.shared {
@@ -1895,10 +2157,9 @@ final class ViewModel: ObservableObject {
         do {
             let uti = isRAW ? "com.adobe.raw-image" : UTType.heic.identifier
             let assetID = try await PhotoAssets.save(data, uti: uti)
-            guard let id = await linkAsset(assetID), let i = library.firstIndex(where: { $0.id == id }) else { return nil }
-            library[i].captured = true
-            saveLibraryManifest()
-            return library[i].thumbnail
+            // 无胶卷: Photos only, not 底片 (open it from the 系统相册 view to develop it).
+            guard let asset = PhotoAssets.asset(assetID) else { return nil }
+            return await PhotoAssets.thumbnail(asset, side: LibraryThumbnail.maxPixel)
         } catch {
             libraryMessage = "照片没能存进相册：\(error.localizedDescription)"
             return nil
@@ -2103,7 +2364,8 @@ final class ViewModel: ObservableObject {
             let frameCrop = crop
             let memoryCap = Self.exportLongEdgeCap(for: data)
             if let memoryCap { NSLog("SpektraLab export: memory caps the long edge at %d px", memoryCap) }
-            var decoded: DecodedFrame? = try await Task.detached(priority: .userInitiated) {
+            let noFilm = recipe.noFilm == true
+            var decoded: DecodedFrame? = noFilm ? nil : try await Task.detached(priority: .userInitiated) {
                 if frameCrop.isIdentity {
                     return try ImageDecoder.decode(data: data,
                                                    maxLongEdge: memoryCap ?? ImageDecoder.exportLongEdge,
@@ -2115,7 +2377,7 @@ final class ViewModel: ObservableObject {
                                                   typeHint: hint).applying(frameCrop)
                 return cropAspect.map { cut.centerCropped(toTargetAspect: $0) } ?? cut
             }.value
-            stage("全尺寸渲染 \(decoded!.width)×\(decoded!.height)")
+            if let decoded { stage("全尺寸渲染 \(decoded.width)×\(decoded.height)") }
 
             var exportDelta = currentOpenDelta()
             exportDelta["output_color_space"] = .string(options.colorSpace.engineName)
@@ -2126,9 +2388,19 @@ final class ViewModel: ObservableObject {
             let openDelta = exportDelta
             let space = options.colorSpace
 
+            // 无胶片: the system's own rendering of the original stands in for the engine's print.
+            var plainImage: CGImage?
+            if noFilm {
+                stage("原图（无胶片）")
+                let tag = space.cgColorSpace ?? Layer2Renderer.previewSpace
+                let edge = memoryCap ?? ImageDecoder.exportLongEdge ?? Int.max
+                plainImage = try await Task.detached(priority: .userInitiated) {
+                    try Self.plainPicture(data, maxLongEdge: edge, crop: frameCrop, space: tag, typeHint: hint)
+                }.value
+            }
             // The engine copies the pixels it keeps during `open`, so the float frame (~600 MB at
             // 48 MP) is let go right after it, before the full-size render needs the room.
-            try await engine.perform { [full = decoded!] in
+            if !noFilm { try await engine.perform { [full = decoded!] in
                 try full.pixels.withUnsafeBufferPointer { buffer in
                     guard let base = buffer.baseAddress else {
                         throw EngineError.failed(status: -1, message: "解码结果为空")
@@ -2139,9 +2411,10 @@ final class ViewModel: ObservableObject {
                         height: full.height), params: openDelta)
                 }
             }
+            }
             decoded = nil
-            stage("引擎已载入原图")
-            var rendered: RenderedBitmap? = try await engine.perform {
+            if !noFilm { stage("引擎已载入原图") }
+            var rendered: RenderedBitmap? = noFilm ? nil : try await engine.perform {
                 try engine.solve(target: "both")
                 let bitmap = try engine.renderBitmap(tier: "full", reprint: false,
                                                      colorSpace: space.cgColorSpace)
@@ -2152,13 +2425,14 @@ final class ViewModel: ObservableObject {
             }
             // Enable HDR: the export session's own curve (the same medium as the page's), asked on its queue.
             var hdrCurve: HDRSessionCurve?
-            if recipe.hdr == true, options.format == .jpeg || options.format == .heif, HDRGainMap.supported {
+            if !noFilm, recipe.hdr == true, options.format == .jpeg || options.format == .heif, HDRGainMap.supported {
                 hdrCurve = try? HDRSessionCurve.parse(await engine.perform { try engine.hdrCurve() })
                 NSLog("SpektraLab export: HDR curve %@", hdrCurve == nil ? "refused" : "ok")
             }
 
-            let bitmap = (width: rendered!.width, height: rendered!.height)
-            var cgImage = rendered!.cgImage
+            var cgImage = plainImage ?? rendered!.cgImage
+            let bitmap = (width: cgImage.width, height: cgImage.height)
+            plainImage = nil
             // Memory (iPhone, 25 MP): the full-size session holds ~1.8 GB until the engine
             // reopens. Copy the print out (16-bit, ~200 MB), let the session go back to the
             // small preview one, and only then run 后期 and encode — with all of it held at
@@ -2188,7 +2462,22 @@ final class ViewModel: ObservableObject {
             stage("编码 \(options.format.title) \(bitmap.width)×\(bitmap.height)")
             let source: Data? = options.keepMetadata ? data : nil
             var gainMap: HDRGainMap.Attachment?
-            if let hdrCurve {
+            if isSlideHDR, reopened, options.format == .jpeg || options.format == .heif, HDRGainMap.supported,
+               let engine = self.engine {
+                // A slide: the ratio of its two renditions on the (reopened) preview session, at the preview's size.
+                stage("HDR 增益图（反转片）")
+                if let pair = try? await engine.perform({ () -> (CGImage, CGImage) in
+                    let s = try engine.renderBitmap(tier: "live", reprint: true).cgImage
+                    _ = try engine.setParams(HDRSlide.renditionDelta)
+                    defer { _ = try? engine.setParams(HDRSlide.restoreDelta) }
+                    return (s, try engine.renderBitmap(tier: "live", reprint: true).cgImage)
+                }) {
+                    gainMap = await Task.detached(priority: .userInitiated) {
+                        HDRSlide.gainPlane(sdr: pair.0, hdr: pair.1).flatMap(HDRSlide.attachment)
+                    }.value
+                }
+            }
+            if gainMap == nil, let hdrCurve {
                 stage("HDR 增益图")
                 let picture = cgImage
                 gainMap = await Task.detached(priority: .userInitiated) { HDRExport.attachment(for: picture, curve: hdrCurve) }.value

@@ -87,7 +87,7 @@ enum LightTableFrames {
     /// film by default), and a crop is a smaller piece of that negative.
     static func sizeMM(of photo: LibraryPhoto, print: Bool = false) -> CGSize {
         let aspect = max(photo.aspect, 0.01)               // the thumbnail as shown, crop and edge included
-        // Print size (this app's default): a 5-inch print, 127 mm on its long side, whatever the negative.
+        // Print size (chosen in ⋯): a 5-inch print, 127 mm on its long side, whatever the negative.
         if print { return aspect >= 1 ? CGSize(width: 127, height: 127 / aspect) : CGSize(width: 127 * aspect, height: 127) }
         let r = photo.recipe
         if r.filmBorderEnabled {

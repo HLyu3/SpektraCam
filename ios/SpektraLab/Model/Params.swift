@@ -196,7 +196,9 @@ enum ParamDefaults {
             // colour conversion, and the app does not invent one.
             "input_color_space": .string("ProPhoto RGB"),
             "input_cctf_decoding": .bool(false),
-            "output_color_space": .string("sRGB"),
+            // Display P3 (2026-11-16): the iPhone's own photos and screen are P3, and the export defaults to it; an
+            // sRGB preview pulled the film's saturated colours in and looked flatter than the exported print.
+            "output_color_space": .string("Display P3"),
             "output_cctf_encoding": .bool(true),
             FilmParam.filmStock.key: .string(film),
             FilmParam.printStock.key: .string(paper),

@@ -66,6 +66,16 @@ final class CanvasRenderer: NSObject, MTKViewDelegate {
     private var localToneOf: ObjectIdentifier?
     private var loggedHDR: ObjectIdentifier?
 
+    /// A slide's gain (log2, r32Float, the preview's size) and its top: drawn instead of the curve while set.
+    private var slideGain: MTLTexture?
+    private var slideTop = 1.0
+
+    func setSlideGain(_ texture: MTLTexture?, top: Double) {
+        slideGain = texture
+        slideTop = top
+        redraw?()
+    }
+
     /// Turn HDR on with the session's tables, or off with nil.
     func setHDR(_ tables: HDRGrainGain.Tables?) {
         guard tables != hdr else { return }
@@ -304,7 +314,13 @@ final class CanvasRenderer: NSObject, MTKViewDelegate {
         // HDR: the screen's share of the curve's headroom (the curve is written for H; a screen with less shows less).
         var params = SIMD8<Float>(repeating: 0)
         var tableBytes = [Float](repeating: 0, count: 512)
-        if let hdr {
+        if let slideGain {
+            let screen = Double(view.window?.screen.potentialEDRHeadroom ?? 1)
+            let top = log2(max(slideTop, 1.0001))
+            let weight = Float(min(1, max(0, log2(max(screen, 1)) / top)))
+            params = SIMD8(0, 0, Float(top), 0, 0, 0, weight, 2)
+            encoder.setFragmentTexture(slideGain, index: 1)
+        } else if let hdr {
             if localToneOf != ObjectIdentifier(texture) {
                 // The local tone is made on its own buffer first, so this frame's encoder can read it.
                 if let cb = queue.makeCommandBuffer() { makeLocalTone(for: texture, commandBuffer: cb); cb.commit() }
@@ -326,7 +342,7 @@ final class CanvasRenderer: NSObject, MTKViewDelegate {
         }
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentTexture(texture, index: 0)
-        encoder.setFragmentTexture(localTone ?? texture, index: 1)
+        if params[7] < 1.5 { encoder.setFragmentTexture(localTone ?? texture, index: 1) }
         encoder.setFragmentBytes(&params, length: MemoryLayout<SIMD8<Float>>.stride, index: 2)
         tableBytes.withUnsafeBytes { encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 3) }
         if let transformBuffer {

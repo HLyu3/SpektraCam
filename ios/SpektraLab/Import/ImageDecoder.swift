@@ -244,6 +244,11 @@ enum ImageDecoder {
     static func decode(data: Data, maxLongEdge: Int?, typeHint: UTType? = nil,
                        aspect: CGFloat? = nil, targetAspect: CGFloat? = nil) throws -> DecodedFrame {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            // A RAW ImageIO does not open at all (Sigma X3F, Kodak, Mamiya…): LibRaw reads it.
+            if typeHint?.conforms(to: .rawImage) == true {
+                return try decodeWithLibRaw(data: data, typeHint: typeHint, identifier: typeHint?.identifier,
+                                            maxLongEdge: maxLongEdge, aspect: aspect, targetAspect: targetAspect)
+            }
             throw DecodeError.unreadable("not an image this system recognises")
         }
         let callerTypeHint = typeHint
@@ -269,6 +274,7 @@ enum ImageDecoder {
 #else
             let forceLibRaw = false
 #endif
+            NSLog("SpektraLab decode: Core Image RAW %@", identifier ?? "?")
             if !forceLibRaw, let output = SPKDecodeRAWImage(data, identifier) {
                 // A filter object can exist while its `outputImage` is empty,
                 // and iOS can also answer with an embedded thumbnail instead
@@ -281,6 +287,9 @@ enum ImageDecoder {
                 if !isPlausibleRAWExtent(output.extent, declared: declared) {
                     NSLog("SpektraLab Core Image RAW returned %dx%d; using LibRaw",
                           Int(output.extent.width), Int(output.extent.height))
+                } else if isBlack(output) {
+                    // iOS 27 develops some files (Fujifilm X-T30 II compressed RAF) to black; the Mac does not.
+                    NSLog("SpektraLab Core Image RAW returned black; using LibRaw")
                 } else {
                     do {
                         return try pixels(from: output, maxLongEdge: maxLongEdge,
@@ -344,8 +353,14 @@ enum ImageDecoder {
                                          aspect: CGFloat?, targetAspect: CGFloat?) throws -> DecodedFrame {
         var width = 0
         var height = 0
+        NSLog("SpektraLab decode: LibRaw %@", identifier ?? "?")
+        defer { NSLog("SpektraLab decode: LibRaw done %dx%d", width, height) }
         let suffix = typeHint?.preferredFilenameExtension
             ?? UTType(identifier ?? "")?.preferredFilenameExtension
+        // Formats the bundled LibRaw 0.22 does not read: Foveon X3F (dropped in 0.21) and GoPro GPR (needs the GPR SDK).
+        let ext = (typeHint?.preferredFilenameExtension ?? "").lowercased()
+        if ext == "x3f" || identifier?.contains("x3f") == true { throw DecodeError.unreadable("暂不支持 Sigma Foveon（X3F）RAW") }
+        if ext == "gpr" || identifier == "com.gopro.gpr" { throw DecodeError.unreadable("暂不支持 GoPro GPR RAW") }
         guard let decoded = SPKLibRawDecode(
             data,
             suffix,
@@ -449,6 +464,17 @@ enum ImageDecoder {
     /// scale factor. The fixed floor catches files where iOS reports the
     /// preview's size as the file's size too -- Nikon NEF does exactly that
     /// on iOS 27, with a 160x120 "native" frame for a 6048x4024 sensor.
+    /// Every pixel (near) black: a develop that failed without saying so.
+    static func isBlack(_ image: CIImage) -> Bool {
+        guard let average = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: image,
+                                     kCIInputExtentKey: CIVector(cgRect: image.extent)])?.outputImage else { return false }
+        var px = [Float](repeating: 0, count: 4)
+        CIContext(options: [.cacheIntermediates: false])
+            .render(average, toBitmap: &px, rowBytes: 16, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                    format: .RGBAf, colorSpace: nil)
+        return max(px[0], px[1], px[2]) < 0.0005
+    }
+
     private static func isPlausibleRAWExtent(_ extent: CGRect, declared: CGSize?) -> Bool {
         guard !extent.isInfinite, !extent.isEmpty else { return false }
         let outputLongEdge = max(extent.width, extent.height)
@@ -471,7 +497,7 @@ enum ImageDecoder {
     /// Decode an image from a file URL.
     static func decode(url: URL, maxLongEdge: Int?) throws -> DecodedFrame {
         let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-        let hint = UTType(filenameExtension: url.pathExtension)
+        let hint = RAWTypes.hint(forExtension: url.pathExtension)
         return try decode(data: data, maxLongEdge: maxLongEdge, typeHint: hint)
     }
 

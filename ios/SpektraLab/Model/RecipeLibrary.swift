@@ -31,10 +31,21 @@ extension ViewModel {
     @discardableResult
     func saveCurrentRecipe(named name: String) -> SavedRecipe {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        let saved = SavedRecipe(name: trimmed.isEmpty ? currentFilmName : trimmed, recipe: currentRecipe)
+        let saved = SavedRecipe(name: trimmed.isEmpty ? currentLookName : trimmed, recipe: currentRecipe)
         savedRecipes.insert(saved, at: 0)
         storeSavedRecipes()
         libraryMessage = "已存为配方「\(saved.name)」"
+        return saved
+    }
+
+    /// Keep a film + paper combination from the camera (a roll's whole look) under a name; it joins the roll shelf.
+    @discardableResult
+    func saveCombination(_ look: PhotoRecipe, named name: String) -> SavedRecipe {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let fallback = "\(shortFilmName(for: look.filmStock)) · \(shortFilmName(for: look.printStock))"
+        let saved = SavedRecipe(name: trimmed.isEmpty ? fallback : trimmed, recipe: look)
+        savedRecipes.insert(saved, at: 0)
+        storeSavedRecipes()
         return saved
     }
 
@@ -63,15 +74,18 @@ extension ViewModel {
 
     /// The whole look a roll develops with: a saved recipe as it is, or a film with its own paper on
     /// the new-photo look. Nil for no film.
-    func rollRecipe(_ roll: String) -> PhotoRecipe? {
+    /// `paper`: one chosen in the camera's 冲印 menu for this visit (else the film's recommended paper).
+    func rollRecipe(_ roll: String, paper chosen: String? = nil) -> PhotoRecipe? {
         if roll.isEmpty { return nil }
         if roll.hasPrefix("recipe:"), let id = UUID(uuidString: String(roll.dropFirst(7))),
            let saved = savedRecipes.first(where: { $0.id == id }) {
             return saved.recipe
         }
         var look = newPhotoRecipe
+        look.noFilm = nil          // a film roll: the new-photo look is 无胶片 by default, the roll is not
         look.filmStock = films.contains { $0.id == roll } ? roll : StockCatalog.defaultFilm
-        look.printStock = catalog.ownPaper(of: look.filmStock) ?? StockCatalog.defaultPaper
+        look.printStock = chosen.flatMap { catalog.canPrint(film: look.filmStock, on: $0) ? $0 : nil }
+            ?? paper(for: look.filmStock)     // as the editor picks it for this film
         return look
     }
 

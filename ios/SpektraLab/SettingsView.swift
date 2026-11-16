@@ -1,5 +1,6 @@
 //  SettingsView.swift — the app's settings: the camera and its roll, feedback, new photos, storage.
 
+import Photos
 import SwiftUI
 
 struct SettingsView: View {
@@ -106,7 +107,7 @@ struct SettingsView: View {
                 } header: {
                     Text("冲洗")
                 } footer: {
-                    Text("“上次使用”：新导入或新拍的照片，套用最近一次在编辑页调好的配方（拍摄时胶片仍按装好的胶卷）。\n预览尺寸：编辑时画面的长边；越大越清楚，拖动时越慢，下次打开照片时生效。导出始终是全尺寸。\n镜头校正：只对 RAW，按照片里记录的相机数据校正畸变和暗角；ProRAW 和大多数 DNG 都带这份数据。")
+                    Text("“上次使用”：新导入或新拍的照片，套用最近一次在编辑页调好的配方（拍摄时胶片仍按装好的胶卷）。\n相纸：选胶片时（拍照和编辑都一样）用这卷胶片的推荐相纸，没有推荐的用 Crystal Archive；黑白胶片用自己的黑白相纸。拍照页胶卷名下面的“相纸”按钮里选了推荐相纸中的另一张，以后这卷胶片就用它；选推荐以外的相纸只在这次拍摄有效，想固定请存成配方；编辑时换的相纸只影响那一张。\n预览尺寸：编辑时画面的长边；越大越清楚，拖动时越慢，下次打开照片时生效。导出始终是全尺寸。\n镜头校正：只对 RAW，按照片里记录的相机数据校正畸变和暗角；ProRAW 和大多数 DNG 都带这份数据。")
                 }
 
                 Section {
@@ -115,6 +116,7 @@ struct SettingsView: View {
                         Text("系统相册").tag("photos")
                     }
                     .onChange(of: source) { _, new in filter = new == "photos" ? "photos" : "all" }
+                    PhotoAccessRow()
                     LabeledContent("储存空间", value: storage)
                     Button(cleanable.count == 0 ? "没有可清理的底片"
                            : String(format: "清理已导出的底片 · %d 张 · %.0f MB", cleanable.count, Double(cleanable.bytes) / 1_048_576)) {
@@ -132,7 +134,7 @@ struct SettingsView: View {
                 } header: {
                     Text("照片库")
                 } footer: {
-                    Text("从相册添加照片时，只关联不复制，原图留在相册里。\n“系统相册”：照片库里多一个“系统相册”视图，直接冲洗相册里的照片——原图留在相册里不动，Spektra Cam 只记下配方和冲洗后的缩略图；RAW + JPEG 的照片按 RAW 冲洗。")
+                    Text("从相册添加照片时，只关联不复制，原图留在相册里。\n相册权限选了“部分照片”时，只能冲洗你选过的那些；改成“完全访问”要到系统设置 › Spektra Cam › 照片。\n“系统相册”：照片库里多一个“系统相册”视图，直接冲洗相册里的照片——原图留在相册里不动，Spektra Cam 只记下配方和冲洗后的缩略图；RAW + JPEG 的照片按 RAW 冲洗。")
                 }
 
                 Section("关于") {
@@ -162,5 +164,47 @@ struct SettingsView: View {
         storage = String(format: "%.1f GB · %d 张", Double(bytes) / 1_073_741_824, model.library.count)
         let negatives = model.expendableNegatives(olderThanDays: nil)
         cleanable = (negatives.count, model.negativeBytes(negatives))
+    }
+}
+
+/// 相册权限: what the app may read, and where to change it. Limited access ("选择照片") can add photos with the
+/// system picker; anything else is changed in iOS Settings, which this opens (the app cannot ask twice).
+struct PhotoAccessRow: View {
+    @State private var status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    @Environment(\.scenePhase) private var phase
+
+    private var label: String {
+        switch status {
+        case .authorized: "完全访问"
+        case .limited: "部分照片"
+        case .denied, .restricted: "不允许"
+        default: "未设置"
+        }
+    }
+
+    var body: some View {
+        LabeledContent("相册权限", value: label)
+            // Back from Settings: read it again.
+            .onChange(of: phase) { _, p in
+                if p == .active { status = PHPhotoLibrary.authorizationStatus(for: .readWrite) }
+            }
+        if status == .limited {
+            Button("选择更多可访问的照片…") {
+                guard let root = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow })
+                    .first?.rootViewController else { return }
+                var top = root
+                while let next = top.presentedViewController { top = next }
+                PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: top)
+            }
+        }
+        if status == .notDetermined {
+            Button("允许访问相册") {
+                Task { @MainActor in status = await PHPhotoLibrary.requestAuthorization(for: .readWrite) }
+            }
+        } else if status != .authorized {
+            Button("到系统设置改为“完全访问”") {
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            }
+        }
     }
 }

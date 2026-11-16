@@ -307,10 +307,10 @@ struct EditorView: View {
                 withAnimation(.easeOut(duration: 0.18)) { stage = .film; chosenTool[.film] = "film" }
             } label: {
                 VStack(spacing: 1) {
-                    Text(model.currentFilmName)
+                    Text(model.currentLookName)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.labCream)
-                    Text(model.currentPaperName)
+                    Text(model.recipe.noFilm == true ? "原图，不经过胶片" : model.currentPaperName)
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(Color.secondary.opacity(0.78))
                 }
@@ -322,7 +322,8 @@ struct EditorView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("当前胶片 \(model.currentFilmName)，相纸 \(model.currentPaperName)")
+            .accessibilityLabel(model.recipe.noFilm == true ? "无胶片，原图"
+                                : "当前胶片 \(model.currentLookName)，相纸 \(model.currentPaperName)")
             .labGlassInteractive(in: Capsule())
 
             HStack(spacing: 0) {
@@ -355,7 +356,7 @@ struct EditorView: View {
                         Label("复制这张照片的配方", systemImage: "doc.on.doc")
                     }
                 }
-                Button { recipeName = model.currentFilmName; savingRecipe = true } label: {
+                Button { recipeName = model.currentLookName; savingRecipe = true } label: {
                     Label("存为配方…", systemImage: "wand.and.stars")
                 }
                 Button { showingDiagnostics = true } label: {
@@ -406,6 +407,8 @@ struct EditorView: View {
                 VStack {
                     Spacer()
                     HStack(alignment: .bottom) {
+                        // The film / paper card; 无胶片 has neither (the top capsule says so).
+                        if model.recipe.noFilm != true {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("[\(model.currentFilmName)]")
                                 .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -434,6 +437,7 @@ struct EditorView: View {
                                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
                         }
                         .allowsHitTesting(false)
+                        }
                         Spacer()
                         if !immersive {
                             // Hold to see the imported photograph (also: long-press the picture).
@@ -696,7 +700,8 @@ struct MetalCanvas: UIViewRepresentable {
         // The engine writes sRGB transfer-encoded values, matching the
         // macOS host. Tagging the drawable with the same space keeps iOS from
         // applying an implicit conversion.
-        (view.layer as? CAMetalLayer)?.colorspace = CGColorSpace(name: CGColorSpace.extendedSRGB)
+        // Display P3, as the engine renders the preview (`ParamDefaults`); extended for HDR's values past white.
+        (view.layer as? CAMetalLayer)?.colorspace = CGColorSpace(name: CGColorSpace.extendedDisplayP3)
         (view.layer as? CAMetalLayer)?.wantsExtendedDynamicRangeContent = true
         return view
     }
@@ -795,6 +800,8 @@ struct ParamSlider: View {
 struct StockTile: View {
     let stock: Stock
     let selected: Bool
+    /// A paper that is a classic pair for the photo's film (`StockCatalog.recommendedPapers`).
+    var recommended = false
     let action: () -> Void
 
     var body: some View {
@@ -847,7 +854,7 @@ struct StockTile: View {
     }
 
     private var typeLabel: String {
-        if stock.support == .paper { return stock.monochrome ? "黑白相纸" : "相纸" }
+        if stock.support == .paper { return stock.monochrome ? "黑白相纸" : recommended ? "相纸 · 推荐" : "相纸" }
         if stock.monochrome { return "黑白负片" }
         return stock.type == .positive ? "反转片" : "负片"
     }
@@ -1139,6 +1146,41 @@ struct CropImage: Identifiable {
     let image: UIImage
 }
 
+/// The tile for no film: the camera's 无胶卷 roll, or the editor's 无胶片.
+struct NoFilmTile: View {
+    let title: String
+    let detail: String
+    let on: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: "circle.slash")
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(width: 44, height: 50)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.system(size: 12, weight: .semibold))
+                    Text(detail).font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(on ? Color.labRed : .secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Color.labCream)
+            .padding(.horizontal, 5)
+            .frame(width: 168, height: 58)
+            .background(on ? Color.labRed.opacity(0.12) : Color.white.opacity(0.035),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(on ? Color.labRed.opacity(0.55) : Color.white.opacity(0.07), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
 /// Every film (or paper) at once, grouped by kind, so a choice needs no long scroll.
 struct StockBrowser: View {
     @ObservedObject var model: ViewModel
@@ -1175,7 +1217,7 @@ struct StockBrowser: View {
                     .frame(width: 44, height: 50)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(saved.name).font(.system(size: 12, weight: .semibold)).lineLimit(2)
-                    Text(model.filmName(for: saved.recipe.filmStock)).font(.system(size: 9, weight: .medium))
+                    Text(model.filmName(for: saved.recipe.filmID)).font(.system(size: 9, weight: .medium))
                         .foregroundStyle(on ? Color.labRed : .secondary)
                         .lineLimit(1)
                 }
@@ -1203,35 +1245,14 @@ struct StockBrowser: View {
             ScrollView {
                 // Not lazy: a LazyVGrid with pinned headers jumped while scrolling back up.
                 TileFlow(spacing: 8) {
-                    // The camera's roll can also be no film at all.
-                    if pickFilm != nil {
-                        let plain = current?.isEmpty == true
-                        Button {
-                            pickFilm?("")
+                    // The camera's roll can also be no film at all; so can the photo in the editor.
+                    if !papers {
+                        let plain = pickFilm != nil ? current?.isEmpty == true : model.recipe.noFilm == true
+                        NoFilmTile(title: pickFilm != nil ? "无胶卷" : "无胶片",
+                                   detail: pickFilm != nil ? "原始文件直接存进“照片”" : "原图，不经过胶片", on: plain) {
+                            if let pickFilm { pickFilm("") } else { model.chooseNoFilm() }
                             dismiss()
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "circle.slash")
-                                    .font(.system(size: 20, weight: .medium))
-                                    .frame(width: 44, height: 50)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("无胶卷").font(.system(size: 12, weight: .semibold))
-                                    Text("原始文件直接存进“照片”").font(.system(size: 9, weight: .medium))
-                                        .foregroundStyle(plain ? Color.labRed : .secondary)
-                                }
-                                Spacer(minLength: 0)
-                            }
-                            .foregroundStyle(Color.labCream)
-                            .padding(.horizontal, 5)
-                            .frame(width: 168, height: 58)
-                            .background(plain ? Color.labRed.opacity(0.12) : Color.white.opacity(0.035),
-                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(plain ? Color.labRed.opacity(0.55) : Color.white.opacity(0.07), lineWidth: 1)
-                            }
                         }
-                        .buttonStyle(.plain)
                         .padding(.top, 8)
                     }
                     if !papers && !model.savedRecipes.isEmpty {
@@ -1251,9 +1272,11 @@ struct StockBrowser: View {
                                 .padding(.vertical, 6)
                                 .layoutValue(key: FullRow.self, value: true)
                             ForEach(stocks) { stock in
-                                let selected = stock.id == (current ?? (papers ? model.printStock : model.filmStock))
+                                let selected = stock.id == (current ?? (papers ? model.printStock
+                                    : model.recipe.noFilm == true ? "" : model.filmStock))
                                 let usable = !papers || model.canPrint(on: stock.id)
-                                StockTile(stock: stock, selected: selected) {
+                                StockTile(stock: stock, selected: selected,
+                                          recommended: papers && StockCatalog.recommendedPapers(for: model.filmStock).contains(stock.id)) {
                                     if let pickFilm { pickFilm(stock.id) }
                                     else if papers { model.paperChanged(stock.id) } else { model.filmChanged(stock.id) }
                                     dismiss()

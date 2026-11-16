@@ -1,6 +1,7 @@
 //  MainTabs.swift — the app's three places, in a tab bar: 底片 (the library), 拍摄 (the camera, full screen over
 //  everything), 观片台. 配方与胶片 lives in Settings (rarely visited; the camera's roll grid has the recipes too). Replaces the buttons that were spread over the library's header (2026-11-16).
 
+import LockedCameraCapture
 import SwiftUI
 
 struct MainTabs: View {
@@ -24,6 +25,15 @@ struct MainTabs: View {
         .fullScreenCover(isPresented: $shooting) { CameraView(model: model) }
         .onChange(of: shooting) { _, on in if !on { place = .library } }
         .onAppear { if model.cameraRequested { model.cameraRequested = false; shooting = true } }
+        // Camera Control pressed while locked: the capture extension asked to unlock and handed over — the camera.
+        .onContinueUserActivity(NSUserActivityTypeLockedCameraCapture) { _ in
+            if model.editingPhotoID != nil { model.closeEditor() }
+            shooting = true
+        }
+        // The Camera Control button while the app is already open.
+        .onReceive(NotificationCenter.default.publisher(for: SpektraCaptureIntent.openCamera)) { _ in
+            model.takeCameraRequestFromIntent()
+        }
         .onChange(of: model.cameraRequested) { _, wanted in
             if wanted { model.cameraRequested = false; shooting = true }
         }

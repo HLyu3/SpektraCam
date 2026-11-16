@@ -450,15 +450,28 @@ struct StockPanel: View {
     let browse: () -> Void
 
     var body: some View {
+        if papers && model.recipe.noFilm == true {
+            // 无胶片 is not printed: no paper to choose.
+            Text("无胶片：不经过相纸。选一卷胶片后，这里可以换相纸。")
+                .font(.footnote)
+                .foregroundStyle(Color.labCream.opacity(0.6))
+                .frame(maxWidth: .infinity, minHeight: 120)
+                .padding(.horizontal, 14)
+        } else {
+            stockPanel
+        }
+    }
+
+    private var stockPanel: some View {
         let stocks = papers ? model.papers : model.filmsFavouritesFirst
-        let selected = papers ? model.printStock : model.filmStock
-        VStack(spacing: 6) {
+        let selected = papers ? model.printStock : model.recipe.noFilm == true ? "" : model.filmStock
+        return VStack(spacing: 6) {
             HStack {
                 if papers && model.isSilverPrint {
                     ChipRow(title: "号数", options: model.catalog.grades.map { ($0.name, $0.name) },
                             selected: model.paperGrade) { model.setPaperGrade($0) }
                 } else {
-                    Text(papers ? model.currentPaperName : model.currentFilmName)
+                    Text(papers ? model.currentPaperName : model.currentLookName)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.labCream)
                         .lineLimit(1)
@@ -482,9 +495,14 @@ struct StockPanel: View {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHGrid(rows: [GridItem(.fixed(58), spacing: 6), GridItem(.fixed(58))], spacing: 8) {
+                        if !papers {
+                            NoFilmTile(title: "无胶片", detail: "原图，不经过胶片", on: selected.isEmpty) { model.chooseNoFilm() }
+                                .id("")
+                        }
                         ForEach(stocks) { stock in
                             let usable = !papers || model.canPrint(on: stock.id)
-                            StockTile(stock: stock, selected: stock.id == selected) {
+                            StockTile(stock: stock, selected: stock.id == selected,
+                                      recommended: papers && StockCatalog.recommendedPapers(for: model.filmStock).contains(stock.id)) {
                                 if papers { model.paperChanged(stock.id) } else { model.filmChanged(stock.id) }
                             }
                             .disabled(!usable)

@@ -98,9 +98,12 @@ def main() -> None:
     # the app would install and then fail to launch.
     import plistlib
     executables = set()
-    for bundle in payload.iterdir():
-        if not (bundle.is_dir() and bundle.suffix == ".app"):
-            continue
+    # The app and every extension it embeds (PlugIns/, Extensions/): each has its own executable, and an
+    # extension packed 0644 never runs (the share extension would silently do nothing).
+    apps = [b for b in payload.iterdir() if b.is_dir() and b.suffix == ".app"]
+    bundles = apps + [x for a in apps for d in ("PlugIns", "Extensions") if (a / d).is_dir()
+                      for x in (a / d).iterdir() if x.suffix == ".appex"]
+    for bundle in bundles:
         plist_path = bundle / "Info.plist"
         if not plist_path.is_file():
             continue

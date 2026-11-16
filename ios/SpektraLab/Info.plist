@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>NSUserActivityTypeLockedCameraCapture</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh_CN</string>
 	<key>CFBundleDisplayName</key>
@@ -45,9 +49,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>7</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
@@ -76,6 +80,196 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Pentax RAW (PTX)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.pentax.ptx-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>ptx</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Mamiya RAW</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.mamiya.mef-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>mef</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Sigma RAW (X3F)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.sigma.x3f-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>x3f</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Kodak RAW (KDC)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.kodak.kdc-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>kdc</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Kodak RAW (DCS)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.kodak.dcs-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>dcs</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Kodak RAW (K25)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.kodak.k25-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>k25</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Phase One RAW (CAP)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.phaseone.cap-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cap</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Phase One RAW (EIP)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.phaseone.eip-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>eip</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Casio RAW</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.casio.bay-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>bay</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Minolta RAW (MDC)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.minolta.mdc-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>mdc</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.camera-raw-image</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Rawzor RAW</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawzor.rwz-raw-image</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>rwz</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>

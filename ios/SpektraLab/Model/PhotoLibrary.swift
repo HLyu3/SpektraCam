@@ -55,6 +55,11 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
     /// Enable HDR: the print's highlights past white on an HDR screen and a gain map in JPEG / HEIF exports.
     /// Not sent to the engine; nil is off.
     var hdr: Bool? = nil
+    /// 无胶片: the original as the system renders it (plus 后期), no engine. nil is off.
+    var noFilm: Bool? = nil
+
+    /// The film as the library names and groups it: "" for 无胶片.
+    var filmID: String { noFilm == true ? "" : filmStock }
 
     /// `scene_curve` on the wire: five rows (rgb, luma, r, g, b) of 129 samples, "" for none
     /// (upstream `FilmParams.sceneCurveWire`). Sent always, so taking a curve off reaches the session.
@@ -219,6 +224,9 @@ struct LibraryPhoto: Identifiable {
     var exportedAt: Date? = nil
     /// When the picture was taken (EXIF, or the Photos asset's date); nil until read (`fillCaptureDates`).
     var capturedAt: Date? = nil
+    /// The file it was imported from ("name|size|mtime"): importing that file again skips it while this photo
+    /// is in the library; once deleted, it can come in again.
+    var importedFrom: String? = nil
     var isEdited: Bool
     var thumbnail: UIImage
 
@@ -258,6 +266,7 @@ struct LibraryManifestEntry: Codable {
     var exportedAt: Date? = nil
     /// When the picture was taken (EXIF, or the Photos asset's date); nil until read (`fillCaptureDates`).
     var capturedAt: Date? = nil
+    var importedFrom: String? = nil
     var isEdited: Bool
 }
 

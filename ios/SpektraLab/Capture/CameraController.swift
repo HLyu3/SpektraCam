@@ -299,15 +299,60 @@ final class CameraController: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Focus and meter at a point in device coordinates (0…1, the sensor's landscape frame).
+    /// Set once a tap or a hold moves focus off the centre; the scene's next big change takes it back
+    /// (`subjectAreaDidChange`), as Camera does. A hold (AE/AF lock) is never taken back.
+    private var subjectObserver: NSObjectProtocol?
+    private var aeafLocked = false
+
+    private func watchSubject(_ d: AVCaptureDevice) {
+        d.isSubjectAreaChangeMonitoringEnabled = true
+        guard subjectObserver == nil else { return }
+        subjectObserver = NotificationCenter.default.addObserver(forName: AVCaptureDevice.subjectAreaDidChangeNotification,
+                                                                 object: nil, queue: nil) { [weak self] _ in
+            self?.backToAuto()
+        }
+    }
+
+    /// Focus and meter on the centre again, continuously, with no exposure bias.
+    private func backToAuto() {
+        adjust { d in
+            guard !self.aeafLocked else { return }
+            let centre = CGPoint(x: 0.5, y: 0.5)
+            if d.isFocusPointOfInterestSupported { d.focusPointOfInterest = centre }
+            if d.isFocusModeSupported(.continuousAutoFocus) { d.focusMode = .continuousAutoFocus }
+            if d.isExposurePointOfInterestSupported { d.exposurePointOfInterest = centre }
+            if d.exposureMode != .custom, d.isExposureModeSupported(.continuousAutoExposure) { d.exposureMode = .continuousAutoExposure }
+            d.setExposureTargetBias(0)
+            d.isSubjectAreaChangeMonitoringEnabled = false
+        }
+    }
+
+    /// Focus and meter at a point in device coordinates (0…1, the sensor's landscape frame). As in Camera, a new
+    /// point starts at no exposure bias, and a big change in the scene later returns to the centre.
     func focus(at point: CGPoint) {
         adjust { d in
+            self.aeafLocked = false
+            d.setExposureTargetBias(0)
+            self.watchSubject(d)
             if d.isFocusPointOfInterestSupported { d.focusPointOfInterest = point }
             if d.isFocusModeSupported(.continuousAutoFocus) { d.focusMode = .continuousAutoFocus }
             if d.isExposurePointOfInterestSupported { d.exposurePointOfInterest = point }
             if d.exposureMode != .custom, d.isExposureModeSupported(.continuousAutoExposure) {
                 d.exposureMode = .continuousAutoExposure
             }
+        }
+    }
+
+    /// AE/AF lock, as Camera's long press: focus and meter once at the point, then hold both (a tap unlocks:
+    /// `focus(at:)` goes back to continuous).
+    func lock(at point: CGPoint) {
+        adjust { d in
+            self.aeafLocked = true
+            d.isSubjectAreaChangeMonitoringEnabled = false
+            if d.isFocusPointOfInterestSupported { d.focusPointOfInterest = point }
+            if d.isFocusModeSupported(.autoFocus) { d.focusMode = .autoFocus }        // one focus, then held
+            if d.isExposurePointOfInterestSupported { d.exposurePointOfInterest = point }
+            if d.exposureMode != .custom, d.isExposureModeSupported(.autoExpose) { d.exposureMode = .autoExpose }
         }
     }
 
@@ -362,7 +407,19 @@ final class CameraController: NSObject, @unchecked Sendable {
                     raw = true
                 } else if format == .raw, !self.output.isAppleProRAWEnabled,
                           let type = types.first(where: { AVCapturePhotoOutput.isBayerRAWPixelFormat($0) }) {
-                    rawSettings = AVCapturePhotoSettings(rawPixelFormatType: type)
+                    // One sensor frame has no highlight room of its own (ProRAW's fusion has): taken 1 EV under the
+                    // meter, a one-frame bracket so the viewfinder keeps its brightness. The film's own meter
+                    // (auto exposure) brings the picture back up. Not with flash: a bracket takes none.
+                    if flash == .off, self.output.maxBracketedCapturePhotoCount >= 1,
+                       let d = self.input?.device {
+                        let bias = max(d.exposureTargetBias - 1, d.minExposureTargetBias)
+                        rawSettings = AVCapturePhotoBracketSettings(
+                            rawPixelFormatType: type, processedFormat: nil,
+                            bracketedSettings: [AVCaptureAutoExposureBracketedStillImageSettings
+                                .autoExposureSettings(exposureTargetBias: bias)])
+                    } else {
+                        rawSettings = AVCapturePhotoSettings(rawPixelFormatType: type)
+                    }
                     raw = true
                 }
                 let settings = rawSettings ?? (self.output.availablePhotoCodecTypes.contains(.hevc)

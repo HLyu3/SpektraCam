@@ -9,7 +9,7 @@ import SwiftUI
 extension ViewModel {
     /// Every photo of the library as the light table reads it.
     var lightTableFrames: [LibraryFrame] {
-        let print = UserDefaults.standard.object(forKey: Self.lightTablePrintKey) as? Bool ?? true
+        let print = UserDefaults.standard.object(forKey: Self.lightTablePrintKey) as? Bool ?? false
         let scales = UserDefaults.standard.dictionary(forKey: Self.lightTableScalesKey) as? [String: Double] ?? [:]
         return library.map { p in
             let url = thumbnailURL(for: p.id)
@@ -18,7 +18,7 @@ extension ViewModel {
             let stamp = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
             return LibraryFrame(id: p.id, sizeMM: CGSize(width: base.width * k, height: base.height * k), thumbnail: url,
                                 large: largeDevelopURL(for: p.id), stamp: stamp,
-                                caption: filmName(for: p.recipe.filmStock))
+                                caption: filmName(for: p.recipe.filmID))
         }
     }
 
@@ -29,14 +29,30 @@ extension ViewModel {
     /// Each film's own scale from a pinch, by photo id.
     static let lightTableScalesKey = "SpektraLab.lightTableScales"
 
+    /// A film's pinch scale (1 when it has none).
+    func lightTableScale(_ id: UUID) -> Double {
+        (UserDefaults.standard.dictionary(forKey: Self.lightTableScalesKey) as? [String: Double])?[id.uuidString] ?? 1
+    }
+
+    /// Forget the pinch scales of these films, or of all.
+    func resetLightTableScales(_ ids: [UUID]?) {
+        NSLog("SpektraLab lighttable: reset scales %@", ids.map { "\($0.count)" } ?? "all")
+        guard let ids else { UserDefaults.standard.removeObject(forKey: Self.lightTableScalesKey); return }
+        var scales = UserDefaults.standard.dictionary(forKey: Self.lightTableScalesKey) as? [String: Double] ?? [:]
+        for id in ids { scales[id.uuidString] = nil }
+        UserDefaults.standard.set(scales, forKey: Self.lightTableScalesKey)
+    }
+
     /// A pinch ended: the film's scale against its base size, kept for next time.
     func setLightTableSize(_ id: UUID, _ size: CGSize) {
         guard let p = library.first(where: { $0.id == id }) else { return }
-        let print = UserDefaults.standard.object(forKey: Self.lightTablePrintKey) as? Bool ?? true
+        let print = UserDefaults.standard.object(forKey: Self.lightTablePrintKey) as? Bool ?? false
         let base = LightTableFrames.sizeMM(of: p, print: print)
         var scales = UserDefaults.standard.dictionary(forKey: Self.lightTableScalesKey) as? [String: Double] ?? [:]
         scales[id.uuidString] = Double(size.width / max(base.width, 0.01))
         UserDefaults.standard.set(scales, forKey: Self.lightTableScalesKey)
+        NSLog("SpektraLab lighttable: scale %@ = %.3f (size %.1f, base %.1f)", id.uuidString, scales[id.uuidString] ?? 0,
+              size.width, base.width)
     }
 
     /// The 2048 px develop kept beside the thumbnail for the light table and the slide show.
@@ -107,8 +123,8 @@ struct LightTablePane: View {
     @State private var largeDevelops: LargeDevelops?
     /// The film tray: the library's photos not on the table, along the bottom, to tap or drag onto it.
     @State private var trayOpen = false
-    /// Films at print size (a 5-inch print) or as the negative.
-    @AppStorage(ViewModel.lightTablePrintKey) private var printSize = true
+    /// Films as the negative (default, the table's own scale) or at print size (a 5-inch print).
+    @AppStorage(ViewModel.lightTablePrintKey) private var printSize = false
 
     private struct Undo: Equatable {
         var kept: LightTableModel
@@ -130,7 +146,12 @@ struct LightTablePane: View {
         .onAppear(perform: open)
         .onDisappear { table?.close() }
         .onChange(of: glow) { _, _ in applyGlow() }
-        .onChange(of: printSize) { _, _ in table?.sync(model.lightTableFrames) }
+        .onChange(of: printSize) { _, on in
+            guard let table else { return }
+            table.sync(model.lightTableFrames)
+            // The films changed size where they lay: spread them out again so they don't pile up.
+            if count > 1 { arrange("随机摆放") { $0.random() } }
+        }
         .onChange(of: edr) { _, _ in applyGlow() }
         .onChange(of: loupeMag) { _, m in
             LightTable.mag = m
@@ -159,6 +180,7 @@ struct LightTablePane: View {
         c.wantsFull = { develops.want($0) }
         c.onResized = { [model] id, size in model.setLightTableSize(id, size) }
         c.glow = lampGlow
+        c.prints = true      // films cover what is under them (the owner: overlapping films occlude), at any size
         LightTable.mag = loupeMag
         table = c
         if !laying.isEmpty {
@@ -207,32 +229,34 @@ struct LightTablePane: View {
             .disabled(count == 0)
             .accessibilityLabel("幻灯")
             Menu {
-                Toggle(isOn: $edr) { Label("EDR 背光", systemImage: "sun.max") }
-                Picker("背光亮度", selection: $glow) {
-                    Text("背光 · 标准").tag(1.0)
-                    Text("背光 · 明亮").tag(2.0)
-                    Text("背光 · 最亮").tag(4.0)
-                }
-                .disabled(!edr)
-                Divider()
-                Picker("照片尺寸", selection: $printSize) {
-                    Text("照片 · 相片尺寸").tag(true)
-                    Text("照片 · 底片实际尺寸").tag(false)
-                }
-                Button {
-                    UserDefaults.standard.removeObject(forKey: ViewModel.lightTableScalesKey)
-                    table?.sync(model.lightTableFrames)
-                } label: { Label("照片恢复原大小", systemImage: "arrow.uturn.backward") }
-                Divider()
-                Button { table?.fit() } label: { Label("适合屏幕", systemImage: "arrow.down.right.and.arrow.up.left") }
-                Picker("纸张", selection: Binding(get: { table?.model.paper ?? .a4 }, set: { setTable(paper: $0) })) {
-                    ForEach(LightTablePaper.allCases) { paper in
-                        Text("灯箱 · \(paper.name)（\(Int(paper.size.width))×\(Int(paper.size.height)) mm）").tag(paper)
+                // Short at the top level: the photos' size first (the thing most changed), the rest in submenus.
+                Menu {
+                    Picker("照片尺寸", selection: $printSize) {
+                        Text("底片实际尺寸").tag(false)
+                        Text("相片尺寸（5 寸）").tag(true)
                     }
-                }
-                Button { setTable(portrait: !(table?.model.portrait ?? true)) } label: {
-                    Label((table?.model.portrait ?? true) ? "灯箱转成横向" : "灯箱转成竖向", systemImage: "rectangle.portrait.rotate")
-                }
+                    Button { resetSizes() } label: { Label("全部恢复原大小", systemImage: "arrow.uturn.backward") }
+                } label: { Label("照片尺寸", systemImage: "photo") }
+                Menu {
+                    Toggle(isOn: $edr) { Label("EDR 背光", systemImage: "sun.max") }
+                    Picker("背光亮度", selection: $glow) {
+                        Text("标准").tag(1.0)
+                        Text("明亮").tag(2.0)
+                        Text("最亮").tag(4.0)
+                    }
+                    .disabled(!edr)
+                } label: { Label("背光", systemImage: "sun.max") }
+                Menu {
+                    Picker("纸张", selection: Binding(get: { table?.model.paper ?? .a4 }, set: { setTable(paper: $0) })) {
+                        ForEach(LightTablePaper.allCases) { paper in
+                            Text("\(paper.name)（\(Int(paper.size.width))×\(Int(paper.size.height)) mm）").tag(paper)
+                        }
+                    }
+                    Button { setTable(portrait: !(table?.model.portrait ?? true)) } label: {
+                        Label((table?.model.portrait ?? true) ? "转成横向" : "转成竖向", systemImage: "rectangle.portrait.rotate")
+                    }
+                    Button { table?.fit() } label: { Label("适合屏幕", systemImage: "arrow.down.right.and.arrow.up.left") }
+                } label: { Label("灯箱", systemImage: "rectangle.portrait") }
                 Divider()
                 Group {
                 Button { arrange("排整齐") { $0.tidyUp($0.model.order) } } label: { Label("排整齐", systemImage: "square.grid.3x3") }
@@ -265,9 +289,8 @@ struct LightTablePane: View {
                             if !LightTable.bigLens { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
                             table.immersiveLoupe(at: p)
                         } else {
-                            table.immersiveLoupe(at: nil)
-                            // Back to the loupe tool's lens if it was on.
-                            if loupeMode { table.loupe(at: CGPoint(x: table.viewport.size.width / 2, y: table.viewport.size.height / 2)) }
+                            // With the loupe tool on, its lens stays where the finger lifted (it jumped to the middle).
+                            table.immersiveLoupe(at: nil, keep: loupeMode)
                         }
                     }
                     view.describe = { id in (table.caption(id), "") }
@@ -304,6 +327,17 @@ struct LightTablePane: View {
                         .allowsHitTesting(false)
                 }
             }
+            // The tray floats over the table's foot rather than taking room from it: resizing the Metal view on every
+            // frame of the slide-in made opening it stutter.
+            .overlay(alignment: .bottom) {
+                if trayOpen && table.selected == nil {
+                    tray
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 6)
+                }
+            }
         } else {
             Color.clear
         }
@@ -313,7 +347,6 @@ struct LightTablePane: View {
 
     private var band: some View {
         VStack(spacing: 10) {
-            if trayOpen && table?.selected == nil { tray }
             HStack(spacing: 8) {
                 Text(status).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                 if undo != nil {
@@ -333,7 +366,11 @@ struct LightTablePane: View {
                         table.remove(id)
                         offerUndo(kept, "拿走了 · " + name)
                     }
-                    action("完成", "checkmark") { table.select(nil) }
+                    if model.lightTableScale(id) != 1 {
+                        action("原大小", "arrow.uturn.backward") { resetSizes([id]) }
+                    } else {
+                        action("完成", "checkmark") { table.select(nil) }
+                    }
                 } else {
                     action("胶片托盘", "tray", lit: trayOpen) {
                         if loupeMode { toggleLoupe() }
@@ -355,7 +392,7 @@ struct LightTablePane: View {
         let onTable = Set(table?.model.order ?? [])
         let waiting = model.library.filter { !onTable.contains($0.id) }
         return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            LazyHStack(spacing: 6) {
                 if waiting.isEmpty {
                     Text("图库里的照片都在台上了").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 8)
                 }
@@ -370,7 +407,7 @@ struct LightTablePane: View {
                         .draggable(photo.id.uuidString) {
                             Image(uiImage: photo.thumbnail).resizable().scaledToFit().frame(width: 90)
                         }
-                        .accessibilityLabel("放上台：\(model.filmName(for: photo.recipe.filmStock))")
+                        .accessibilityLabel("放上台：\(model.filmName(for: photo.recipe.filmID))")
                 }
                 Button { adding = true } label: {
                     Image(systemName: "square.grid.2x2")
@@ -453,6 +490,12 @@ struct LightTablePane: View {
         if count > 0 { offerUndo(kept, table.model.paper.name + (table.model.portrait ? " · 竖向" : " · 横向")) }
     }
 
+    /// Films back to their size before a pinch: these, or all.
+    private func resetSizes(_ ids: [UUID]? = nil) {
+        model.resetLightTableScales(ids)
+        table?.sync(model.lightTableFrames)
+    }
+
     private func toggleLoupe() {
         guard let table else { return }
         loupeMode.toggle()
@@ -520,7 +563,7 @@ struct LightTableAddSheet: View {
                                 guard !on else { return }
                                 if let k { picked.remove(at: k) } else if picked.count < room { picked.append(photo.id) }
                             }
-                            .accessibilityLabel(model.filmName(for: photo.recipe.filmStock))
+                            .accessibilityLabel(model.filmName(for: photo.recipe.filmID))
                             .accessibilityAddTraits(k != nil ? .isSelected : [])
                     }
                 }

@@ -1,6 +1,9 @@
 #import "LibRawDecodeSupport.h"
 
 #include "io/raw_decoder.hpp"
+#include <libraw/libraw.h>
+
+#include <array>
 
 #include <algorithm>
 #include <cmath>
@@ -123,7 +126,37 @@ SPKLibRawFrameRef SPKLibRawDecode(NSData *data,
 
     spk::io::DecodedRaw decoded;
     std::string error;
-    const bool ok = spk::io::decode_raw_compatible(url.fileSystemRepresentation, decoded, error);
+    bool ok = spk::io::decode_raw_compatible(url.fileSystemRepresentation, decoded, error);
+    // A file with no as-shot white balance (Mamiya ZD, some old backs): the engine's decoder requires one.
+    // LibRaw directly, with the camera's daylight balance (derived from its colour matrix), linear ProPhoto
+    // like the engine's output. shortcut: no highlight headroom here (clips at white); fine for these few files.
+    if (!ok && error.find("white balance") != std::string::npos) {
+        auto raw = std::make_unique<LibRaw>();
+        auto &p = raw->imgdata.params;
+        p.output_color = 4; p.output_bps = 16; p.gamm[0] = p.gamm[1] = 1.0;
+        p.no_auto_bright = 1; p.use_camera_wb = 0; p.use_camera_matrix = 1; p.user_qual = 3; p.highlight = 0;
+        libraw_processed_image_t *image = nullptr;
+        int status = 0;
+        if ((status = raw->open_file(url.fileSystemRepresentation)) == LIBRAW_SUCCESS) {
+            const float *pre = raw->imgdata.color.pre_mul;
+            for (int c = 0; c < 4; ++c) p.user_mul[c] = pre[c] > 0 ? pre[c] : pre[1];
+            if ((status = raw->unpack()) == LIBRAW_SUCCESS && (status = raw->dcraw_process()) == LIBRAW_SUCCESS)
+                image = raw->dcraw_make_mem_image(&status);
+        }
+        if (image && image->type == LIBRAW_IMAGE_BITMAP && image->colors == 3 && image->bits == 16) {
+            const size_t n = size_t(image->width) * image->height * 3;
+            const auto *px = reinterpret_cast<const uint16_t *>(image->data);
+            decoded.rgb.resize(n);
+            for (size_t i = 0; i < n; ++i) decoded.rgb[i] = px[i] / 65535.0f;
+            decoded.width = image->width;
+            decoded.height = image->height;
+            error.clear();
+            ok = true;
+        } else {
+            error = std::string("RAW (daylight balance): ") + libraw_strerror(status);
+        }
+        if (image) LibRaw::dcraw_clear_mem(image);
+    }
     [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
     if (!ok) {
         gLastError = error.empty() ? "LibRaw could not decode this file" : error;

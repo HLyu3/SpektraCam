@@ -154,7 +154,30 @@ struct StockCatalog: Sendable {
     /// and one that is a negative film and a paper, so the app can open and
     /// print a frame without the user having to choose anything.
     static let defaultFilm = "kodak_portra_400"
+    /// The colour paper for a film with no recommendation, and for new photos: Crystal Archive, what most labs print
+    /// every film on. (A 默认相纸 setting existed for a day; the recommended paper does that job.)
     static let defaultPaper = "fujifilm_crystal_archive_typeii"
+    static var factoryPaper: String { defaultPaper }
+    /// The recommended paper last picked for a film in the camera's 冲印 menu (`ViewModel.paper(for:)`).
+    static func filmPaperKey(_ film: String) -> String { "SpektraLab.filmPaper." + film }
+
+    /// Papers a film is classically printed on, shown as 推荐 beside them; a hint, never applied by itself.
+    /// Cinema negatives on print film, Portra on Kodak's portrait papers (and Portra 400 on the engine's paired
+    /// Ultra Endura), Ektar on the vivid Ultra, Fuji negatives on Crystal Archive, Kodak's consumer rolls on the
+    /// minilab Ektacolor Edge.
+    /// The first is used when the film is chosen (`ViewModel.paper(for:)`): Portra 400 on Portra Endura is the
+    /// engine's calibrated minilab pair (`resources/minilab`).
+    static func recommendedPapers(for film: String) -> [String] {
+        switch film {
+        case let f where f.hasPrefix("kodak_vision3") || f == "cinestill_800t": ["kodak_2383", "kodak_2393"]
+        case "kodak_portra_400": ["kodak_portra_endura", "kodak_supra_endura", "kodak_ultra_endura"]
+        case let f where f.hasPrefix("kodak_portra"): ["kodak_portra_endura", "kodak_supra_endura"]
+        case "kodak_ektar_100": ["kodak_ultra_endura"]
+        case let f where f.hasPrefix("fujifilm_") : ["fujifilm_crystal_archive_typeii"]
+        case "kodak_gold_200", "kodak_ultramax_400": ["kodak_ektacolor_edge"]
+        default: []
+        }
+    }
 
     /// The paper whose preview LUT is paired with a given film, if any.
     ///

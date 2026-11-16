@@ -579,7 +579,8 @@ final class SpektraEngine: @unchecked Sendable {
 
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue
                                       | CGBitmapInfo.byteOrder16Little.rawValue)
-        guard let colorSpace = requested ?? CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        // Untagged renders are the preview's: Display P3, as `ParamDefaults` asks the engine for.
+        guard let colorSpace = requested ?? Layer2Renderer.previewSpace as CGColorSpace? else { return nil }
         return CGImage(width: width,
                        height: height,
                        bitsPerComponent: 16,

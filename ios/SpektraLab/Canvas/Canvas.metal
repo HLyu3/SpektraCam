@@ -156,8 +156,14 @@ fragment float4 canvasFragment(CanvasVertexOut in [[stage_in]],
 
     if (hdr.on < 0.5) return float4(clamp(encoded, 0.0, 1.0), 1.0);
 
-    // Enable HDR: log2 gain = Ks(L') + κ·clamp(ρ(L'), 0, ρmax)·(log2 Y − L'), L' the local tone held within τ.
     float3 lin = float3(decodeTransfer(encoded.r, 0u), decodeTransfer(encoded.g, 0u), decodeTransfer(encoded.b, 0u));
+    // A slide (`on` 2): the gain is the ratio of its two renditions, read straight from texture 1.
+    if (hdr.on > 1.5) {
+        float g2 = clamp(localTone.sample(linearSampler, photoUV).r, 0.0f, hdr.top);
+        lin *= exp2(hdr.weight * g2);
+        return float4(encodeTransfer(lin.r, 0u), encodeTransfer(lin.g, 0u), encodeTransfer(lin.b, 0u), 1.0);
+    }
+    // Enable HDR: log2 gain = Ks(L') + κ·clamp(ρ(L'), 0, ρmax)·(log2 Y − L'), L' the local tone held within τ.
     float l2y = log2(max(dot(lin, float3(0.2126, 0.7152, 0.0722)), 1e-30));
     float L = localTone.sample(linearSampler, photoUV).r;
     L = l2y - clamp(l2y - L, -hdr.tau, hdr.tau);

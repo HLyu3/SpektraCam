@@ -2,6 +2,7 @@
 //  developed later on the roll it was shot on.
 
 import AVFoundation
+import AVKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -14,6 +15,11 @@ struct CameraView: View {
     @State private var level = LevelMeter()
     @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.proRAW.rawValue
     @AppStorage("SpektraLab.cameraRoll") private var roll = StockCatalog.defaultFilm
+    /// A paper picked in the 冲印 menu for this visit, and the roll it was picked for: another roll is on its
+    /// recommended paper. Kept with its roll rather than cleared on a roll change — clearing it was a second update
+    /// right after the roll's, and the roll shelf twitched.
+    @State private var paperPick: (roll: String, paper: String)?
+    private var rollPaper: String? { paperPick?.roll == roll ? paperPick?.paper : nil }
     /// The size to shoot, in MP; 0 = the lens's largest.
     @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 0
     @AppStorage("SpektraLab.cameraFlash") private var flash = CameraController.Flash.off.rawValue
@@ -30,6 +36,9 @@ struct CameraView: View {
     @State private var finder = FilmViewfinderRenderer()
     @State private var baking = false
     @State private var choosingRoll = false
+    @State private var savingCombo = false
+    @State private var renaming: SavedRecipe?
+    @State private var comboName = ""
     @State private var ready = false
     @State private var problem: String?
     @State private var pending = 0
@@ -47,13 +56,21 @@ struct CameraView: View {
     @State private var turn: Double = 0
     @State private var deletingLast = false
     /// The newest shot this camera put in the library (a 无胶卷 shot goes to Photos, not here).
-    private var latestShot: LibraryPhoto? { model.library.filter(\.captured).max { $0.createdAt < $1.createdAt } }
+    /// The last shot in 底片; nil when the last one was 无胶卷 (it went to Photos only).
+    private var latestShot: LibraryPhoto? {
+        lastPlain ? nil : model.library.filter(\.captured).max { $0.createdAt < $1.createdAt }
+    }
+    @State private var lastPlain = false
     /// Single-frame RAW cannot zoom in the sensor (and refuses any digital zoom): only the lenses' own lengths.
     private var lensesOnly: Bool { chosen == .raw }
     @State private var front = false
     @State private var pro = false
     @State private var proControl: ProControl = .exposure
     @State private var focusPoint: CGPoint?
+    @State private var focusShown = 0
+    @State private var dragFrom: Float?
+    @State private var aeLocked = false
+    @State private var viewfinderSize = CGSize.zero
 
     enum ProControl: String, CaseIterable { case exposure = "±EV", shutter = "快门", iso = "ISO", white = "色温" }
 
@@ -69,8 +86,8 @@ struct CameraView: View {
 
     /// What the roll prints on, under the strip.
     private var rollSubtitle: String {
-        guard let look = model.rollRecipe(roll) else { return "不冲洗 · 原始文件直接存进“照片”" }
-        let paper = "冲印 · " + model.filmName(for: look.printStock)
+        guard let look = model.rollRecipe(roll, paper: rollPaper) else { return "不冲洗 · 原始文件直接存进“照片”" }
+        let paper = "相纸 · " + model.filmName(for: look.printStock)
         return roll.hasPrefix("recipe:") ? "配方 · \(model.filmName(for: look.filmStock)) · " + paper : paper
     }
 
@@ -112,6 +129,10 @@ struct CameraView: View {
             }
         }
         .onDisappear { camera.stop(); level.stop() }
+        // The Camera Control button (and the volume buttons) is the shutter while this page is up.
+        .onCameraCaptureEvent { event in
+            if event.phase == .ended { shoot() }
+        }
         .sheet(isPresented: $showingSettings) { SettingsView(model: model) }
         .onReceive(level.$uiTurn) { t in withAnimation(.snappy(duration: 0.3)) { turn = t } }
         .confirmationDialog("删除刚拍的这张？", isPresented: $deletingLast, titleVisibility: .visible) {
@@ -125,15 +146,37 @@ struct CameraView: View {
         } message: {
             Text("Spektra Cam 里的底片会删掉；已经存进“照片”或冲洗好的成片不受影响。")
         }
+        .alert("存为组合", isPresented: $savingCombo) {
+            TextField("名称", text: $comboName)
+            Button("保存") {
+                if let look = model.rollRecipe(roll, paper: rollPaper) {
+                    roll = model.saveCombination(look, named: comboName).roll
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("这卷胶片和相纸会出现在胶卷栏最前面，点一下就能装上。")
+        }
+        .alert("重命名组合", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("名称", text: $comboName)
+            Button("好") { if let r = renaming { model.renameRecipe(r.id, to: comboName) } }
+            Button("取消", role: .cancel) {}
+        }
         .sheet(isPresented: $choosingRoll) {
             RollSheet(model: model, current: roll) { roll = $0 }.equatable()
         }
         // Picking a roll shows it: a new film under 实景 looked like "the film does nothing".
-        .onChange(of: roll) { _, r in if !r.isEmpty { filmLook = true } }
-        .task(id: filmLook ? roll : "") {
+        .onChange(of: roll) { _, r in
+            if !r.isEmpty { filmLook = true }
+            // A paper picked off the recommendations is for its roll and this moment: gone once the roll changes
+            // (switching back starts on the recommended paper again). It no longer applied the moment the roll
+            // changed (`rollPaper`), so clearing it now moves nothing on the page.
+            if paperPick != nil { paperPick = nil }
+        }
+        .task(id: filmLook ? "\(roll)|\(rollPaper ?? "")" : "") {      // a new paper is a new look
             guard filmLook, !noFilm else { finder.setCube(nil, size: 0); return }
             baking = true
-            let cube = await model.viewfinderLUT(roll: roll)
+            let cube = await model.viewfinderLUT(roll: roll, paper: rollPaper)
             finder.setCube(cube, size: ViewModel.viewfinderLUTSize)
             baking = false
         }
@@ -242,10 +285,32 @@ struct CameraView: View {
     // MARK: the picture
 
     private var viewfinder: some View {
-        CameraPreview(session: camera.session) { layerPoint, devicePoint in
-            camera.focus(at: devicePoint)
+        CameraPreview(session: camera.session, tap: { layerPoint, devicePoint in
+            camera.focus(at: devicePoint)          // also back to no exposure bias, as Camera does
+            status.bias = 0
+            aeLocked = false
             focusPoint = layerPoint
-            Task { try? await Task.sleep(nanoseconds: 1_200_000_000); focusPoint = nil }
+            focusShown += 1
+        }, drag: { points in
+            // Up brighter, down darker: 1 EV every 90 points, within ±3 EV (the device's own limits apply too).
+            guard let points else { dragFrom = nil; focusShown += 1; return }
+            let from = dragFrom ?? status.bias
+            dragFrom = from
+            let ev = Float(min(max(Double(from) + Double(points) / 90, -3), 3))
+            status.bias = ev
+            camera.setBias(ev)
+            if focusPoint == nil { focusPoint = CGPoint(x: viewfinderSize.width / 2, y: viewfinderSize.height / 2) }
+        }, hold: { layerPoint, devicePoint in
+            camera.lock(at: devicePoint)
+            aeLocked = true
+            focusPoint = layerPoint
+            focusShown += 1
+        })
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { viewfinderSize = $0 }
+        // The focus box goes after a while, unless a drag holds it or AE/AF is locked.
+        .task(id: focusShown) {
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            if dragFrom == nil, !aeLocked { focusPoint = nil }
         }
         .overlay { if filmLook && !noFilm { FilmViewfinder(renderer: finder).allowsHitTesting(false) } }
         .aspectRatio(3.0 / 4.0, contentMode: .fit)
@@ -303,10 +368,47 @@ struct CameraView: View {
         .overlay { if showLevel { LevelOverlay(level: level) } }
         .overlay {
             if let focusPoint {
-                RoundedRectangle(cornerRadius: 4)
-                    .stroke(Color.labCream, lineWidth: 1.5)
-                    .frame(width: 70, height: 70)
-                    .position(focusPoint)
+                // The focus box with Camera's sun beside it: the exposure the drag sets.
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(aeLocked ? Color.labRed : Color.labCream, lineWidth: 1.5)
+                        .frame(width: 70, height: 70)
+                    // Camera's exposure track: a line beside the box, the sun on it at the exposure (±3 EV over its
+                    // length), the line broken where the sun sits.
+                    let track: CGFloat = 110
+                    let y = -CGFloat(status.bias) / 3 * (track / 2)
+                    ZStack {
+                        VStack(spacing: 0) {
+                            Rectangle().frame(width: 1, height: max(0, track / 2 + y - 11))
+                            Spacer(minLength: 22)
+                            Rectangle().frame(width: 1, height: max(0, track / 2 - y - 11))
+                        }
+                        .frame(height: track)
+                        .opacity(dragFrom != nil ? 0.9 : 0.5)
+                        Image(systemName: "sun.max.fill").font(.system(size: 15))
+                            .offset(y: y)
+                        if dragFrom != nil {
+                            Text(String(format: "%+.1f", status.bias))
+                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                .offset(x: 26, y: y)
+                        }
+                    }
+                    .frame(width: 22, height: track)
+                    .foregroundStyle(aeLocked ? Color.labRed : Color.labCream)
+                }
+                .offset(x: 14)
+                .position(focusPoint)
+                .allowsHitTesting(false)
+            }
+        }
+        .overlay(alignment: .top) {
+            if aeLocked {
+                Text("AE/AF 锁定")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 10).frame(height: 24)
+                    .background(Color.labRed, in: Capsule())
+                    .padding(.top, 44)
                     .allowsHitTesting(false)
             }
         }
@@ -469,9 +571,27 @@ struct CameraView: View {
                             canister(id: "", on: roll.isEmpty) {
                                 Image(systemName: "circle.slash").font(.system(size: 16, weight: .medium))
                             }
+                            // Saved combinations first: their film's canister, a star in the corner.
                             ForEach(model.savedRecipes) { saved in
                                 canister(id: saved.roll, on: saved.roll == roll) {
-                                    Image(systemName: "wand.and.stars").font(.system(size: 16, weight: .medium))
+                                    if let film = model.catalog.stock(saved.recipe.filmStock) {
+                                        StockArtwork(stock: film)
+                                            .overlay(alignment: .topTrailing) {
+                                                Image(systemName: "star.fill").font(.system(size: 8))
+                                                    .foregroundStyle(Color.labRed)
+                                                    .padding(2).background(Color.labInk, in: Circle())
+                                                    .offset(x: 3, y: -3)
+                                            }
+                                    } else {
+                                        Image(systemName: "wand.and.stars").font(.system(size: 16, weight: .medium))
+                                    }
+                                }
+                                .contextMenu {
+                                    Button { renaming = saved; comboName = saved.name } label: { Label("重命名", systemImage: "pencil") }
+                                    Button(role: .destructive) {
+                                        if roll == saved.roll { roll = saved.recipe.filmStock }
+                                        model.deleteRecipe(saved.id)
+                                    } label: { Label("删除组合", systemImage: "trash") }
                                 }
                             }
                             ForEach(model.filmsFavouritesFirst) { film in
@@ -497,12 +617,68 @@ struct CameraView: View {
                 Text(roll.isEmpty ? "无胶卷" : model.rollTitle(roll))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.labCream)
-                Text(rollSubtitle)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
+                // A film roll's paper is chosen here (the 相纸 chip) (the default paper, also in Settings); 推荐 marks its classic pairs.
+                if !roll.isEmpty, !roll.hasPrefix("recipe:"), !model.catalog.isMonochrome(roll) {
+                    let recommended = StockCatalog.recommendedPapers(for: roll)
+                    let film = roll
+                    PaperMenu(title: rollSubtitle,
+                              current: model.rollRecipe(roll, paper: rollPaper)?.printStock ?? "",
+                              papers: model.papers.filter { !$0.monochrome }.map { PaperMenu.Item(id: $0.id, name: $0.name) },
+                              recommended: recommended,
+                              pick: { id in
+                                  // A recommended paper becomes this film's paper from now on; another, this visit only.
+                                  if recommended.contains(id) { UserDefaults.standard.set(id, forKey: StockCatalog.filmPaperKey(film)) }
+                                  paperPick = (film, id)
+                              },
+                              save: {
+                                  if let look = model.rollRecipe(roll, paper: rollPaper) {
+                                      comboName = "\(model.shortFilmName(for: look.filmStock)) · \(model.shortFilmName(for: look.printStock))"
+                                      savingCombo = true
+                                  }
+                              })
+                    .equatable()
+                } else {
+                    Text(rollSubtitle)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
             }
             .lineLimit(1)
+            // Name and paper centred on the screen; the star at the row's edge, out of the way of the symmetry.
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .trailing) {
+                if !roll.isEmpty { favouriteButton.padding(.trailing, 14) }
+            }
         }
+    }
+
+    /// The combination on now (a saved one, or a film on a paper that one was saved as).
+    private var currentCombination: SavedRecipe? {
+        if roll.hasPrefix("recipe:") { return model.savedRecipes.first { $0.roll == roll } }
+        guard let look = model.rollRecipe(roll, paper: rollPaper) else { return nil }
+        return model.savedRecipes.first { $0.recipe.filmStock == look.filmStock && $0.recipe.printStock == look.printStock }
+    }
+
+    /// One tap keeps the film + paper on now as a favourite combination (first on the shelf); on a favourite, takes
+    /// it off again.
+    private var favouriteButton: some View {
+        let saved = currentCombination
+        return Button {
+            if let saved {
+                if roll == saved.roll { roll = saved.recipe.filmStock }
+                model.deleteRecipe(saved.id)
+            } else if let look = model.rollRecipe(roll, paper: rollPaper) {
+                roll = model.saveCombination(look, named: "").roll
+            }
+        } label: {
+            Image(systemName: saved != nil ? "star.fill" : "star")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(saved != nil ? Color.labRed : Color.labCream.opacity(0.8))
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(saved != nil ? "取消收藏这个组合" : "收藏这个胶卷和相纸的组合")
     }
 
     private func canister<V: View>(id: String, on: Bool, @ViewBuilder face: () -> V) -> some View {
@@ -673,7 +849,7 @@ struct CameraView: View {
         pending += 1
         withAnimation(.easeOut(duration: 0.06)) { blink = true }
         withAnimation(.easeIn(duration: 0.2).delay(0.06)) { blink = false }
-        let format = chosen, film = roll, look = model.rollRecipe(roll), develop = autoDevelop, flashMode = CameraController.Flash(rawValue: flash) ?? .off, save = toPhotos
+        let format = chosen, film = roll, look = model.rollRecipe(roll, paper: rollPaper), develop = autoDevelop, flashMode = CameraController.Flash(rawValue: flash) ?? .off, save = toPhotos
         Task {
             defer { pending -= 1 }
             do {
@@ -684,6 +860,7 @@ struct CameraView: View {
                                                   develop: develop, zoom: result.zoom, askedLongEdge: result.askedLongEdge)
                 if let thumb {
                     last = thumb
+                    lastPlain = film.isEmpty
                     shot += 1
                 }
             } catch {
@@ -700,14 +877,41 @@ NSLog("SpektraLab capture failed: %@", String(describing: error))
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
     var tap: (CGPoint, CGPoint) -> Void = { _, _ in }
+    /// As in Camera: a vertical drag on the picture moves the exposure (`nil` when it ends; else the points dragged,
+    /// up positive), and a long press locks focus and exposure at the point.
+    var drag: (CGFloat?) -> Void = { _ in }
+    var hold: (CGPoint, CGPoint) -> Void = { _, _ in }
 
-    final class PreviewView: UIView {
+    final class PreviewView: UIView, UIGestureRecognizerDelegate {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         var preview: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
         var tap: (CGPoint, CGPoint) -> Void = { _, _ in }
+        var drag: (CGFloat?) -> Void = { _ in }
+        var hold: (CGPoint, CGPoint) -> Void = { _, _ in }
         @objc func tapped(_ g: UITapGestureRecognizer) {
             let p = g.location(in: self)
             tap(p, preview.captureDevicePointConverted(fromLayerPoint: p))
+        }
+        @objc func panned(_ g: UIPanGestureRecognizer) {
+            switch g.state {
+            case .began, .changed: drag(-g.translation(in: self).y)
+            default: drag(nil)
+            }
+        }
+        @objc func held(_ g: UILongPressGestureRecognizer) {
+            guard g.state == .began else { return }
+            let p = g.location(in: self)
+            hold(p, preview.captureDevicePointConverted(fromLayerPoint: p))
+        }
+        /// Vertical starts only: a sideways or pinching hand is not changing the exposure.
+        override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+            guard let pan = g as? UIPanGestureRecognizer else { return true }
+            let v = pan.velocity(in: self)
+            return abs(v.y) > abs(v.x)
+        }
+        /// The pinch to zoom (SwiftUI's) runs beside these.
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            other is UIPinchGestureRecognizer
         }
     }
 
@@ -716,10 +920,22 @@ struct CameraPreview: UIViewRepresentable {
         view.preview.session = session
         view.preview.videoGravity = .resizeAspectFill
         view.addGestureRecognizer(UITapGestureRecognizer(target: view, action: #selector(PreviewView.tapped(_:))))
+        let pan = UIPanGestureRecognizer(target: view, action: #selector(PreviewView.panned(_:)))
+        pan.maximumNumberOfTouches = 1
+        pan.delegate = view
+        view.addGestureRecognizer(pan)
+        let press = UILongPressGestureRecognizer(target: view, action: #selector(PreviewView.held(_:)))
+        press.minimumPressDuration = 0.6
+        press.delegate = view
+        view.addGestureRecognizer(press)
         return view
     }
 
-    func updateUIView(_ view: PreviewView, context: Context) { view.tap = tap }
+    func updateUIView(_ view: PreviewView, context: Context) {
+        view.tap = tap
+        view.drag = drag
+        view.hold = hold
+    }
 }
 
 struct HistogramView: View {
@@ -801,4 +1017,88 @@ private struct HistogramFeedView: View {
 private struct LevelOverlay: View {
     @ObservedObject var level: LevelMeter
     var body: some View { LevelLine(roll: level.roll) }
+}
+
+/// The 相纸 chip: opens `PaperSheet`. Apart from the camera page and equal by what it shows, so the page's frequent
+/// redraws (its readouts) leave it alone. A system menu was used first: its frosted backdrop blurred the live
+/// viewfinder behind it, and ghosted and flashed while scrolled (worse right after a roll change, as the film preview
+/// reloads), so the list is an opaque sheet.
+struct PaperMenu: View, @MainActor Equatable {
+    struct Item: Equatable, Identifiable { let id: String; let name: String }
+    let title: String
+    let current: String
+    let papers: [Item]
+    let recommended: [String]
+    let pick: (String) -> Void
+    let save: () -> Void
+    @State private var open = false
+
+    static func == (a: PaperMenu, b: PaperMenu) -> Bool {
+        a.title == b.title && a.current == b.current && a.papers == b.papers && a.recommended == b.recommended
+    }
+
+    var body: some View {
+        Button { open = true } label: {
+            HStack(spacing: 4) {
+                Text(title)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color.labCream.opacity(0.85))
+            .padding(.horizontal, 9)
+            .frame(height: 22)
+            .background(Color.white.opacity(0.08), in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("相纸：\(title)，点按更换")
+        .sheet(isPresented: $open) {
+            PaperSheet(current: current, papers: papers, recommended: recommended,
+                       pick: { pick($0); open = false },
+                       save: { open = false; save() })
+                .presentationDetents([.medium, .large])
+                .presentationBackground(Color.labInk)
+        }
+    }
+}
+
+/// The papers, the film's recommended ones first.
+struct PaperSheet: View {
+    let current: String
+    let papers: [PaperMenu.Item]
+    let recommended: [String]
+    let pick: (String) -> Void
+    let save: () -> Void
+
+    var body: some View {
+        let top = recommended.compactMap { id in papers.first { $0.id == id } }
+        let rest = papers.filter { !recommended.contains($0.id) }
+        NavigationStack {
+            List {
+                if !top.isEmpty {
+                    Section("这卷胶片推荐") { ForEach(top) { row($0) } }
+                }
+                Section(top.isEmpty ? "相纸" : "其他相纸") { ForEach(rest) { row($0) } }
+                Section {
+                    Button(action: save) { Label("把胶卷和这张相纸存为组合…", systemImage: "star") }
+                } footer: {
+                    Text("推荐相纸里选的那张会记住，下次拍这卷还用它；推荐以外的只在这次拍摄有效。")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .navigationTitle("相纸")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func row(_ paper: PaperMenu.Item) -> some View {
+        Button { pick(paper.id) } label: {
+            HStack {
+                Text(paper.name).foregroundStyle(Color.labCream)
+                Spacer()
+                if paper.id == current { Image(systemName: "checkmark").foregroundStyle(Color.labRed) }
+            }
+        }
+    }
 }

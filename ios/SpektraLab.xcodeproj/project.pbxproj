@@ -62,6 +62,7 @@
 		9FD8FE273815E934BAF2FC1B /* HDRGrainGain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HDRGrainGain.swift"; sourceTree = "<group>"; };
 		1ACECA0F4663A034F5F28B28 /* HDRMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HDRMath.swift"; sourceTree = "<group>"; };
 		A4608846A4CADA88FC736F7A /* HDRSessionCurve.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HDRSessionCurve.swift"; sourceTree = "<group>"; };
+		136769F1DC392F7E50A03916 /* HDRSlide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HDRSlide.swift"; sourceTree = "<group>"; };
 		50D8CF071ABA2AE4B2DC4D37 /* HDR */ = {
 			isa = PBXGroup;
 			children = (
@@ -69,7 +70,8 @@
 				15D3EF0373408BEE2EF2B410 /* HDRGainMap.swift */,
 				9FD8FE273815E934BAF2FC1B /* HDRGrainGain.swift */,
 				1ACECA0F4663A034F5F28B28 /* HDRMath.swift */,
-				A4608846A4CADA88FC736F7A /* HDRSessionCurve.swift */
+				A4608846A4CADA88FC736F7A /* HDRSessionCurve.swift */,
+				136769F1DC392F7E50A03916 /* HDRSlide.swift */
 			);
 			path = "HDR";
 			sourceTree = "<group>";
@@ -79,6 +81,7 @@
 		E3F9724B9E0561171C7B0C0D /* LibRawDecodeSupport.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "LibRawDecodeSupport.mm"; sourceTree = "<group>"; };
 		FA86F0A5DB5CC43E4E3CB9EB /* RAWDecodeSupport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "RAWDecodeSupport.h"; sourceTree = "<group>"; };
 		B979BA3409772257ED6ED5E4 /* RAWDecodeSupport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "RAWDecodeSupport.m"; sourceTree = "<group>"; };
+		474A33366FB5799CE2817692 /* RAWTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RAWTypes.swift"; sourceTree = "<group>"; };
 		CB77A531F6BDF61993E7E131 /* Import */ = {
 			isa = PBXGroup;
 			children = (
@@ -86,12 +89,14 @@
 				C132601698758FF04B15B5B2 /* LibRawDecodeSupport.h */,
 				E3F9724B9E0561171C7B0C0D /* LibRawDecodeSupport.mm */,
 				FA86F0A5DB5CC43E4E3CB9EB /* RAWDecodeSupport.h */,
-				B979BA3409772257ED6ED5E4 /* RAWDecodeSupport.m */
+				B979BA3409772257ED6ED5E4 /* RAWDecodeSupport.m */,
+				474A33366FB5799CE2817692 /* RAWTypes.swift */
 			);
 			path = "Import";
 			sourceTree = "<group>";
 		};
 		67F1C4D932C9544A49DACAFC /* CullView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CullView.swift"; sourceTree = "<group>"; };
+		8304BCEFE03E24BBCFA4F98F /* HandOver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HandOver.swift"; sourceTree = "<group>"; };
 		3034057BDB6CEA8BF0FFFD91 /* MainTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MainTabs.swift"; sourceTree = "<group>"; };
 		982C4A560535D86FCA1513AE /* PhotoAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PhotoAssets.swift"; sourceTree = "<group>"; };
 		C83081B6E6706E61AA28D06D /* PhotosWall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PhotosWall.swift"; sourceTree = "<group>"; };
@@ -100,6 +105,7 @@
 			isa = PBXGroup;
 			children = (
 				67F1C4D932C9544A49DACAFC /* CullView.swift */,
+				8304BCEFE03E24BBCFA4F98F /* HandOver.swift */,
 				3034057BDB6CEA8BF0FFFD91 /* MainTabs.swift */,
 				982C4A560535D86FCA1513AE /* PhotoAssets.swift */,
 				C83081B6E6706E61AA28D06D /* PhotosWall.swift */,
@@ -235,6 +241,28 @@
 				011BBF60487D2E910909EE56 /* repack-ipa.py */
 			);
 			path = "Tools";
+			sourceTree = "<group>";
+		};
+		54EB2BCECDFF7615D0341827 /* SpektraCaptureIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpektraCaptureIntent.swift"; sourceTree = "<group>"; };
+		44C7E229889FE9D1BB841A79 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				54EB2BCECDFF7615D0341827 /* SpektraCaptureIntent.swift */
+			);
+			path = "Shared";
+			sourceTree = "<group>";
+		};
+		EF36881F5F2BBD93530FA898 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		D31500F4A66C319CAB0DF12B /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ShareExtension.entitlements"; sourceTree = "<group>"; };
+		64BB437008C3A3D336D3DC78 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShareViewController.swift"; sourceTree = "<group>"; };
+		49379961FDC56D64F8B36E43 /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				EF36881F5F2BBD93530FA898 /* Info.plist */,
+				D31500F4A66C319CAB0DF12B /* ShareExtension.entitlements */,
+				64BB437008C3A3D336D3DC78 /* ShareViewController.swift */
+			);
+			path = "ShareExtension";
 			sourceTree = "<group>";
 		};
 		B01AFC856442B304171AD2E5 /* blob.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = "blob.cpp"; path = "../engine/src/core/blob.cpp"; sourceTree = SOURCE_ROOT; };
@@ -469,10 +497,12 @@
 			sourceTree = "<group>";
 		};
 		B6CDB6E5D160E013280D3C68 /* SpektraLab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpektraLab.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C5C9C55882CCA7BD8577DF36 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		00C45FD35CB0F9C5F764F070 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				B6CDB6E5D160E013280D3C68
+				B6CDB6E5D160E013280D3C68,
+				C5C9C55882CCA7BD8577DF36
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -481,6 +511,8 @@
 			isa = PBXGroup;
 			children = (
 				0AB3D73FA39AE4D3B3365680,
+				44C7E229889FE9D1BB841A79,
+				49379961FDC56D64F8B36E43,
 				6E206BF4A16CC067140F0164,
 				B023CA8F0F68491740229B47,
 				00C45FD35CB0F9C5F764F070
@@ -507,10 +539,13 @@
 		2E54BB319EFED3415B2832FA /* HDRGrainGain.swift */ = {isa = PBXBuildFile; fileRef = 9FD8FE273815E934BAF2FC1B; };
 		EBAABE2413BBC00369F7E1C7 /* HDRMath.swift */ = {isa = PBXBuildFile; fileRef = 1ACECA0F4663A034F5F28B28; };
 		58644D2AF1D63DFD6BBDECD6 /* HDRSessionCurve.swift */ = {isa = PBXBuildFile; fileRef = A4608846A4CADA88FC736F7A; };
+		7791F96A42B136F6E8CC62AC /* HDRSlide.swift */ = {isa = PBXBuildFile; fileRef = 136769F1DC392F7E50A03916; };
 		DB657DC8DE30C01DE5CA7559 /* ImageDecoder.swift */ = {isa = PBXBuildFile; fileRef = 6EDDBE5F289219A80807967D; };
 		F671CAA6FF2DD017F0A8D98D /* LibRawDecodeSupport.mm */ = {isa = PBXBuildFile; fileRef = E3F9724B9E0561171C7B0C0D; };
 		F8B8BBC0257FCE5019FE1F65 /* RAWDecodeSupport.m */ = {isa = PBXBuildFile; fileRef = B979BA3409772257ED6ED5E4; };
+		6FBE1FABF6467A05AF2602F2 /* RAWTypes.swift */ = {isa = PBXBuildFile; fileRef = 474A33366FB5799CE2817692; };
 		CD1DB7AD8B6BDF0D3F2D71CF /* CullView.swift */ = {isa = PBXBuildFile; fileRef = 67F1C4D932C9544A49DACAFC; };
+		466C3964863C7F0C09FACB1F /* HandOver.swift */ = {isa = PBXBuildFile; fileRef = 8304BCEFE03E24BBCFA4F98F; };
 		2CA94F7B21350A44CE487629 /* MainTabs.swift */ = {isa = PBXBuildFile; fileRef = 3034057BDB6CEA8BF0FFFD91; };
 		FC1F1DCD02DE3F2EE435A92C /* PhotoAssets.swift */ = {isa = PBXBuildFile; fileRef = 982C4A560535D86FCA1513AE; };
 		ED424885A361AC7545127B00 /* PhotosWall.swift */ = {isa = PBXBuildFile; fileRef = C83081B6E6706E61AA28D06D; };
@@ -543,6 +578,7 @@
 		8F59CFF1CA33FF93DB5320AF /* SettingsView.swift */ = {isa = PBXBuildFile; fileRef = 5536740621F6631B2197BCC3; };
 		6DAB5C398E84F20BCC7A4763 /* SpektraLabApp.swift */ = {isa = PBXBuildFile; fileRef = 7AE53F13A98BF43AA65EEE82; };
 		B68ED6462C8AA27845664990 /* StockArtwork.swift */ = {isa = PBXBuildFile; fileRef = A76B978C0865F538A0D5E735; };
+		F12E0D01799DDE6A22823B9D /* SpektraCaptureIntent.swift */ = {isa = PBXBuildFile; fileRef = 54EB2BCECDFF7615D0341827; };
 		E54F9DE04BABC0BCC99295CD /* blob.cpp */ = {isa = PBXBuildFile; fileRef = B01AFC856442B304171AD2E5; };
 		E2C79E14E48F3D39F4A8F7B2 /* cam16.cpp */ = {isa = PBXBuildFile; fileRef = 7FA26EAF281A562DEB0BA119; };
 		D5E749083CA666A5D7D9C0D5 /* colour.cpp */ = {isa = PBXBuildFile; fileRef = 415BF5F702AF216E9DFCB974; };
@@ -679,10 +715,13 @@
 				2E54BB319EFED3415B2832FA /* HDRGrainGain.swift */,
 				EBAABE2413BBC00369F7E1C7 /* HDRMath.swift */,
 				58644D2AF1D63DFD6BBDECD6 /* HDRSessionCurve.swift */,
+				7791F96A42B136F6E8CC62AC /* HDRSlide.swift */,
 				DB657DC8DE30C01DE5CA7559 /* ImageDecoder.swift */,
 				F671CAA6FF2DD017F0A8D98D /* LibRawDecodeSupport.mm */,
 				F8B8BBC0257FCE5019FE1F65 /* RAWDecodeSupport.m */,
+				6FBE1FABF6467A05AF2602F2 /* RAWTypes.swift */,
 				CD1DB7AD8B6BDF0D3F2D71CF /* CullView.swift */,
+				466C3964863C7F0C09FACB1F /* HandOver.swift */,
 				2CA94F7B21350A44CE487629 /* MainTabs.swift */,
 				FC1F1DCD02DE3F2EE435A92C /* PhotoAssets.swift */,
 				ED424885A361AC7545127B00 /* PhotosWall.swift */,
@@ -715,6 +754,7 @@
 				8F59CFF1CA33FF93DB5320AF /* SettingsView.swift */,
 				6DAB5C398E84F20BCC7A4763 /* SpektraLabApp.swift */,
 				B68ED6462C8AA27845664990 /* StockArtwork.swift */,
+				F12E0D01799DDE6A22823B9D /* SpektraCaptureIntent.swift */,
 				E54F9DE04BABC0BCC99295CD /* blob.cpp */,
 				E2C79E14E48F3D39F4A8F7B2 /* cam16.cpp */,
 				D5E749083CA666A5D7D9C0D5 /* colour.cpp */,
@@ -877,6 +917,157 @@
 			shellPath = /bin/sh;
 			shellScript = "app=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nif [ \"$PLATFORM_NAME\" = \"iphonesimulator\" ]; then\n	exit 0\nfi\nif [ -d \"$app\" ]; then\n	find \"$app\" -type f ! -name \"$EXECUTABLE_NAME\" -exec chmod a-x {} +\nfi\nif [ -n \"$EXPANDED_CODE_SIGN_IDENTITY\" ]; then\n	for resource in \"$app\"/*.metallib \"$app\"/Assets.car; do\n		if [ -f \"$resource\" ]; then\n			/usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --timestamp=none \"$resource\"\n		fi\n	done\nfi\n";
 		};
+		8FB5C05F1D5AD64CC66D6226 /* ShareViewController.swift */ = {isa = PBXBuildFile; fileRef = 64BB437008C3A3D336D3DC78; };
+		8AEE1955ADB806AF06A7C283 /* ShareExtension-sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8FB5C05F1D5AD64CC66D6226 /* ShareViewController.swift */
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		435CA211A2FC7FBE63B6DB30 /* ShareExtension-resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		98FAF09681C55453D816F9FC /* ShareExtension-frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E8B1FA90D4A92955CB366E3B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 8;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 2.1.0;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CODE_SIGN_FLAGS = "--deep";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
+				PRODUCT_NAME = ShareExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1";
+			};
+			name = Debug;
+		};
+		7AA2CE5435B4E8E9DFA100DC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 8;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 2.1.0;
+				ONLY_ACTIVE_ARCH = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
+				PRODUCT_NAME = ShareExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1";
+			};
+			name = Release;
+		};
+		D11F9E6365F38D03322D6EBD /* ShareExtension */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E8B1FA90D4A92955CB366E3B /* Debug */,
+				7AA2CE5435B4E8E9DFA100DC /* Release */
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		96DB0B6388F0FE2802F9EE1C /* ShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D11F9E6365F38D03322D6EBD;
+			buildPhases = (
+				8AEE1955ADB806AF06A7C283,
+				98FAF09681C55453D816F9FC,
+				435CA211A2FC7FBE63B6DB30
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShareExtension;
+			productName = ShareExtension;
+			productReference = C5C9C55882CCA7BD8577DF36;
+			productType = "com.apple.product-type.app-extension";
+		};
+		77546D4EA4ACC738AB1389C2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 98F54143AB4E86B28C3AFEE0;
+			proxyType = 1;
+			remoteGlobalIDString = 96DB0B6388F0FE2802F9EE1C;
+			remoteInfo = ShareExtension;
+		};
+		EE6C4C79677BAD54C40F2246 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 96DB0B6388F0FE2802F9EE1C;
+			targetProxy = 77546D4EA4ACC738AB1389C2;
+		};
+		A1B23AC69AD95F951BD6A534 /* ShareExtension.appex */ = {isa = PBXBuildFile; fileRef = C5C9C55882CCA7BD8577DF36; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		2492B071169E31F666330CF0 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A1B23AC69AD95F951BD6A534 /* ShareExtension.appex */
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		13C906AACD273E0C001C3F1F /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+
+			);
+			name = "Embed ExtensionKit Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		967DE5DAE8F9C3546488D3FD /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -890,7 +1081,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -922,7 +1113,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				OTHER_LDFLAGS = "-framework Metal -framework QuartzCore -framework CoreText -framework CoreGraphics -framework Accelerate";
-				PRODUCT_BUNDLE_IDENTIFIER = io.github.hlyu3.spektracam;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID)";
 				PRODUCT_NAME = SpektraLab;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
@@ -949,7 +1140,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -977,7 +1168,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = NO;
 				OTHER_LDFLAGS = "-framework Metal -framework QuartzCore -framework CoreText -framework CoreGraphics -framework Accelerate";
-				PRODUCT_BUNDLE_IDENTIFIER = io.github.hlyu3.spektracam;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID)";
 				PRODUCT_NAME = SpektraLab;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
@@ -1009,11 +1200,14 @@
 				AB6F1305312B9996E2538FF8,
 				AA9A663971E63899B42E7E70,
 				C831EECBAB01524E02C71B42,
-				89A256B2EC36C5BA54DF5527
+				89A256B2EC36C5BA54DF5527,
+				2492B071169E31F666330CF0,
+				13C906AACD273E0C001C3F1F
 			);
 			buildRules = (
 			);
 			dependencies = (
+				EE6C4C79677BAD54C40F2246,
 			);
 			name = SpektraLab;
 			productName = SpektraLab;
@@ -1037,6 +1231,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				SDKROOT = iphoneos;
+				SPEKTRA_APP_ID = io.github.hlyu3.spektracam;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -1055,6 +1250,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				ONLY_ACTIVE_ARCH = NO;
 				SDKROOT = iphoneos;
+				SPEKTRA_APP_ID = io.github.hlyu3.spektracam;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
@@ -1090,7 +1286,8 @@
 			projectDirPath = "";
 				projectRoot = "";
 			targets = (
-				29C7B681C8D62CBAC94D51C0
+				29C7B681C8D62CBAC94D51C0,
+				96DB0B6388F0FE2802F9EE1C
 			);
 		};
 	};
