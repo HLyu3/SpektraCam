@@ -42,7 +42,7 @@
 - 「无胶卷」拍的照片只存进系统相册，不再进底片。
 
 **导入与 RAW**
-- **各家相机的 RAW**：系统读不了、只给出内嵌小预览或解出全黑的，自动改用 LibRaw 解码；没有拍摄白平衡的老机身（如 Mamiya ZD）用相机的日光白平衡。用 24 个品牌 / 格式的样张测过：Canon CR3 / CR2 / CRW、Nikon NEF（含 Z 8 高效压缩）、Sony ARW、Fujifilm RAF、Panasonic RW2、Olympus ORF、Pentax PEF、Leica DNG / RWL、Hasselblad 3FR、Phase One IIQ、Leaf MOS、Mamiya MEF、Samsung SRW、Kodak DCR、Minolta MRW、Epson ERF、DJI 与 iPhone DNG。
+- **各家相机的 RAW**：系统读不了、只给出内嵌小预览或解出全黑的，自动改用 LibRaw 解码；没有拍摄白平衡的老机身（如 Mamiya ZD）用相机的日光白平衡。用 22 种格式的样张测过：Canon CR3 / CR2 / CRW、Nikon NEF（含 Z 8 高效压缩）、Sony ARW、Fujifilm RAF、Panasonic RW2、Olympus ORF、Pentax PEF、Leica DNG / RWL、Hasselblad 3FR、Phase One IIQ、Leaf MOS、Mamiya MEF、Samsung SRW、Kodak DCR、Minolta MRW、Epson ERF、DJI 与 iPhone DNG。
 - **「照片」的分享菜单里有 Spektra Cam**：选照片分享过来，下次打开 App 时导入（RAW + JPEG 只留 RAW）。
 - 导入的照片默认「无胶片」（原图），想冲洗时再选胶片。
 - 「导入过」只看照片还在不在底片里：删掉后可以重新导入；全都导入过时可以选「再导入一次」。
