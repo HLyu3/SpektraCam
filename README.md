@@ -107,9 +107,18 @@ open ios/SpektraLab.xcodeproj
 
 ## 许可与致谢
 
-- 核心引擎与胶片过程模型：[JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab)，GPL-3.0-or-later。
-- 起点代码：iOS 社区移植版 [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS)，GPL-3.0-or-later。
-- 胶片模型、实测配置与放大 LUT：[Andrea Volpato/spektrafilm](https://github.com/andreavolpato/spektrafilm)，CC BY-SA 4.0。
-- RAW 回退解码：[LibRaw](https://github.com/LibRaw/LibRaw) 0.22.2，LGPL-2.1 / CDDL-1.0。
+Spektra Cam 站在这些开源项目上：
 
-Spektra Cam 的代码按 **GPL-3.0-or-later** 分发；胶片与相纸配置按 **CC BY-SA 4.0** 分发。胶片、相纸的名称和商标归各自权利人所有。
+| 项目 | 用在哪里 | 许可 |
+|---|---|---|
+| [SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（JamesQiu2005） | 胶片冲洗引擎（C++ / Metal）、黑白胶片与 Multigrade 相纸描述档、观片台与 HDR 等部分代码 | GPL-3.0-or-later |
+| [spektrafilm](https://github.com/andreavolpato/spektrafilm)（Andrea Volpato） | SpektraLab 引擎所依据的胶片过程模型；28 种胶片与相纸实测描述档、放大 LUT | 模型 GPL-3.0-or-later；描述档与 LUT CC BY-SA 4.0 |
+| [SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS)（Minerchu） | 起点代码：iOS 社区移植版 1.2.0 | GPL-3.0-or-later |
+| [LibRaw](https://github.com/LibRaw/LibRaw) 0.22.2 | Core Image 读不了的 RAW 的回退解码 | LGPL-2.1 / CDDL-1.0 |
+| [metal-cpp](https://developer.apple.com/metal/cpp/)（Apple） | 引擎调用 Metal 的 C++ 接口 | Apache-2.0 |
+
+Spektra Cam 的代码按 **GPL-3.0-or-later** 分发（见 `LICENSE`）；胶片与相纸描述档按 **CC BY-SA 4.0** 分发。
+
+## 商标
+
+SpektraLab™ 及其图标归其权利人所有。Spektra Cam 是独立的非官方项目，与 SpektraLab 官方、spektrafilm 项目都没有关联，也未获其认可；它有自己的名字和图标，只说明“基于 SpektraLab 引擎”。胶片、相纸的名称是各自厂商的商标，只用来说明描述档依据的是哪份公开数据。
