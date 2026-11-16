@@ -16,6 +16,7 @@
 | Xcode | 按下面“本地构建”编译，在 Signing 里选自己的 Personal Team |
 
 - 最低系统 **iOS 27.0**，只支持 iPhone。
+- **目前只在 iPhone 17 Pro Max（iOS 27）上测试过。** 其他机型能装，但镜头焦段、拍摄尺寸、导出内存上限和 HDR 亮度没有验证过，可能有问题。
 - 免费 Apple ID 的签名 7 天后过期，要重新安装。
 - IPA 里带了全部引擎资源，第一次打开不需要联网下载。
 
@@ -84,6 +85,8 @@ open ios/SpektraLab.xcodeproj
 免费账号也能用 `com.apple.developer.kernel.increased-memory-limit`（已写在 entitlements 里），48 MP 全尺寸导出需要它。
 
 ## 已知限制
+
+- 只在 iPhone 17 Pro Max 上测试过（见“下载与安装”）。
 
 - 只支持 iPhone；没有 iPad 布局。
 - 没有视频。
