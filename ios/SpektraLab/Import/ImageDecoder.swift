@@ -134,7 +134,7 @@ struct DecodedFrame: @unchecked Sendable {
         return cropped(to: crop)
     }
 
-    private func cropped(to crop: (x: Int, y: Int, width: Int, height: Int)) -> DecodedFrame {
+    func cropped(to crop: (x: Int, y: Int, width: Int, height: Int)) -> DecodedFrame {
         guard crop.width != width || crop.height != height else { return self }
         var output = [Float](repeating: 0, count: crop.width * crop.height * 3)
         pixels.withUnsafeBufferPointer { source in
@@ -194,13 +194,20 @@ enum ImageDecoder {
     /// A preview at 2048 px long edge needs no more, and decoding a 45 MP
     /// frame to throw most of it away costs seconds and hundreds of megabytes
     /// for a result nobody sees. The export path decodes at full size.
-    static let previewLongEdge = 2048
+    /// The editor's preview: the decode and the engine's live tier (`preview_long_edge`) share it.
+    /// Settings › 预览尺寸; larger is sharper on screen and slower to develop.
+    static let previewLongEdgeKey = "SpektraLab.previewLongEdge"
+    static let previewLongEdgeChoices = [1280, 1920, 2560]
+    static var previewLongEdge: Int {
+        let v = UserDefaults.standard.integer(forKey: previewLongEdgeKey)
+        return previewLongEdgeChoices.contains(v) ? v : 1920
+    }
 
     /// Export at the source resolution; only the interactive preview shrinks.
     static let exportLongEdge: Int? = nil
 
     /// The exact float working space used by the Mac 1.3.5 decoder.
-    private static let linearProPhoto: CGColorSpace? = {
+    static let linearProPhoto: CGColorSpace? = {
         let d50: [CGFloat] = [0.9642, 1.0000, 0.8249]
         let black: [CGFloat] = [0, 0, 0]
         let gamma: [CGFloat] = [1, 1, 1]

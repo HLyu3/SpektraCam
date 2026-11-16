@@ -7,6 +7,7 @@
 import Foundation
 import Metal
 import MetalKit
+import MetalPerformanceShaders
 import UIKit
 
 /// The matrices that take the working space to the display, as the engine
@@ -55,6 +56,50 @@ final class CanvasRenderer: NSObject, MTKViewDelegate {
     private var zoom: CGFloat = 1
     private var pan = CGPoint.zero
 
+    // MARK: Enable HDR
+
+    private let log2YPipeline: MTLComputePipelineState
+    /// The session's curve while the photo's HDR is on; nil draws the SDR picture.
+    private(set) var hdr: HDRGrainGain.Tables?
+    /// The local tone L (log2 Y under a Gaussian) of the current texture, made when either changes.
+    private var localTone: MTLTexture?
+    private var localToneOf: ObjectIdentifier?
+    private var loggedHDR: ObjectIdentifier?
+
+    /// Turn HDR on with the session's tables, or off with nil.
+    func setHDR(_ tables: HDRGrainGain.Tables?) {
+        guard tables != hdr else { return }
+        hdr = tables
+        if tables == nil { localTone = nil; localToneOf = nil }
+        // The view draws only when told: SwiftUI does not redraw it for a change it cannot see.
+        redraw?()
+    }
+
+    /// Asks the canvas view for a picture (set by `MetalCanvas`).
+    var redraw: (() -> Void)?
+
+    /// σ of the local tone, px: upstream's floor (a grain a pixel wide, `HDRGrainGain.sigmaRange`).
+    private static let sigma: Float = 2
+
+    private func makeLocalTone(for source: MTLTexture, commandBuffer: MTLCommandBuffer) {
+        let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r32Float, width: source.width, height: source.height, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .private
+        guard let raw = device.makeTexture(descriptor: d), let blurred = device.makeTexture(descriptor: d),
+              let enc = commandBuffer.makeComputeCommandEncoder() else { return }
+        enc.setComputePipelineState(log2YPipeline)
+        enc.setTexture(source, index: 0)
+        enc.setTexture(raw, index: 1)
+        let w = log2YPipeline.threadExecutionWidth, h = log2YPipeline.maxTotalThreadsPerThreadgroup / w
+        enc.dispatchThreads(MTLSize(width: source.width, height: source.height, depth: 1),
+                            threadsPerThreadgroup: MTLSize(width: w, height: h, depth: 1))
+        enc.endEncoding()
+        MPSImageGaussianBlur(device: device, sigma: Self.sigma).encode(commandBuffer: commandBuffer, sourceTexture: raw,
+                                                                       destinationTexture: blurred)
+        localTone = blurred
+        localToneOf = ObjectIdentifier(source)
+    }
+
     init?(device: MTLDevice) {
         guard let queue = device.makeCommandQueue() else { return nil }
         self.device = device
@@ -88,11 +133,15 @@ final class CanvasRenderer: NSObject, MTKViewDelegate {
         // values, so an 8-bit unorm drawable is correct. If you want an
         // HDR/`rgba16Float` drawable instead, set `view.colorPixelFormat`
         // to match — do NOT leave them mismatched.
-        descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
-        guard let state = try? device.makeRenderPipelineState(descriptor: descriptor) else {
+        // Half floats on an extended-sRGB layer, so Enable HDR can go past white (`MetalCanvas`).
+        descriptor.colorAttachments[0].pixelFormat = .rgba16Float
+        guard let state = try? device.makeRenderPipelineState(descriptor: descriptor),
+              let log2Y = library.makeFunction(name: "canvasLog2Y"),
+              let log2YState = try? device.makeComputePipelineState(function: log2Y) else {
             return nil
         }
         self.pipeline = state
+        self.log2YPipeline = log2YState
 
         // The transform's uniforms: the 3×3 matrix, the two modes, and the
         // gamut-compression constants the fragment shader reads.
@@ -252,8 +301,34 @@ final class CanvasRenderer: NSObject, MTKViewDelegate {
               let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             return
         }
+        // HDR: the screen's share of the curve's headroom (the curve is written for H; a screen with less shows less).
+        var params = SIMD8<Float>(repeating: 0)
+        var tableBytes = [Float](repeating: 0, count: 512)
+        if let hdr {
+            if localToneOf != ObjectIdentifier(texture) {
+                // The local tone is made on its own buffer first, so this frame's encoder can read it.
+                if let cb = queue.makeCommandBuffer() { makeLocalTone(for: texture, commandBuffer: cb); cb.commit() }
+            }
+            let screen = Double(view.window?.screen.potentialEDRHeadroom ?? 1)
+            let weight = Float(min(1, max(0, log2(max(screen, 1)) / max(hdr.top, 1e-6))))
+            params = SIMD8(Float(hdr.lo), Float(hdr.hi), Float(hdr.top), Float(hdr.kappa),
+                           Float(hdr.rhoMax), Float(hdr.tau), weight, localTone == nil ? 0 : 1)
+            if loggedHDR != ObjectIdentifier(texture) {
+                loggedHDR = ObjectIdentifier(texture)
+                let layer = view.layer as? CAMetalLayer
+                NSLog("SpektraLab hdr canvas: weight %.2f (screen %.2f, now %.2f) local %@ format %d edr %@ space %@",
+                      weight, screen, Double(view.window?.screen.currentEDRHeadroom ?? 0), localTone == nil ? "none" : "ok",
+                      Int(view.colorPixelFormat.rawValue), (layer?.wantsExtendedDynamicRangeContent ?? false) ? "on" : "off",
+                      String(describing: layer?.colorspace?.name ?? "nil" as CFString))
+            }
+            for i in 0..<min(256, hdr.ks.count) { tableBytes[i] = hdr.ks[i] }
+            for i in 0..<min(256, hdr.slope.count) { tableBytes[256 + i] = hdr.slope[i] }
+        }
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentTexture(texture, index: 0)
+        encoder.setFragmentTexture(localTone ?? texture, index: 1)
+        encoder.setFragmentBytes(&params, length: MemoryLayout<SIMD8<Float>>.stride, index: 2)
+        tableBytes.withUnsafeBytes { encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 3) }
         if let transformBuffer {
             encoder.setFragmentBuffer(transformBuffer, offset: 0, index: 0)
         }

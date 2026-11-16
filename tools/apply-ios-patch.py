@@ -75,7 +75,7 @@ change(
         dispatch_activate(pressure_source_);
         // Read once, here, where nothing can race with it (see the seam's
         // comment further down).
-        const char* mode = std::getenv("SPEKTRAFILM_TEST_PRESSURE");
+        const char* mode = std::getenv("SPEKTRALAB_TEST_PRESSURE");
         if (mode && std::strcmp(mode, "critical") == 0) {
             test_pressure_flags_ = DISPATCH_MEMORYPRESSURE_CRITICAL;
         } else if (mode && std::strcmp(mode, "warn") == 0) {
@@ -97,7 +97,7 @@ change(
             dispatch_activate(pressure_source_);
             // Read once, here, where nothing can race with it (see the seam's
             // comment further down).
-            const char* mode = std::getenv("SPEKTRAFILM_TEST_PRESSURE");
+            const char* mode = std::getenv("SPEKTRALAB_TEST_PRESSURE");
             if (mode && std::strcmp(mode, "critical") == 0) {
                 test_pressure_flags_ = DISPATCH_MEMORYPRESSURE_CRITICAL;
             } else if (mode && std::strcmp(mode, "warn") == 0) {

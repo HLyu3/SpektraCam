@@ -1,0 +1,159 @@
+//  SettingsView.swift — the app's settings: the camera and its roll, feedback, new photos, storage.
+
+import SwiftUI
+
+struct SettingsView: View {
+    @ObservedObject var model: ViewModel
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.proRAW.rawValue
+    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 0
+    @AppStorage(ViewModel.reopenKey) private var reopenTo = UserDefaults.standard.bool(forKey: "SpektraLab.openToCamera") ? "camera" : "last"
+    @AppStorage("SpektraLab.cameraToPhotos") private var toPhotos = false
+    @AppStorage("SpektraLab.haptics") private var haptics = true
+    @AppStorage(ViewModel.newPhotoKey) private var newPhotoUsesLast = false
+    @AppStorage(ImageDecoder.previewLongEdgeKey) private var previewLongEdge = 1920
+    @AppStorage("SpektraLab.lensCorrection") private var lensCorrection = true
+    @AppStorage("SpektraLab.librarySource") private var source = "app"
+    @AppStorage("SpektraLab.libraryFilter") private var filter = "all"
+    @State private var body_ = CameraBody.number
+    @State private var nextFrame = CameraBody.nextFrame
+    @State private var storage = ""
+    @AppStorage(ViewModel.negativeKeepDaysKey) private var keepDays = 7
+    @AppStorage(ViewModel.unexportedDeleteDaysKey) private var unexportedDays = 0
+    @AppStorage(ViewModel.autoDevelopKey) private var autoDevelop = true
+    @State private var confirmingCleanup = false
+    @State private var cleanable: (count: Int, bytes: Int64) = (0, 0)
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    NavigationLink {
+                        RecipesView(model: model)
+                    } label: {
+                        Label("配方与胶片", systemImage: "wand.and.stars")
+                    }
+                }
+                Section {
+                    LabeledContent("机身") {
+                        HStack(spacing: 10) {
+                            Text("\(body_) 号").monospacedDigit()
+                            Button("换一台") { CameraBody.changeBody(); body_ = CameraBody.number }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                    LabeledContent("过片") {
+                        HStack(spacing: 10) {
+                            Text("下一张第 \(nextFrame) 格").monospacedDigit()
+                            Button("换一格") { CameraBody.advance(); nextFrame = CameraBody.nextFrame }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                    Picker("拍摄", selection: Binding(get: { "\(format)-\(sizeMP == 0 ? 48 : sizeMP)" },
+                                                        set: { id in
+                                                            if let m = CaptureMode.all.first(where: { $0.id == id }) {
+                                                                format = m.format.rawValue; sizeMP = m.megapixels
+                                                            }
+                                                        })) {
+                        ForEach(CaptureMode.all) { m in
+                            VStack(alignment: .leading) {
+                                Text(m.title)
+                                Text(m.detail).font(.caption).foregroundStyle(.secondary)
+                            }
+                            .tag(m.id)
+                        }
+                    }
+                    .pickerStyle(.navigationLink)
+                    Picker("重新打开时", selection: $reopenTo) {
+                        Text("回到上次的位置").tag("last")
+                        Text("回到照片库").tag("library")
+                        Text("总是打开相机").tag("camera")
+                    }
+                    Toggle("拍完自动冲洗", isOn: $autoDevelop)
+                    Toggle("拍摄的照片也存入“照片”", isOn: $toPhotos)
+                    Picker("底片保留", selection: $keepDays) {
+                        ForEach([1, 3, 7, 14, 30, 60, 90], id: \.self) { Text("\($0) 天").tag($0) }
+                        Text("一直保留").tag(0)
+                    }
+                    Picker("未导出的照片", selection: $unexportedDays) {
+                        Text("一直保留").tag(0)
+                        ForEach([7, 14, 30, 60, 90, 180, 365], id: \.self) { Text("\($0) 天后删除").tag($0) }
+                    }
+                } header: {
+                    Text("相机")
+                } footer: {
+                    Text("拍完自动冲洗：每张按装好的胶卷或配方在后台全尺寸冲洗，成片存进“照片”（格式按导出设置）；“无胶卷”不冲洗。\n底片：用 SpektraLab 相机拍的原片。导出到“照片”以后，过了保留期会自动删除，成片留在“照片”里。没导出过的照片默认一直保留，拍了 3 天以上会在照片库提醒你挑片；选了“N 天后删除”才会自动删，删除前一天照片库会提醒。\n机身号决定片边上和相机有关的细节；每张新照片按顺序占一格，片边印的就是这一格的帧号（1–36 循环）。“拍摄”里的尺寸，换到没有这个尺寸的镜头（如长焦）时用那颗镜头最大的尺寸；48 MP 照片可以全尺寸导出。\n“重新打开时”在启动 App，或离开超过 2 分钟再回来时生效；正在编辑的照片会先保存。")
+                }
+
+                Section("反馈") {
+                    Toggle("触感反馈", isOn: $haptics)
+                }
+
+                Section {
+                    Picker("新照片", selection: $newPhotoUsesLast) {
+                        Text("标准配方").tag(false)
+                        Text("上次使用").tag(true)
+                    }
+                    Picker("预览尺寸", selection: $previewLongEdge) {
+                        ForEach(ImageDecoder.previewLongEdgeChoices, id: \.self) { Text("\($0) px").tag($0) }
+                    }
+                    Toggle("镜头校正", isOn: $lensCorrection)
+                } header: {
+                    Text("冲洗")
+                } footer: {
+                    Text("“上次使用”：新导入或新拍的照片，套用最近一次在编辑页调好的配方（拍摄时胶片仍按装好的胶卷）。\n预览尺寸：编辑时画面的长边；越大越清楚，拖动时越慢，下次打开照片时生效。导出始终是全尺寸。\n镜头校正：只对 RAW，按照片里记录的相机数据校正畸变和暗角；ProRAW 和大多数 DNG 都带这份数据。")
+                }
+
+                Section {
+                    Picker("来源", selection: $source) {
+                        Text("SpektraLab 图库").tag("app")
+                        Text("系统相册").tag("photos")
+                    }
+                    .onChange(of: source) { _, new in filter = new == "photos" ? "photos" : "all" }
+                    LabeledContent("储存空间", value: storage)
+                    Button(cleanable.count == 0 ? "没有可清理的底片"
+                           : String(format: "清理已导出的底片 · %d 张 · %.0f MB", cleanable.count, Double(cleanable.bytes) / 1_048_576)) {
+                        confirmingCleanup = true
+                    }
+                    .disabled(cleanable.count == 0)
+                    .confirmationDialog("删除 \(cleanable.count) 张底片？", isPresented: $confirmingCleanup, titleVisibility: .visible) {
+                        Button("删除底片", role: .destructive) {
+                            model.deletePhotos(Set(model.expendableNegatives(olderThanDays: nil).map(\.id)))
+                            refreshStorage()
+                        }
+                    } message: {
+                        Text("这些是用 SpektraLab 相机拍的原片，成片已经导出到“照片”。删除后不能再重新冲洗，成片不受影响。")
+                    }
+                } header: {
+                    Text("照片库")
+                } footer: {
+                    Text("从相册添加照片时，只关联不复制，原图留在相册里。\n“系统相册”：照片库里多一个“系统相册”视图，直接冲洗相册里的照片——原图留在相册里不动，SpektraLab 只记下配方和冲洗后的缩略图；RAW + JPEG 的照片按 RAW 冲洗。")
+                }
+
+                Section("关于") {
+                    Text("胶片和相纸特性文件来自 Andrea Volpato 的 spektrafilm，引擎与黑白描述档来自 SpektraLab（GPL-3）。这是个人使用的社区移植版。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.labInk.ignoresSafeArea())
+            .navigationTitle("设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() }.fontWeight(.semibold) }
+            }
+            .task { refreshStorage() }
+        }
+        .tint(Color.labRed)
+        .preferredColorScheme(.dark)
+        .presentationBackground(Color.labInk)
+    }
+
+    private func refreshStorage() {
+        let bytes = model.libraryBytes()
+        storage = String(format: "%.1f GB · %d 张", Double(bytes) / 1_073_741_824, model.library.count)
+        let negatives = model.expendableNegatives(olderThanDays: nil)
+        cleanable = (negatives.count, model.negativeBytes(negatives))
+    }
+}

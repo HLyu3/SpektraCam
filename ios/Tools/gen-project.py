@@ -56,7 +56,7 @@ LIBRAW = Path(os.environ.get("SPEKTRALAB_LIBRAW_SOURCE",
 APP = "SpektraLab"
 PRODUCT_NAME = "SpektraLab"
 IOS_MIN = "27.0"
-MARKETING_VERSION = "1.2.0"
+MARKETING_VERSION = "2.0.0"
 BUILD_NUMBER = "6"
 
 # Signing, from the environment: a development certificate is not in this
@@ -261,7 +261,7 @@ def build() -> str:
         # `ios/`. The engine is at the repository root, so the path up from
         # there is one level, not two: `$(SRCROOT)/../engine/...`. Two
         # levels points above the repository, and the bridging header's
-        # `#import "spektrafilm/spk_engine.h"` then fails with "file not
+        # `#import "spektralab/spk_engine.h"` then fails with "file not
         # found" -- which is what it did.
         "HEADER_SEARCH_PATHS": "(\n" + "".join(
             f'\t\t\t\t\t"$(SRCROOT)/../engine/{sub}",\n'

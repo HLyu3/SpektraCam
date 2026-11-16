@@ -169,7 +169,7 @@ enum DecoderProbe {
                     throw ExportError.encodingFailed
                 }
                 if saveToPhotos {
-                    try await PhotoLibrary.saveJPEG(at: destination)
+                    try await PhotoLibrary.saveImage(at: destination)
                     NSLog("SpektraLab render probe: PHOTOS PASS %dx%d",
                           bitmap.width, bitmap.height)
                 }

@@ -11,22 +11,37 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject private var model: ViewModel
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
-            if model.editingPhotoID != nil {
+            if model.editingPhotoID != nil && !model.batchExporting {
                 EditorView()
                     .transition(.opacity.combined(with: .scale(scale: 1.015)))
             } else {
-                PhotoLibraryView()
+                MainTabs()
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.22), value: model.editingPhotoID)
         .preferredColorScheme(.dark)
+        // A photo or RAW sent from another app ("Open in" / "Copy to SpektraLab"): imported like a file; its Inbox copy
+        // goes once it is in the library.
+        .onOpenURL { url in
+            Task { @MainActor in
+                await model.importFiles(from: [url])
+                if url.path.contains("/Inbox/") { try? FileManager.default.removeItem(at: url) }
+            }
+        }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            if phase == .active { model.sceneBecameActive() }
+            if phase == .background { model.sceneWentToBackground() }
+        }
 #if DEBUG
         .task {
             let environment = ProcessInfo.processInfo.environment
+            // UI tests only. Without this guard every Debug launch opened the wall's first photo.
+            guard environment.keys.contains(where: { $0.hasPrefix("SPEKTRAFILM_UI_TEST") }) else { return }
             let libraryPaths = (environment["SPEKTRAFILM_UI_TEST_LIBRARY_PATHS"] ?? "")
                 .split(separator: "|")
                 .map { URL(fileURLWithPath: String($0)) }
@@ -65,14 +80,39 @@ struct PhotoLibraryView: View {
     @State private var showingFileImporter = false
     @State private var selecting = false
     @State private var selected: Set<UUID> = []
+    @State private var pairing: PairSpec?
+    @State private var showingPicker = false
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var showingSettings = false
+    @State private var culling = false
+    /// Tiles a row: 2…5, pinched on the wall.
+    @AppStorage("SpektraLab.libraryColumns") private var columnCount = 3
+    /// The zoom levels a pinch steps through, as Photos does: tiles a row.
+    private static let levels = [1, 2, 3, 4, 5, 7, 10, 14]
+    /// The level a pinch started from.
+    @State private var pinchStart: Int?
+    /// Dense levels: no labels, a section a month.
+    private var dense: Bool { columnCount >= 7 }
+    /// "all", "imported", "captured", "favorite", "raw", "edited", "pair", or "film:<id>".
+    @AppStorage("SpektraLab.libraryFilter") private var filter = "all"
+    /// The wall's order: "shot" (when taken), "added" (when it joined the library), "film" (by film name).
+    @AppStorage("SpektraLab.librarySort") private var sort = "added"
+    @AppStorage("SpektraLab.librarySortOldestFirst") private var oldestFirst = false
+    /// "app": the wall is SpektraLab's own; "photos": the system library, read in place, is a view too.
+    @AppStorage("SpektraLab.librarySource") private var source = "app"
+    private var showingSystemPhotos: Bool { source == "photos" && filter == "photos" }
+    @StateObject private var photosFeed = PhotosFeed()
+    /// System photos picked in the 系统相册 view, in the order tapped (a pair reads left to right).
+    @State private var selectedAssets: [String] = []
     @State private var deleteIDs: Set<UUID> = []
     @State private var showingDelete = false
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4, alignment: .top),
-                                count: 3)
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: dense ? 1 : 3, alignment: .top), count: min(max(columnCount, 1), 14))
+    }
 
     private var selectablePhotoIDs: Set<UUID> {
-        var ids = Set(model.library.map(\.id))
+        var ids = Set(visiblePhotos.map(\.id))
         if let source = model.recipeSourcePhotoID {
             ids.remove(source)
         }
@@ -86,10 +126,17 @@ struct PhotoLibraryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    if let recipe = model.clipboardRecipe {
+                    if selecting, let recipe = model.clipboardRecipe {
                         clipboardBanner(recipe)
                     }
-                    if model.library.isEmpty {
+                    if !selecting, let r = model.cullReminder {
+                        cullBanner(r)
+                    }
+                    if showingSystemPhotos {
+                        sectionHeader
+                        PhotosWall(model: model, feed: photosFeed, selecting: selecting, selected: $selectedAssets,
+                                   columnCount: min(max(columnCount, 1), 14))
+                    } else if model.library.isEmpty {
                         emptyState
                     } else {
                         sectionHeader
@@ -98,16 +145,24 @@ struct PhotoLibraryView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
-                .padding(.bottom, selecting ? 148 : (model.library.isEmpty ? 44 : 124))
+                .padding(.bottom, selecting ? 148 : 24)
             }
             .scrollIndicators(.hidden)
+            // Pinch the wall for more or fewer tiles a row.
+            // Pinch as in Photos: the wall steps through its levels while the fingers move (spread = bigger tiles).
+            .simultaneousGesture(MagnifyGesture()
+                .onChanged { v in
+                    let levels = Self.levels
+                    let start = pinchStart ?? (levels.firstIndex(of: columnCount) ?? levels.firstIndex { $0 >= columnCount } ?? 2)
+                    pinchStart = start
+                    let steps = Int((-log(v.magnification) / log(1.4)).rounded())
+                    let next = levels[min(max(start + steps, 0), levels.count - 1)]
+                    if next != columnCount { withAnimation(.snappy(duration: 0.22)) { columnCount = next } }
+                }
+                .onEnded { _ in pinchStart = nil })
 
             if selecting {
-                selectionBar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(2)
-            } else if !model.library.isEmpty {
-                filmWorkbench
+                Group { if showingSystemPhotos { photosSelectionBar } else { selectionBar } }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(2)
             }
@@ -115,7 +170,7 @@ struct PhotoLibraryView: View {
             if let message = model.libraryMessage {
                 toast(message)
                     .padding(.horizontal, 20)
-                    .padding(.bottom, selecting ? 128 : (model.library.isEmpty ? 18 : 108))
+                    .padding(.bottom, selecting ? 128 : 18)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(3)
@@ -129,6 +184,17 @@ struct PhotoLibraryView: View {
         }
         .animation(.snappy(duration: 0.28), value: selecting)
         .animation(.snappy(duration: 0.22), value: selected)
+        .sheet(isPresented: $showingSettings) { SettingsView(model: model) }
+        .fullScreenCover(isPresented: $culling) { CullView(model: model) }
+        .task(id: model.library.count) { await model.fillCaptureDates() }
+        .onAppear { model.pruneDeletedAssets() }
+        .onChange(of: scenePhase) { _, phase in
+            // Back from Photos, where a photo may have been deleted.
+            if phase == .active { model.pruneDeletedAssets() }
+        }
+        .sheet(item: $pairing) { spec in
+            PairSheet(model: model, spec: spec) { selected.removeAll() }
+        }
         .animation(.snappy(duration: 0.22), value: model.libraryMessage)
         .animation(.easeInOut(duration: 0.18), value: model.libraryBusy)
         .sensoryFeedback(.selection, trigger: selected)
@@ -138,7 +204,7 @@ struct PhotoLibraryView: View {
             }
         }
         .fileImporter(isPresented: $showingFileImporter,
-                      allowedContentTypes: [.image, .rawImage],
+                      allowedContentTypes: [.image, .rawImage, .folder],
                       allowsMultipleSelection: true) { result in
             guard case .success(let urls) = result else { return }
             Task { @MainActor in await model.importFiles(from: urls) }
@@ -166,67 +232,53 @@ struct PhotoLibraryView: View {
     // MARK: - header
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("SPEKTRA LAB")
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(1.8)
-                    .foregroundStyle(Color.labRed.opacity(0.82))
-                Text(selecting ? "选择照片" : "照片库")
-                    .font(.system(size: 34, weight: .bold))
+        HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("SPEKTRA LAB · 暗房")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .tracking(1.6)
+                    .foregroundStyle(Color.labRed.opacity(0.9))
+                Text(selecting ? "选择照片" : "底片")
+                    .font(.system(size: 36, weight: .bold))
                     .tracking(-0.6)
                     .foregroundStyle(Color.labCream)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.footnote.weight(.medium))
-                    .monospacedDigit()
-                    .foregroundStyle(Color.labCream.opacity(0.48))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color.labCream.opacity(0.5))
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
                     if !model.library.isEmpty {
-                        Button {
+                        headerButton(selecting ? "xmark" : "checkmark.circle", selecting ? "结束选择" : "选择照片") {
                             withAnimation(.snappy(duration: 0.2)) {
                                 selecting.toggle()
-                                if !selecting { selected.removeAll() }
+                                if !selecting { selected.removeAll(); selectedAssets.removeAll() }
                             }
-                        } label: {
-                            Image(systemName: selecting ? "xmark" : "checkmark.circle")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Color.labCream)
-                                .frame(width: 44, height: 44)
-                                .labGlassInteractive(in: Circle())
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(selecting ? "结束选择" : "选择照片")
                     }
-
                     if !selecting {
-                        PhotosPicker(selection: $pickerItems,
-                                     maxSelectionCount: 100,
-                                     matching: .images) {
+                        Menu {
+                            Button { showingPicker = true } label: { Label("从“照片”选…", systemImage: "photo.on.rectangle") }
+                            Button { showingFileImporter = true } label: { Label("从文件 / 存储卡导入…", systemImage: "sdcard") }
+                        } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Color.labCream)
                                 .frame(width: 44, height: 44)
                                 .labGlassInteractive(in: Circle())
                         }
-                        .tint(Color.labCream)
                         .accessibilityLabel("导入照片")
-                        .contextMenu {
-                            Button {
-                                showingFileImporter = true
-                            } label: {
-                                Label("从文件导入 RAW / JPEG", systemImage: "folder")
-                            }
-                        }
+                        headerButton("gearshape", "设置") { showingSettings = true }
                     }
                 }
             }
         }
         .padding(.top, 2)
+        .photosPicker(isPresented: $showingPicker, selection: $pickerItems, maxSelectionCount: 100,
+                      matching: .images, photoLibrary: .shared())
         .onChange(of: pickerItems) { _, items in
             guard !items.isEmpty else { return }
             Task { @MainActor in
@@ -236,13 +288,62 @@ struct PhotoLibraryView: View {
         }
     }
 
+    private func headerButton(_ symbol: String, _ label: String, _ run: @escaping () -> Void) -> some View {
+        Button(action: run) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.labCream)
+                .frame(width: 44, height: 44)
+                .labGlassInteractive(in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
     private var subtitle: String {
         let edited = model.library.filter(\.isEdited).count
         if model.library.isEmpty { return "导入一组照片，统一调色" }
         if selecting {
             return selected.isEmpty ? "轻点照片进行多选" : "已选 \(selected.count) 张 · 共 \(model.library.count) 张"
         }
-        return "\(model.library.count) 张照片 · \(edited) 张已调色"
+        let today = model.library.filter { $0.captured && Calendar.current.isDateInToday($0.createdAt) }.count
+        return "\(model.library.count) 张" + (today > 0 ? " · 今天拍了 \(today) 张" : "") + " · \(edited) 张已调色"
+    }
+
+    /// Shots from the camera that have waited days without an export.
+    private func cullBanner(_ r: (count: Int, bytes: Int64, soon: Int)) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "camera")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.labCream.opacity(0.7))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(format: "%d 张拍了 %d 天以上还没导出 · %.1f GB", r.count, ViewModel.cullReminderDays,
+                            Double(r.bytes) / 1_073_741_824))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.labCream)
+                if r.soon > 0 {
+                    Text("其中 \(r.soon) 张将在 1 天内自动删除")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.labRed)
+                }
+            }
+            Spacer(minLength: 4)
+            Button("稍后") { model.snoozeCullReminder() }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.labCream.opacity(0.5))
+            Button { culling = true } label: {
+                Text("去挑片")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .background(Color.labCream, in: Capsule())
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 10)
+        .labGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func clipboardBanner(_ recipe: PhotoRecipe) -> some View {
@@ -271,153 +372,228 @@ struct PhotoLibraryView: View {
     }
 
     private var sectionHeader: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(selecting ? "轻点以选择" : "全部照片")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.labCream.opacity(0.76))
-            Spacer()
-            Text(selecting ? "\(selected.count) / \(model.library.count)" : "长按管理")
-                .font(.caption2.weight(.medium))
-                .monospacedDigit()
-                .foregroundStyle(Color.labCream.opacity(0.34))
-        }
-        .padding(.horizontal, 1)
-    }
-
-    /// The wall's editing dock. It keeps the measured film rolls visible at
-    /// all times, so the library reads as a darkroom rather than a gallery.
-    private var filmWorkbench: some View {
-        HStack(spacing: 9) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 4) {
-                    Image(systemName: "film")
-                        .font(.system(size: 10, weight: .semibold))
-                    Text("胶片实验室")
-                        .font(.system(size: 11.5, weight: .semibold))
-                }
-                .foregroundStyle(Color.labCream.opacity(0.88))
-                Text("点按直接试色")
-                    .font(.system(size: 8.5, weight: .medium))
-                    .foregroundStyle(Color.labCream.opacity(0.38))
-            }
-            .frame(width: 80, alignment: .leading)
-
-            Rectangle()
-                .fill(Color.white.opacity(0.08))
-                .frame(width: 1, height: 34)
-
-            ScrollViewReader { proxy in
+        HStack(alignment: .center, spacing: 8) {
+            if selecting {
+                Text("轻点以选择")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.labCream.opacity(0.76))
+                Spacer()
+                Text(showingSystemPhotos ? "\(selectedAssets.count)" : "\(selected.count) / \(visiblePhotos.count)")
+                    .font(.caption2.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.labCream.opacity(0.34))
+            } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 8) {
-                        ForEach(model.films) { stock in
-                            Button {
-                                openQuickEdit(with: stock)
-                            } label: {
-                                VStack(spacing: 2) {
-                                    StockArtwork(stock: stock)
-                                        .frame(width: 34, height: 42)
-                                        .overlay(alignment: .topTrailing) {
-                                            if stock.id == model.filmStock {
-                                                Circle()
-                                                    .fill(Color.labRed)
-                                                    .frame(width: 5, height: 5)
-                                                    .offset(x: 2, y: -2)
-                                            }
-                                        }
-                                    Text(compactStockName(stock))
-                                        .font(.system(size: 7.5, weight: .medium))
-                                        .foregroundStyle(stock.id == model.filmStock
-                                                         ? Color.labCream.opacity(0.88)
-                                                         : Color.labCream.opacity(0.40))
-                                        .multilineTextAlignment(.center)
-                                        .lineLimit(2)
-                                        .frame(width: 50)
-                                }
-                                .frame(width: 50, height: 58)
+                    HStack(spacing: 6) {
+                        if source == "photos" { chip("系统相册", "photos", symbol: "photo.on.rectangle") }
+                        chip("全部 \(model.library.count)", "all")
+                        chip("拍摄", "captured", symbol: "camera")
+                        chip("导入", "imported")
+                        chip("收藏", "favorite", symbol: "heart")
+                        chip("已调色", "edited")
+                        chip("RAW", "raw")
+                        if count("pair") > 0 { chip("双拼", "pair") }
+                        filmChip
+                        let unexported = model.unexportedShots().count
+                        if unexported > 0 {
+                            Button { culling = true } label: {
+                                Label("挑片 \(unexported)", systemImage: "checkmark.rectangle.stack")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .padding(.horizontal, 11).frame(height: 30)
+                                    .foregroundStyle(Color.labRed)
+                                    .overlay(Capsule().strokeBorder(Color.labRed.opacity(0.5), lineWidth: 1))
                             }
                             .buttonStyle(.plain)
-                            .id(stock.id)
-                            .accessibilityLabel("使用 \(stock.name) 编辑最新照片")
                         }
                     }
-                    .padding(.horizontal, 2)
+                    .padding(.horizontal, 1)
                 }
-                .onAppear {
-                    proxy.scrollTo(model.filmStock, anchor: .center)
-                }
-                .onChange(of: model.filmStock) { _, stock in
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        proxy.scrollTo(stock, anchor: .center)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 58)
-
-            Button {
-                openQuickEdit(with: nil)
-            } label: {
-                VStack(spacing: 3) {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("调色")
-                        .font(.system(size: 8.5, weight: .semibold))
-                }
-                .foregroundStyle(Color.labCream)
-                .frame(width: 44, height: 52)
-                .background(Color.labRed.opacity(0.22),
-                            in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("编辑最新照片")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .labGlass(in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.30), radius: 24, y: 10)
-        .padding(.horizontal, 10)
-        .padding(.bottom, 6)
-    }
-
-    private func compactStockName(_ stock: Stock) -> String {
-        var name = stock.name
-        for prefix in ["Kodak ", "Fujifilm ", "Ilford ", "CineStill "] {
-            name = name.replacingOccurrences(of: prefix, with: "")
-        }
-        let words = name.split(separator: " ")
-        return words.prefix(2).joined(separator: " ")
-    }
-
-    private func openQuickEdit(with stock: Stock?) {
-        guard let photo = model.library.first else { return }
-        Task { @MainActor in
-            await model.openLibraryPhoto(photo.id)
-            guard model.editingPhotoID != nil else { return }
-            if let stock {
-                model.filmChanged(stock.id)
+                // Clipped, with a soft edge: the chips used to run on under the sort button.
+                .mask(LinearGradient(stops: [.init(color: .black, location: 0.9), .init(color: .clear, location: 1)],
+                                     startPoint: .leading, endPoint: .trailing))
+                if showingSystemPhotos { PhotoAlbumMenu(feed: photosFeed) } else { sortMenu.fixedSize() }
             }
         }
     }
 
-    // MARK: - the wall
+    /// One filter, a tap away; the chosen one lit in amber.
+    private func chip(_ title: String, _ value: String, symbol: String? = nil) -> some View {
+        let on = filter == value
+        return Button {
+            withAnimation(.snappy(duration: 0.2)) { filter = value }
+        } label: {
+            HStack(spacing: 4) {
+                if let symbol { Image(systemName: symbol).font(.system(size: 10, weight: .semibold)) }
+                Text(title)
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .padding(.horizontal, 11)
+            .frame(height: 30)
+            .foregroundStyle(on ? Color.black : Color.labCream.opacity(0.8))
+            .background(on ? AnyShapeStyle(Color.labRed) : AnyShapeStyle(Color.white.opacity(0.07)), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The films some photo is on, by how many.
+    private var filmChip: some View {
+        let on = filter.hasPrefix("film:")
+        return Menu {
+            let films = Dictionary(grouping: model.library, by: \.recipe.filmStock).sorted { $0.value.count > $1.value.count }
+            ForEach(films, id: \.key) { film, photos in
+                Button("\(model.filmName(for: film)) · \(photos.count)") { filter = "film:" + film }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "film").font(.system(size: 10, weight: .semibold))
+                Text(on ? filterTitle : "胶片")
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .padding(.horizontal, 11)
+            .frame(height: 30)
+            .foregroundStyle(on ? Color.black : Color.labCream.opacity(0.8))
+            .background(on ? AnyShapeStyle(Color.labRed) : AnyShapeStyle(Color.white.opacity(0.07)), in: Capsule())
+        }
+    }
+
+    // MARK: - filters
+
+    private func matches(_ p: LibraryPhoto, _ f: String) -> Bool {
+        switch f {
+        case "imported": return !p.captured && p.pair == nil
+        case "captured": return p.captured
+        case "favorite": return p.favorite
+        case "raw": return p.isRAW
+        case "edited": return p.isEdited
+        case "pair": return p.pair != nil
+        default:
+            if f.hasPrefix("film:") { return p.recipe.filmStock == String(f.dropFirst(5)) }
+            return true
+        }
+    }
+
+    private var visiblePhotos: [LibraryPhoto] {
+        let shown = model.library.filter { matches($0, filter) }
+        func date(_ p: LibraryPhoto) -> Date { sort == "shot" ? (p.capturedAt ?? p.createdAt) : p.createdAt }
+        let newest: [LibraryPhoto]
+        if sort == "film" {
+            newest = shown.sorted {
+                let a = model.filmName(for: $0.recipe.filmStock), b = model.filmName(for: $1.recipe.filmStock)
+                return a == b ? $0.createdAt > $1.createdAt : a.localizedStandardCompare(b) == .orderedAscending
+            }
+            return oldestFirst ? Array(newest.reversed()) : newest
+        }
+        newest = shown.sorted { date($0) > date($1) }
+        return oldestFirst ? Array(newest.reversed()) : newest
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("排序", selection: $sort) {
+                Label("拍摄时间", systemImage: "camera").tag("shot")
+                Label("添加时间", systemImage: "plus.square.on.square").tag("added")
+                Label("胶片", systemImage: "film").tag("film")
+            }
+            Picker("顺序", selection: $oldestFirst) {
+                Text(sort == "film" ? "A → Z" : "新的在前").tag(false)
+                Text(sort == "film" ? "Z → A" : "旧的在前").tag(true)
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.labCream.opacity(0.85))
+                .frame(width: 32, height: 32)
+                .background(Color.white.opacity(sort == "added" && !oldestFirst ? 0.06 : 0.14), in: Circle())
+        }
+        .accessibilityLabel("排序")
+    }
+
+    private func count(_ f: String) -> Int { model.library.filter { matches($0, f) }.count }
+
+    private var filterTitle: String {
+        switch filter {
+        case "imported": return "导入"
+        case "captured": return "拍摄"
+        case "favorite": return "收藏"
+        case "raw": return "RAW"
+        case "edited": return "已调色"
+        case "pair": return "双拼"
+        case "photos": return "系统相册"
+        default:
+            if filter.hasPrefix("film:") { return model.filmName(for: String(filter.dropFirst(5))) }
+            return "全部照片"
+        }
+    }
+
+    /// The wall in sections: a day each (by the date the sort uses), or a film each when sorted by film.
+    private var sections: [(key: String, title: String, photos: [LibraryPhoto])] {
+        var out: [(key: String, title: String, photos: [LibraryPhoto])] = []
+        let calendar = Calendar.current
+        for p in visiblePhotos {
+            let key: String, title: String
+            if sort == "film" {
+                key = p.recipe.filmStock
+                title = model.filmName(for: key)
+            } else {
+                let date = sort == "shot" ? (p.capturedAt ?? p.createdAt) : p.createdAt
+                if dense {
+                    // Zoomed out: a section a month.
+                    let month = calendar.date(from: calendar.dateComponents([.year, .month], from: date)) ?? date
+                    key = "m" + String(month.timeIntervalSince1970)
+                    title = month.formatted(.dateTime.year().month(.wide))
+                    if out.last?.key == key { out[out.count - 1].photos.append(p) } else { out.append((key, title, [p])) }
+                    continue
+                }
+                let day = calendar.startOfDay(for: date)
+                key = String(day.timeIntervalSince1970)
+                title = calendar.isDateInToday(day) ? "今天" : calendar.isDateInYesterday(day) ? "昨天"
+                    // Date only: `.year(.omitted)` on a date style brought the time back ("0:00").
+                    : calendar.isDate(day, equalTo: .now, toGranularity: .year)
+                        ? day.formatted(.dateTime.month().day().weekday())
+                        : day.formatted(.dateTime.year().month().day().weekday())
+            }
+            if out.last?.key == key { out[out.count - 1].photos.append(p) } else { out.append((key, title, [p])) }
+        }
+        return out
+    }
 
     private var wall: some View {
-        LazyVGrid(columns: columns, spacing: 4) {
-            ForEach(model.library) { photo in
+        LazyVGrid(columns: columns, spacing: 3, pinnedViews: [.sectionHeaders]) {
+            ForEach(sections, id: \.key) { section in
+                Section {
+                    ForEach(section.photos) { photo in
+                        wallTile(photo)
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        Text(section.title).font(.system(size: 13, weight: .semibold))
+                        Text("\(section.photos.count) 张").font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Color.labCream.opacity(0.4))
+                        Spacer()
+                    }
+                    .foregroundStyle(Color.labCream)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 2)
+                    .background(Color.labInk.opacity(0.92))
+                }
+            }
+        }
+    }
+
+    private func wallTile(_ photo: LibraryPhoto) -> some View {
+            Group {
                 photoTile(photo)
                     .contextMenu {
                         Button {
                             Task { @MainActor in await model.openLibraryPhoto(photo.id) }
                         } label: {
                             Label("编辑", systemImage: "slider.horizontal.3")
+                        }
+                        Button {
+                            model.toggleFavorite(photo.id)
+                        } label: {
+                            Label(photo.favorite ? "取消收藏" : "收藏", systemImage: photo.favorite ? "heart.slash" : "heart")
                         }
                         Button {
                             copyRecipe(from: photo.id)
@@ -433,35 +609,52 @@ struct PhotoLibraryView: View {
                         }
                     }
             }
-        }
     }
 
     private func photoTile(_ photo: LibraryPhoto) -> some View {
         let isSelected = selected.contains(photo.id)
         let isRecipeSource = model.recipeSourcePhotoID == photo.id
-        let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: dense ? 1 : 4, style: .continuous)
 
         return Color.labPanel
             .aspectRatio(1, contentMode: .fit)
+            // The picture in a layer of its own: filling the square, a wide photo is wider than the tile, and the
+            // label laid out in the same ZStack started off the tile's left edge (the film name was cut).
+            .overlay {
+                Image(uiImage: photo.thumbnail)
+                    .resizable()
+                    .scaledToFill()
+                    .saturation(isRecipeSource ? 0.12 : 1)
+            }
             .overlay {
                 ZStack(alignment: .bottom) {
-                    Image(uiImage: photo.thumbnail)
-                        .resizable()
-                        .scaledToFill()
-                        .saturation(isRecipeSource ? 0.12 : 1)
-
-                    if photo.isEdited {
+                    Group {
                         LinearGradient(colors: [.clear, .black.opacity(0.62)],
                                        startPoint: .center, endPoint: .bottom)
                         HStack(spacing: 4) {
-                            Circle()
-                                .fill(Color.labRed.opacity(0.92))
-                                .frame(width: 4, height: 4)
-                            Text(model.filmName(for: photo.recipe.filmStock))
+                            if photo.isEdited {
+                                Circle()
+                                    .fill(Color.labRed.opacity(0.92))
+                                    .frame(width: 4, height: 4)
+                            }
+                            if photo.captured {
+                                Image(systemName: "camera.fill").font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.8))
+                            }
+                            if photo.pair != nil {
+                                Image(systemName: "rectangle.split.2x1.fill").font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.8))
+                            }
+                            if photo.recipe.hdr == true {
+                                Text("HDR").font(.system(size: 6.5, weight: .heavy)).foregroundStyle(Color.labRed)
+                            }
+                            if columnCount < 5 && !dense {
+                            Text(model.shortFilmName(for: photo.recipe.filmStock))
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.92))
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.72)
+                                .minimumScaleFactor(0.6)
+                            }
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 7)
@@ -480,6 +673,16 @@ struct PhotoLibraryView: View {
             .overlay {
                 shape.strokeBorder(isSelected ? Color.labRed : Color.white.opacity(0.055),
                                    lineWidth: isSelected ? 2 : 1)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if photo.favorite && !dense {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.5), radius: 2)
+                        .padding(7)
+                        .accessibilityLabel("已收藏")
+                }
             }
             .overlay(alignment: .topTrailing) {
                 if selecting {
@@ -519,7 +722,7 @@ struct PhotoLibraryView: View {
                     }
                     .frame(width: 22, height: 22)
                     .padding(6)
-                } else if photo.isEdited {
+                } else if photo.isEdited && columnCount <= 4 {
                     Menu {
                         Button {
                             Task { @MainActor in await model.openLibraryPhoto(photo.id) }
@@ -614,6 +817,21 @@ struct PhotoLibraryView: View {
             }
 
             HStack(spacing: 9) {
+                if selected.count == 2 {
+                    Button {
+                        let ids = model.library.map(\.id).filter { selected.contains($0) }
+                        // The wall is newest first; a strip reads left to right, oldest first.
+                        pairing = PairSpec(left: ids[1], right: ids[0])
+                    } label: {
+                        Label("做成双拼", systemImage: "rectangle.split.2x1")
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 13)
+                            .frame(height: 46)
+                            .background(Color.white.opacity(0.08), in: Capsule())
+                            .foregroundStyle(Color.labCream.opacity(0.88))
+                    }
+                    .buttonStyle(.plain)
+                }
                 if selected.count == 1, let id = selected.first {
                     Button {
                         copyRecipe(from: id)
@@ -626,6 +844,16 @@ struct PhotoLibraryView: View {
                             .foregroundStyle(Color.labCream.opacity(0.88))
                     }
                     .buttonStyle(.plain)
+                }
+
+                if !model.savedRecipes.isEmpty {
+                    recipeMenu {
+                        let ids = selected
+                        await model.applyRecipe($0.recipe, to: ids)
+                        selected.removeAll()
+                        selecting = false
+                    }
+                    .disabled(selected.isEmpty)
                 }
 
                 Button {
@@ -683,6 +911,86 @@ struct PhotoLibraryView: View {
         .padding(.bottom, 8)
     }
 
+    /// Selection in the 系统相册 view: the picked photos are linked when an action needs them.
+    private var photosSelectionBar: some View {
+        let count = selectedAssets.count
+        return HStack(spacing: 9) {
+            Text(count == 0 ? "选择照片" : "已选 \(count) 张")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.labCream)
+                .contentTransition(.numericText())
+            Spacer(minLength: 4)
+            if count == 2 {
+                barAction("做成双拼", "rectangle.split.2x1") {
+                    let ids = await model.linkAssets(selectedAssets)
+                    if ids.count == 2 { pairing = PairSpec(left: ids[0], right: ids[1]) }
+                }
+            }
+            if count == 1 {
+                barAction("复制配方", "doc.on.doc") {
+                    if let id = await model.linkAssets(selectedAssets).first { model.copyRecipe(from: id) }
+                    selectedAssets.removeAll()
+                }
+            }
+            if !model.savedRecipes.isEmpty {
+                recipeMenu {
+                    let ids = await model.linkAssets(selectedAssets)
+                    await model.applyRecipe($0.recipe, to: Set(ids))
+                    selectedAssets.removeAll()
+                    selecting = false
+                }
+                .disabled(count == 0)
+            }
+            barAction(model.clipboardRecipe == nil ? "先复制配方" : "粘贴配方", "doc.on.clipboard") {
+                let ids = await model.linkAssets(selectedAssets)
+                await model.pasteRecipe(to: Set(ids))
+                selectedAssets.removeAll()
+                selecting = false
+            }
+            .disabled(count == 0 || model.clipboardRecipe == nil)
+            .opacity(count == 0 || model.clipboardRecipe == nil ? 0.4 : 1)
+        }
+        .padding(14)
+        .labGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: .black.opacity(0.36), radius: 26, y: 12)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+
+    /// Saved looks to put on the selection.
+    private func recipeMenu(_ apply: @escaping @MainActor (SavedRecipe) async -> Void) -> some View {
+        Menu {
+            Section("套用配方") {
+                ForEach(model.savedRecipes) { saved in
+                    Button { Task { @MainActor in await apply(saved) } } label: {
+                        Label { Text(saved.name); Text(model.filmName(for: saved.recipe.filmStock)) } icon: {
+                            Image(systemName: "wand.and.stars")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: 14, weight: .semibold))
+                .frame(width: 46, height: 46)
+                .background(Color.white.opacity(0.08), in: Circle())
+                .foregroundStyle(Color.labCream.opacity(0.85))
+        }
+        .accessibilityLabel("套用配方")
+    }
+
+    private func barAction(_ title: String, _ symbol: String, _ run: @escaping @MainActor () async -> Void) -> some View {
+        Button { Task { @MainActor in await run() } } label: {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 12)
+                .frame(height: 42)
+                .background(Color.white.opacity(0.08), in: Capsule())
+                .foregroundStyle(Color.labCream.opacity(0.88))
+        }
+        .buttonStyle(.plain)
+    }
+
     private func copyRecipe(from id: UUID) {
         selected.remove(id)
         model.copyRecipe(from: id)
@@ -735,7 +1043,8 @@ struct PhotoLibraryView: View {
             VStack(spacing: 10) {
                 PhotosPicker(selection: $pickerItems,
                              maxSelectionCount: 100,
-                             matching: .images) {
+                             matching: .images,
+                             photoLibrary: .shared()) {
                     Label("从相册添加照片", systemImage: "photo.on.rectangle.angled")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)

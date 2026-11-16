@@ -18,10 +18,13 @@ import UIKit
 import UniformTypeIdentifiers
 
 extension Color {
-    static var labInk: Color { Color(red: 0.071, green: 0.071, blue: 0.075) }
-    static var labPanel: Color { Color(red: 0.110, green: 0.110, blue: 0.118) }
-    static var labCream: Color { Color(red: 0.965, green: 0.949, blue: 0.918) }
-    static var labRed: Color { Color(red: 0.96, green: 0.27, blue: 0.24) }
+    /// Warm graphite, the darkroom's walls (the app's own look since 2026-11-16, not the community app's).
+    static var labInk: Color { Color(red: 0.062, green: 0.059, blue: 0.055) }
+    static var labPanel: Color { Color(red: 0.112, green: 0.106, blue: 0.098) }
+    /// Paper white.
+    static var labCream: Color { Color(red: 0.965, green: 0.945, blue: 0.905) }
+    /// The accent: a safelight through an amber filter. Named `labRed` from the old palette (every screen uses it).
+    static var labRed: Color { Color(red: 0.937, green: 0.604, blue: 0.188) }
 }
 
 extension View {
@@ -67,48 +70,65 @@ extension View {
     }
 }
 
-/// A nearly black darkroom with two faint spills of coloured light. The glass
-/// controls need something beneath them to refract, but the backdrop stays
-/// quiet enough not to compete with a photograph's own colour.
+/// The darkroom: warm graphite, a faint amber safelight from the top, and film grain over all of it. The grain
+/// is a small noise tile made once in code (no image asset) and tiled.
 struct LabBackdrop: View {
     var body: some View {
         ZStack {
-            Color(red: 0.043, green: 0.044, blue: 0.050)
-            LinearGradient(colors: [Color.white.opacity(0.020), .clear, .black.opacity(0.16)],
-                           startPoint: .top, endPoint: .bottom)
-            RadialGradient(colors: [Color(red: 0.94, green: 0.31, blue: 0.22).opacity(0.11), .clear],
-                           center: UnitPoint(x: 0.96, y: 0.01),
-                           startRadius: 4, endRadius: 430)
-            RadialGradient(colors: [Color(red: 0.30, green: 0.50, blue: 0.67).opacity(0.065), .clear],
-                           center: UnitPoint(x: 0.02, y: 0.74),
-                           startRadius: 8, endRadius: 390)
-            RadialGradient(colors: [.clear, .black.opacity(0.24)],
-                           center: .center, startRadius: 170, endRadius: 520)
+            Color.labInk
+            RadialGradient(colors: [Color.labRed.opacity(0.10), .clear],
+                           center: UnitPoint(x: 0.5, y: -0.08), startRadius: 10, endRadius: 520)
+            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .center, endPoint: .bottom)
+            Image(uiImage: Self.grain)
+                .resizable(resizingMode: .tile)
+                .opacity(0.055)
+                .blendMode(.screen)
+                .allowsHitTesting(false)
         }
         .ignoresSafeArea()
     }
+
+    /// 192 px of luminance noise, a little clumped like grain (each speck drawn at a random size).
+    static let grain: UIImage = {
+        let side = 192
+        let r = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: {
+            let f = UIGraphicsImageRendererFormat(); f.scale = 1; f.opaque = true; return f
+        }())
+        return r.image { ctx in
+            UIColor.black.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: side, height: side))
+            var rng = SystemRandomNumberGenerator()
+            for _ in 0..<(side * side / 3) {
+                let v = CGFloat.random(in: 0.2...1, using: &rng)
+                UIColor(white: v, alpha: CGFloat.random(in: 0.25...0.9, using: &rng)).setFill()
+                let d = CGFloat.random(in: 0.6...1.8, using: &rng)
+                ctx.fill(CGRect(x: CGFloat.random(in: 0..<CGFloat(side), using: &rng),
+                                y: CGFloat.random(in: 0..<CGFloat(side), using: &rng), width: d, height: d))
+            }
+        }
+    }()
 }
 
 struct EditorView: View {
     @EnvironmentObject private var model: ViewModel
     @State private var showingExport = false
     @State private var showingDiagnostics = false
-    @State private var showingFilmEffects = false
     @State private var hiddenError: String?
-    @State private var deck: Deck = .film
+    @State private var stage: EditStage = .film
+    @State private var chosenTool: [EditStage: String] = [:]
     @State private var immersive = false
     @State private var zoom: CGFloat = 1
     @State private var savedZoom: CGFloat = 1
     @State private var pan = CGSize.zero
     @State private var savedPan = CGSize.zero
     @State private var copyToast = false
-
-    private enum Deck: String, CaseIterable, Identifiable, Equatable {
-        case film = "胶片"
-        case paper = "相纸"
-        case adjust = "调整"
-        var id: String { rawValue }
-    }
+    @State private var cropImage: CropImage?
+    @State private var browsingPapers: Bool?
+    @State private var savingRecipe = false
+    @State private var recipeName = ""
+    /// Long-press on the picture: the imported photograph while the finger is down.
+    @GestureState private var comparing = false
+    @State private var compareEndedAt = Date.distantPast
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -117,11 +137,20 @@ struct EditorView: View {
             VStack(spacing: 0) {
                 if !immersive {
                     topBar
+                        .disabled(model.exporting)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 picture
                 if !immersive {
-                    deckPanel
+                    EditorDeck(model: model,
+                               context: EditContext(
+                                openCrop: {
+                                    if let image = model.cropSourceImage() { cropImage = CropImage(image: image) }
+                                },
+                                browseStocks: { browsingPapers = $0 }),
+                               stage: $stage, chosen: $chosenTool)
+                        .disabled(model.exporting)
+                        .opacity(model.exporting ? 0.45 : 1)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -147,6 +176,39 @@ struct EditorView: View {
                 .transition(.opacity)
             }
 
+            if model.exporting {
+                // Modal: nothing on the page may touch the engine until the file is written.
+                ZStack {
+                    Color.black.opacity(0.62)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture {}
+                        .onLongPressGesture(minimumDuration: 0) {}
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .controlSize(.large)
+                            .tint(Color.labCream)
+                        Text("正在导出")
+                            .font(.headline)
+                            .foregroundStyle(Color.labCream)
+                        Text(model.statusText)
+                            .font(.footnote.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                        Text("完成前请不要切换 App")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(24)
+                    .frame(maxWidth: 280)
+                    .labGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+                .transition(.opacity)
+                .zIndex(10)
+                .accessibilityAddTraits(.isModal)
+            }
+
             if copyToast {
                 Text("配方已复制")
                     .font(.footnote.weight(.semibold))
@@ -164,18 +226,24 @@ struct EditorView: View {
         .animation(.snappy(duration: 0.24), value: immersive)
         .statusBarHidden(immersive)
         .preferredColorScheme(.dark)
-        .alert("导出照片", isPresented: $showingExport) {
-            Button("保存到相册") {
-                _ = Task<Void, Never> { @MainActor in
-                    await model.exportToPhotos()
-                }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("以手机安全尺寸重新渲染为 JPEG 并保存到相册。")
-        }
+        .sheet(isPresented: $showingExport) { ExportSheet(model: model) }
         .sheet(isPresented: $showingDiagnostics) { diagnosticsSheet }
-        .sheet(isPresented: $showingFilmEffects) { FilmEffectsSheet(model: model) }
+        .alert("存为配方", isPresented: $savingRecipe) {
+            TextField("名字", text: $recipeName)
+            Button("取消", role: .cancel) {}
+            Button("存") { model.saveCurrentRecipe(named: recipeName) }
+        } message: {
+            Text("胶片、相纸、曝光、效果、片边、日期和后期都会存进去；裁剪不会。")
+        }
+        .sheet(item: Binding(get: { browsingPapers.map(BrowseStocks.init) }, set: { browsingPapers = $0?.papers })) {
+            StockBrowser(model: model, papers: $0.papers)
+        }
+        .fullScreenCover(item: $cropImage) { item in
+            CropScreen(image: item.image,
+                       onDone: { model.setCrop($0); cropImage = nil },
+                       onCancel: { cropImage = nil },
+                       crop: model.crop)
+        }
 #if DEBUG
         .task {
             let environment = ProcessInfo.processInfo.environment
@@ -202,16 +270,7 @@ struct EditorView: View {
                 model.setDateBackEnabled(true)
                 try? await Task.sleep(for: .seconds(6))
             }
-            if let requested = environment["SPEKTRAFILM_UI_TEST_DECK"],
-               let requestedDeck = ["film": Deck.film,
-                                    "paper": Deck.paper,
-                                    "adjust": Deck.adjust][requested]
-                   ?? Deck(rawValue: requested) {
-                deck = requestedDeck
-            }
-            if environment["SPEKTRAFILM_UI_TEST_EFFECTS_SHEET"] == "1" {
-                showingFilmEffects = true
-            }
+
             if environment["SPEKTRAFILM_UI_TEST_IMMERSIVE"] == "1" {
                 immersive = true
             }
@@ -231,106 +290,89 @@ struct EditorView: View {
 
     // MARK: - top bar
 
+    /// Back, the film and paper (to the 胶片 stage), and the whole-photo actions: undo, redo,
+    /// export, more. Tools live in the deck, never here.
     private var topBar: some View {
-        ZStack {
+        HStack(spacing: 6) {
+            Button { model.closeEditor() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 40, height: 40)
+                    .labGlassInteractive(in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("返回照片墙")
+
             Button {
-                withAnimation(.easeOut(duration: 0.18)) { deck = .film }
+                withAnimation(.easeOut(duration: 0.18)) { stage = .film; chosenTool[.film] = "film" }
             } label: {
                 VStack(spacing: 1) {
-                    HStack(spacing: 4) {
-                        Text(model.currentFilmName)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.labCream)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color.labCream.opacity(0.55))
-                    }
+                    Text(model.currentFilmName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.labCream)
                     Text(model.currentPaperName)
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(Color.secondary.opacity(0.78))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
                 }
-                .padding(.horizontal, 14)
-                .frame(maxWidth: 190)
-                .frame(height: 42)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("当前胶片 \(model.currentFilmName)，相纸 \(model.currentPaperName)")
             .labGlassInteractive(in: Capsule())
 
-            HStack(spacing: 8) {
-                Button {
-                    model.closeEditor()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .semibold))
-                        .frame(width: 42, height: 42)
-                        .labGlassInteractive(in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("返回照片墙")
+            HStack(spacing: 0) {
+                barButton("arrow.uturn.backward", label: "撤销", enabled: model.canUndo && !isBusy) { model.undo() }
+                barButton("arrow.uturn.forward", label: "重做", enabled: model.canRedo && !isBusy) { model.redo() }
+            }
+            .labGlassInteractive(in: Capsule())
 
-                Spacer()
+            Button { showingExport = true } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 40, height: 40)
+                    .labGlassInteractive(in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(model.renderedTexture == nil)
+            .opacity(model.renderedTexture == nil ? 0.4 : 1)
+            .accessibilityLabel("导出")
 
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
-                        Menu {
-                            if model.editingPhotoID != nil {
-                                Button {
-                                    if let id = model.editingPhotoID {
-                                        model.copyRecipe(from: id)
-                                        copyToast = true
-                                        Task { @MainActor in
-                                            try? await Task.sleep(for: .seconds(2))
-                                            copyToast = false
-                                        }
-                                    }
-                                } label: {
-                                    Label("复制这张照片的配方", systemImage: "doc.on.doc")
-                                }
-                            }
-                            Button {
-                                model.closeEditor()
-                            } label: {
-                                Label("保存并返回照片墙", systemImage: "rectangle.stack")
-                            }
-                            Divider()
-                            Button {
-                                showingDiagnostics = true
-                            } label: {
-                                Label("诊断信息", systemImage: "info.circle")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 15, weight: .semibold))
-                                .frame(width: 42, height: 42)
-                                .labGlassInteractive(in: Circle())
+            Menu {
+                if let id = model.editingPhotoID {
+                    Button {
+                        model.copyRecipe(from: id)
+                        copyToast = true
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(2))
+                            copyToast = false
                         }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            showingExport = true
-                        } label: {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 15, weight: .semibold))
-                                .frame(width: 42, height: 42)
-                                .labGlassInteractive(in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(model.renderedTexture == nil)
-                        .opacity(model.renderedTexture == nil ? 0.4 : 1)
+                    } label: {
+                        Label("复制这张照片的配方", systemImage: "doc.on.doc")
                     }
                 }
+                Button { recipeName = model.currentFilmName; savingRecipe = true } label: {
+                    Label("存为配方…", systemImage: "wand.and.stars")
+                }
+                Button { showingDiagnostics = true } label: {
+                    Label("诊断信息", systemImage: "info.circle")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 32, height: 40)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("更多")
         }
         .tint(Color.labRed)
         .foregroundStyle(Color.labCream)
         .padding(.top, 3)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
     }
 
     // MARK: - the picture
@@ -350,6 +392,11 @@ struct EditorView: View {
                         .id(model.renderIdentity)
                         .simultaneousGesture(imageGestures)
                         .simultaneousGesture(pictureTapGesture)
+                        .simultaneousGesture(compareGesture)
+                        .onChange(of: comparing) { _, on in
+                            if !on { compareEndedAt = Date() }
+                            model.setShowingOriginal(on)
+                        }
                 }
             } else {
                 emptyState
@@ -388,6 +435,22 @@ struct EditorView: View {
                         }
                         .allowsHitTesting(false)
                         Spacer()
+                        if !immersive {
+                            // Hold to see the imported photograph (also: long-press the picture).
+                            Label("原图", systemImage: model.showingOriginal ? "eye.fill" : "eye")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(model.showingOriginal ? Color.black : Color.labCream)
+                                .padding(.horizontal, 10)
+                                .frame(height: 30)
+                                .background(model.showingOriginal ? AnyShapeStyle(Color.labCream) : AnyShapeStyle(.ultraThinMaterial),
+                                            in: Capsule())
+                                .fixedSize()
+                                .contentShape(Capsule())
+                                .onLongPressGesture(minimumDuration: .infinity, maximumDistance: .infinity,
+                                                    perform: {}, onPressingChanged: { model.setShowingOriginal($0) })
+                                .accessibilityLabel("按住看原图")
+                                .transition(.opacity)
+                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
@@ -417,9 +480,37 @@ struct EditorView: View {
         .background(Color.labInk)
     }
 
+    private func barButton(_ symbol: String, label: String, enabled: Bool = true,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.labCream.opacity(enabled ? 1 : 0.3))
+                .frame(width: 38, height: 40)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+    }
+
+    /// `@GestureState` resets itself however the touch ends, so the original never sticks.
+    private var compareGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.25)
+            .sequenced(before: DragGesture(minimumDistance: 0))
+            .updating($comparing) { value, state, _ in
+                if case .second(true, _) = value { state = true }
+            }
+    }
+
+    /// Lifting the finger after a compare is not a tap.
+    private var endsCompare: Bool {
+        model.showingOriginal || Date().timeIntervalSince(compareEndedAt) < 0.4
+    }
+
     private var pictureTapGesture: some Gesture {
         TapGesture(count: 2)
             .onEnded {
+                guard !endsCompare else { return }
                 if zoom > 1 || pan != .zero {
                     withAnimation(.easeOut(duration: 0.2)) {
                         zoom = 1
@@ -432,6 +523,7 @@ struct EditorView: View {
                 }
             }
             .exclusively(before: TapGesture().onEnded {
+                guard !endsCompare else { return }
                 withAnimation(.snappy(duration: 0.24)) { immersive.toggle() }
             })
     }
@@ -449,7 +541,7 @@ struct EditorView: View {
                 },
             DragGesture(minimumDistance: 4)
                 .onChanged { value in
-                    guard zoom > 1 else { return }
+                    guard zoom > 1, !model.showingOriginal else { return }
                     pan = CGSize(width: savedPan.width + value.translation.width,
                                  height: savedPan.height + value.translation.height)
                 }
@@ -495,170 +587,10 @@ struct EditorView: View {
         )
     }
 
-    // MARK: - the bottom deck
-
-    private var deckPanel: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 2) {
-                ForEach(Deck.allCases) { tab in
-                    Button {
-                        withAnimation(.easeOut(duration: 0.16)) { deck = tab }
-                    } label: {
-                        VStack(spacing: 4) {
-                            Text(tab.rawValue)
-                                .font(.system(size: 13, weight: deck == tab ? .semibold : .medium))
-                                .foregroundStyle(deck == tab ? Color.labCream : Color.secondary.opacity(0.48))
-                            Capsule()
-                                .fill(deck == tab ? Color.labCream : Color.clear)
-                                .frame(width: 18, height: 1.5)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.top, 7)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer()
-                Text(deck == .film ? "\(model.films.count) 款"
-                     : deck == .paper ? "\(model.papers.count) 款" : "")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                Button {
-                    showingDiagnostics = true
-                } label: {
-                    Image(systemName: "info.circle")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 2)
-
-            deckContent
-                .frame(height: deck == .adjust ? 158 : 70)
-        }
-        .labGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .padding(.horizontal, 10)
-        .padding(.bottom, 8)
-    }
-
-    @ViewBuilder
-    private var deckContent: some View {
-        switch deck {
-        case .film:
-            stockStrip(model.films, selected: model.filmStock) { model.filmChanged($0) }
-        case .paper:
-            stockStrip(model.papers, selected: model.printStock) { model.paperChanged($0) }
-        case .adjust:
-            adjustPanel
-        }
-    }
-
-    private func stockStrip(_ stocks: [Stock], selected: String,
-                            pick: @escaping (String) -> Void) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 8) {
-                ForEach(stocks) { stock in
-                    StockTile(stock: stock,
-                              selected: stock.id == selected) {
-                        pick(stock.id)
-                    }
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 2)
-        }
-    }
-
-    private var adjustPanel: some View {
-        ScrollView {
-            VStack(spacing: 9) {
-                effectControls
-                ForEach(ParamCatalog.all) { control in
-                    ParamSlider(control: control,
-                                value: Binding(
-                                    get: { model.params[control.key] ?? control.defaultValue },
-                                    set: { model.parameterChanged(control.key, $0) }))
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-        }
-    }
-
-    private var effectControls: some View {
-        HStack(spacing: 7) {
-            effectButton(title: "片边",
-                         detail: model.filmEdgeDisplayName,
-                         symbol: "film",
-                         active: model.filmBorderEnabled) {
-                model.setFilmBorderEnabled(!model.filmBorderEnabled)
-            }
-            effectButton(title: "日期",
-                         detail: model.dateBackEnabled ? model.dateStampText : "关闭",
-                         symbol: "calendar",
-                         active: model.dateBackEnabled) {
-                model.setDateBackEnabled(!model.dateBackEnabled)
-            }
-            .disabled(!model.dateBackAvailable)
-            .opacity(model.dateBackAvailable ? 1 : 0.38)
-
-            Button {
-                showingFilmEffects = true
-            } label: {
-                VStack(spacing: 3) {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text("设置")
-                        .font(.system(size: 8, weight: .medium))
-                }
-                .foregroundStyle(Color.labCream.opacity(0.78))
-                .frame(width: 42, height: 38)
-                .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                }
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func effectButton(title: String, detail: String, symbol: String,
-                              active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 7) {
-                Image(systemName: symbol)
-                    .font(.system(size: 11, weight: .semibold))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.labCream)
-                    Text(detail)
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(active ? Color.labRed : Color.secondary.opacity(0.68))
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 2)
-            }
-            .padding(.horizontal, 9)
-            .frame(height: 38)
-            .frame(maxWidth: .infinity)
-            .background(active ? Color.labRed.opacity(0.14) : Color.white.opacity(0.045),
-                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(active ? Color.labRed.opacity(0.55) : Color.white.opacity(0.08), lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
     // MARK: - helpers
 
     private var isBusy: Bool {
-        model.state == .rendering || model.state == .importing
+        model.state == .rendering || model.state == .importing || model.exporting
     }
 
     private var failureMessage: String? {
@@ -704,7 +636,7 @@ struct EditorView: View {
                 .stroke(Color.labRed.opacity(0.45), lineWidth: 1)
         }
         .padding(.horizontal, 18)
-        .padding(.bottom, deck == .adjust ? 214 : 130)
+        .padding(.bottom, 300)   // above the deck
     }
 
     private var diagnosticsSheet: some View {
@@ -752,19 +684,20 @@ struct MetalCanvas: UIViewRepresentable {
     func makeUIView(context: Context) -> MTKView {
         let view = MTKView()
         view.device = renderer?.device
-        view.colorPixelFormat = .bgra8Unorm
+        view.colorPixelFormat = .rgba16Float      // the renderer's pipeline; past 1 only under Enable HDR
         view.framebufferOnly = true
         view.isPaused = true
         view.enableSetNeedsDisplay = true
         view.delegate = context.coordinator
+        renderer?.redraw = { [weak view] in view?.setNeedsDisplay() }
         view.backgroundColor = UIColor(red: 0.071, green: 0.071, blue: 0.075, alpha: 1)
         view.clearColor = MTLClearColor(red: 0.071, green: 0.071, blue: 0.075, alpha: 1)
         view.contentMode = .scaleAspectFit
         // The engine writes sRGB transfer-encoded values, matching the
         // macOS host. Tagging the drawable with the same space keeps iOS from
         // applying an implicit conversion.
-        (view.layer as? CAMetalLayer)?.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
-        (view.layer as? CAMetalLayer)?.wantsExtendedDynamicRangeContent = false
+        (view.layer as? CAMetalLayer)?.colorspace = CGColorSpace(name: CGColorSpace.extendedSRGB)
+        (view.layer as? CAMetalLayer)?.wantsExtendedDynamicRangeContent = true
         return view
     }
 
@@ -839,8 +772,14 @@ struct ParamSlider: View {
     }
 
     private var formatted: String {
-        if control.key == FilmParam.exposureCompensation.key {
+        if control.key == FilmParam.exposureCompensation.key || control.key == FilmParam.printBrightness.key {
             return String(format: "%+.2f EV", value)
+        }
+        if control.key == FilmParam.highlightRoom.key || control.key == FilmParam.shadowRoom.key {
+            return String(format: "%.1f 档", value)
+        }
+        if control.key == FilmParam.preflash.key {
+            return String(format: "%.3f", value)
         }
         if control.range.lowerBound < 0 {
             return String(format: "%+.2f", value)
@@ -908,7 +847,8 @@ struct StockTile: View {
     }
 
     private var typeLabel: String {
-        if stock.support == .paper { return "相纸" }
+        if stock.support == .paper { return stock.monochrome ? "黑白相纸" : "相纸" }
+        if stock.monochrome { return "黑白负片" }
         return stock.type == .positive ? "反转片" : "负片"
     }
 }
@@ -920,10 +860,33 @@ struct StockTile: View {
 /// physical gate rather than the picture's colour look.
 struct FilmEffectsSheet: View {
     @ObservedObject var model: ViewModel
+    /// `.border` or `.date` alone, embedded in the editor's deck; `.all` as a sheet.
+    enum Part { case all, border, date }
+    var part: Part = .all
     @Environment(\.dismiss) private var dismiss
     @State private var dataDraft = ""
+    @State private var edgeDraft = ""
 
     var body: some View {
+        if part == .all { sheet } else { embedded }
+    }
+
+    private var embedded: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if part == .border { borderSection } else { dateSection }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        .onAppear { dataDraft = model.shootingDataText; edgeDraft = model.edgeText }
+        .onDisappear {
+            model.setEdgeText(edgeDraft)
+            if dataDraft != model.shootingDataText { model.setShootingDataText(dataDraft) }
+        }
+    }
+
+    private var sheet: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 13) {
@@ -944,6 +907,7 @@ struct FilmEffectsSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") {
                         model.setShootingDataText(dataDraft)
+                        model.setEdgeText(edgeDraft)
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -953,8 +917,9 @@ struct FilmEffectsSheet: View {
         .tint(Color.labRed)
         .presentationDetents([.large])
         .presentationBackground(Color.labInk)
-        .onAppear { dataDraft = model.shootingDataText }
+        .onAppear { dataDraft = model.shootingDataText; edgeDraft = model.edgeText }
         .onDisappear {
+            model.setEdgeText(edgeDraft)
             if dataDraft != model.shootingDataText {
                 model.setShootingDataText(dataDraft)
             }
@@ -973,6 +938,21 @@ struct FilmEffectsSheet: View {
                     .labelsHidden()
                     .tint(Color.labRed)
             }
+
+            Text("片边文字")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            TextField(model.currentFilmName.uppercased(), text: $edgeDraft)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .onSubmit { model.setEdgeText(edgeDraft) }
+                .padding(.horizontal, 10)
+                .frame(height: 36)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            Text("留空就印胶片名。建议用英文字母和数字，最多 24 个字符。")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
             Text("片幅")
                 .font(.caption.weight(.medium))
@@ -1151,4 +1131,208 @@ private extension View {
                     .stroke(Color.white.opacity(0.075), lineWidth: 1)
             }
     }
+}
+
+/// The uncropped photograph handed to the crop screen.
+struct CropImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+/// Every film (or paper) at once, grouped by kind, so a choice needs no long scroll.
+struct StockBrowser: View {
+    @ObservedObject var model: ViewModel
+    let papers: Bool
+    /// The camera's roll: which film is current, and where a pick goes (instead of the editor's).
+    var current: String? = nil
+    var pickFilm: ((String) -> Void)? = nil
+    @Environment(\.dismiss) private var dismiss
+    @State private var renaming: SavedRecipe?
+    @State private var newName = ""
+
+    private var sections: [(String, [Stock])] {
+        if papers {
+            return [("彩色相纸", model.papers.filter { !$0.monochrome }),
+                    ("黑白相纸", model.papers.filter(\.monochrome))].filter { !$0.1.isEmpty }
+        }
+        let favourites = model.films.filter { model.favoriteFilms.contains($0.id) }
+        return [("收藏", favourites),
+                ("彩色负片", model.films.filter { !$0.monochrome && $0.type == .negative }),
+                ("反转片", model.films.filter { $0.type == .positive }),
+                ("黑白负片", model.films.filter(\.monochrome))].filter { !$0.1.isEmpty }
+    }
+
+    /// A saved look: in the camera it becomes the roll, in the editor it goes on the photo.
+    private func recipeTile(_ saved: SavedRecipe) -> some View {
+        let on = current == saved.roll
+        return Button {
+            if let pickFilm { pickFilm(saved.roll) } else { model.applySavedRecipe(saved) }
+            dismiss()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 18, weight: .medium))
+                    .frame(width: 44, height: 50)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(saved.name).font(.system(size: 12, weight: .semibold)).lineLimit(2)
+                    Text(model.filmName(for: saved.recipe.filmStock)).font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(on ? Color.labRed : .secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Color.labCream)
+            .padding(.horizontal, 5)
+            .frame(width: 168, height: 58)
+            .background(on ? Color.labRed.opacity(0.12) : Color.white.opacity(0.035),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(on ? Color.labRed.opacity(0.55) : Color.white.opacity(0.07), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button { newName = saved.name; renaming = saved } label: { Label("重命名", systemImage: "pencil") }
+            Button(role: .destructive) { model.deleteRecipe(saved.id) } label: { Label("删除配方", systemImage: "trash") }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                // Not lazy: a LazyVGrid with pinned headers jumped while scrolling back up.
+                TileFlow(spacing: 8) {
+                    // The camera's roll can also be no film at all.
+                    if pickFilm != nil {
+                        let plain = current?.isEmpty == true
+                        Button {
+                            pickFilm?("")
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "circle.slash")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .frame(width: 44, height: 50)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("无胶卷").font(.system(size: 12, weight: .semibold))
+                                    Text("原始文件直接存进“照片”").font(.system(size: 9, weight: .medium))
+                                        .foregroundStyle(plain ? Color.labRed : .secondary)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .foregroundStyle(Color.labCream)
+                            .padding(.horizontal, 5)
+                            .frame(width: 168, height: 58)
+                            .background(plain ? Color.labRed.opacity(0.12) : Color.white.opacity(0.035),
+                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(plain ? Color.labRed.opacity(0.55) : Color.white.opacity(0.07), lineWidth: 1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 8)
+                    }
+                    if !papers && !model.savedRecipes.isEmpty {
+                        Text("我的配方 · \(model.savedRecipes.count)")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 6)
+                            .layoutValue(key: FullRow.self, value: true)
+                        ForEach(model.savedRecipes) { saved in recipeTile(saved) }
+                    }
+                    ForEach(sections, id: \.0) { title, stocks in
+                            Text("\(title) · \(stocks.count)")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 6)
+                                .layoutValue(key: FullRow.self, value: true)
+                            ForEach(stocks) { stock in
+                                let selected = stock.id == (current ?? (papers ? model.printStock : model.filmStock))
+                                let usable = !papers || model.canPrint(on: stock.id)
+                                StockTile(stock: stock, selected: selected) {
+                                    if let pickFilm { pickFilm(stock.id) }
+                                    else if papers { model.paperChanged(stock.id) } else { model.filmChanged(stock.id) }
+                                    dismiss()
+                                }
+                                .disabled(!usable)
+                                .opacity(usable ? 1 : 0.32)
+                                .overlay(alignment: .bottomTrailing) {
+                                    if !papers && model.favoriteFilms.contains(stock.id) {
+                                        Image(systemName: "star.fill").font(.system(size: 9)).foregroundStyle(Color.labRed).padding(6)
+                                    }
+                                }
+                                .contextMenu {
+                                    if !papers {
+                                        let fav = model.favoriteFilms.contains(stock.id)
+                                        Button { model.toggleFavoriteFilm(stock.id) } label: {
+                                            Label(fav ? "取消收藏" : "收藏", systemImage: fav ? "star.slash" : "star")
+                                        }
+                                    }
+                                }
+                            }
+                    }
+                }
+                .padding(.horizontal, 14)
+            }
+            .background(Color.labInk.ignoresSafeArea())
+            .navigationTitle(pickFilm != nil ? "装哪一卷" : papers ? "相纸" : "胶片")
+            .alert("重命名配方", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+                TextField("名字", text: $newName)
+                Button("取消", role: .cancel) { renaming = nil }
+                Button("好") { if let r = renaming { model.renameRecipe(r.id, to: newName) }; renaming = nil }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+            }
+        }
+        .tint(Color.labRed)
+        .presentationDetents([.medium, .large])
+        .presentationBackground(Color.labInk)
+    }
+}
+
+/// A view that takes a row of its own in `TileFlow` (a section header).
+struct FullRow: LayoutValueKey { static let defaultValue = false }
+
+/// Tiles left to right, wrapping; a `FullRow` view takes the whole row.
+/// shortcut: lays out every tile at once, fine for the ~100 stocks there are.
+struct TileFlow: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 360
+        return CGSize(width: width, height: place(subviews, width: width).height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let spots = place(subviews, width: bounds.width).spots
+        for (v, r) in zip(subviews, spots) {
+            v.place(at: CGPoint(x: bounds.minX + r.minX, y: bounds.minY + r.minY), proposal: ProposedViewSize(r.size))
+        }
+    }
+
+    private func place(_ subviews: Subviews, width: CGFloat) -> (spots: [CGRect], height: CGFloat) {
+        var spots: [CGRect] = [], x: CGFloat = 0, y: CGFloat = 0, row: CGFloat = 0
+        for v in subviews {
+            var size = v.sizeThatFits(.unspecified)
+            let wide = v[FullRow.self]
+            if wide { size = v.sizeThatFits(ProposedViewSize(width: width, height: nil)); size.width = width }
+            if x > 0 && (wide || x + size.width > width) { x = 0; y += row + spacing; row = 0 }
+            spots.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
+            row = max(row, size.height)
+            if wide { x = 0; y += row + spacing; row = 0 } else { x += size.width + spacing }
+        }
+        return (spots, y + row)
+    }
+}
+
+/// Which stocks the browse-all grid shows.
+struct BrowseStocks: Identifiable {
+    let papers: Bool
+    var id: Bool { papers }
 }

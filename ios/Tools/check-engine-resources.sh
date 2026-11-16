@@ -7,7 +7,7 @@
 #  which needs the Metal compiler and therefore a machine that has one.
 #
 #  Why it matters: without the metallib the engine starts and then fails when
-#  it cannot load its library, and without `spektrafilm_constants.bin` it
+#  it cannot load its library, and without `spektralab_constants.bin` it
 #  fails at the first read. Both failures surface as an engine error at
 #  runtime, on a phone, where the cause is a build step nobody ran. This
 #  script turns them into one line at build time.

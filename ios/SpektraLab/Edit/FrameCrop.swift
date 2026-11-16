@@ -1,0 +1,170 @@
+//  FrameCrop.swift — crop and straighten, applied to the photograph before it
+//  is exposed (so the film edge frames the cropped picture).
+//
+//  The view the crop is drawn in is the source rotated clockwise by `angle`
+//  about its centre; the crop is an upright rectangle in that view. Everything
+//  is normalised to the source size, so one crop serves the preview, the
+//  thumbnail and the full-size export.
+
+import CoreGraphics
+import Foundation
+
+struct FrameCrop: Codable, Equatable, Sendable {
+    /// Centre and size of the rectangle, as fractions of the source's width and height.
+    var cx = 0.5, cy = 0.5, width = 1.0, height = 1.0
+    /// Degrees clockwise, −45…45.
+    var angle = 0.0
+    var aspect: Aspect = .free
+    /// The fixed ratio is turned on its side (3:2 → 2:3).
+    var portrait = false
+
+    static let maxAngle = 45.0
+    static let minSide = 0.08
+
+    enum Aspect: String, Codable, CaseIterable, Sendable, Identifiable {
+        case free, original, square, r4x3, r3x2, r16x9
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .free: "自由"
+            case .original: "原始"
+            case .square: "1:1"
+            case .r4x3: "4:3"
+            case .r3x2: "3:2"
+            case .r16x9: "16:9"
+            }
+        }
+    }
+
+    var isIdentity: Bool { cx == 0.5 && cy == 0.5 && width == 1 && height == 1 && angle == 0 }
+
+    /// Width over height the rectangle is held to, in pixels; nil when free.
+    func ratio(source: CGSize) -> CGFloat? {
+        let r: CGFloat
+        switch aspect {
+        case .free: return nil
+        case .original: r = max(source.width, source.height) / max(min(source.width, source.height), 1)
+        case .square: return 1
+        case .r4x3: r = 4.0 / 3
+        case .r3x2: r = 3.0 / 2
+        case .r16x9: r = 16.0 / 9
+        }
+        return portrait ? 1 / r : r
+    }
+
+    /// The rectangle in the view, in source pixels.
+    func rect(in source: CGSize) -> CGRect {
+        let w = width * source.width, h = height * source.height
+        return CGRect(x: cx * source.width - w / 2, y: cy * source.height - h / 2, width: w, height: h)
+    }
+
+    mutating func setRect(_ r: CGRect, in source: CGSize) {
+        cx = r.midX / source.width; cy = r.midY / source.height
+        width = r.width / source.width; height = r.height / source.height
+    }
+
+    func outputSize(source: CGSize) -> (width: Int, height: Int) {
+        (max(1, Int((width * source.width).rounded())), max(1, Int((height * source.height).rounded())))
+    }
+
+    /// The source point under a view point (both in source pixels, y down).
+    func sourcePoint(_ v: CGPoint, in source: CGSize) -> CGPoint {
+        let a = angle * .pi / 180, c = cos(a), s = sin(a)
+        let dx = v.x - source.width / 2, dy = v.y - source.height / 2
+        return CGPoint(x: source.width / 2 + c * dx + s * dy, y: source.height / 2 - s * dx + c * dy)
+    }
+
+    /// Every corner of the rectangle is on the photograph.
+    func fits(in source: CGSize) -> Bool {
+        guard width >= Self.minSide / 2, height >= Self.minSide / 2 else { return false }
+        let r = rect(in: source), e = 0.5
+        return [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY),
+                CGPoint(x: r.minX, y: r.maxY), CGPoint(x: r.maxX, y: r.maxY)].allSatisfy {
+            let p = sourcePoint($0, in: source)
+            return p.x >= -e && p.y >= -e && p.x <= source.width + e && p.y <= source.height + e
+        }
+    }
+
+    /// This crop pulled towards the centre and shrunk by the least that makes it fit.
+    func fitted(in source: CGSize) -> FrameCrop {
+        if fits(in: source) { return self }
+        var lo = 0.0, hi = 1.0
+        func at(_ t: Double) -> FrameCrop {
+            var g = self
+            g.cx = 0.5 + (cx - 0.5) * t; g.cy = 0.5 + (cy - 0.5) * t
+            g.width = width * t; g.height = height * t
+            return g
+        }
+        for _ in 0..<24 {
+            let mid = (lo + hi) / 2
+            if at(mid).fits(in: source) { lo = mid } else { hi = mid }
+        }
+        return at(lo)
+    }
+
+    /// Draws `image` (the uncropped photograph at any size) through this crop.
+    func render(_ image: CGImage, space: CGColorSpace) -> CGImage? {
+        let source = CGSize(width: image.width, height: image.height)
+        let out = outputSize(source: source), r = rect(in: source)
+        guard let ctx = CGContext(data: nil, width: out.width, height: out.height, bitsPerComponent: 8,
+                                  bytesPerRow: out.width * 4, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        ctx.interpolationQuality = .high
+        // Work with y down, as the model does; the image is flipped back last.
+        ctx.translateBy(x: 0, y: CGFloat(out.height)); ctx.scaleBy(x: 1, y: -1)
+        ctx.translateBy(x: -r.minX, y: -r.minY)
+        ctx.translateBy(x: source.width / 2, y: source.height / 2)
+        ctx.rotate(by: angle * .pi / 180)
+        ctx.translateBy(x: -source.width / 2, y: -source.height / 2)
+        ctx.translateBy(x: 0, y: source.height); ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(image, in: CGRect(origin: .zero, size: source))
+        return ctx.makeImage()
+    }
+}
+
+extension DecodedFrame {
+    /// The frame through `crop`. A plain crop is a row copy; a straighten resamples (bilinear).
+    func applying(_ crop: FrameCrop?) -> DecodedFrame {
+        guard let crop, !crop.isIdentity else { return self }
+        let source = CGSize(width: width, height: height)
+        let out = crop.outputSize(source: source), r = crop.rect(in: source)
+        if crop.angle == 0 {
+            let x = min(max(Int(r.minX.rounded()), 0), width - 1), y = min(max(Int(r.minY.rounded()), 0), height - 1)
+            return cropped(to: (x, y, min(out.width, width - x), min(out.height, height - y)))
+        }
+        let a = crop.angle * .pi / 180, c = Float(cos(a)), s = Float(sin(a))
+        let (w, h, ow, oh) = (width, height, out.width, out.height)
+        let halfW = Float(w) / 2, halfH = Float(h) / 2
+        let originX = Float(r.minX) + 0.5 - halfW, originY = Float(r.minY) + 0.5 - halfH
+        var output = [Float](repeating: 0, count: ow * oh * 3)
+        pixels.withUnsafeBufferPointer { src in
+            output.withUnsafeMutableBufferPointer { dst in
+                guard let from = src.baseAddress, let base = dst.baseAddress else { return }
+                nonisolated(unsafe) let input = from
+                nonisolated(unsafe) let to = base
+                // shortcut: plain Swift bilinear on all cores; move to vImage/Metal if a 48 MP straighten is too slow.
+                DispatchQueue.concurrentPerform(iterations: oh) { oy in
+                    let dy = originY + Float(oy)
+                    var o = to + oy * ow * 3
+                    for ox in 0..<ow {
+                        let dx = originX + Float(ox)
+                        let fx = min(max(halfW + c * dx + s * dy - 0.5, 0), Float(w - 1))
+                        let fy = min(max(halfH - s * dx + c * dy - 0.5, 0), Float(h - 1))
+                        let x0 = Int(fx), y0 = Int(fy)
+                        let x1 = min(x0 + 1, w - 1), y1 = min(y0 + 1, h - 1)
+                        let tx = fx - Float(x0), ty = fy - Float(y0)
+                        let p00 = input + (y0 * w + x0) * 3, p10 = input + (y0 * w + x1) * 3
+                        let p01 = input + (y1 * w + x0) * 3, p11 = input + (y1 * w + x1) * 3
+                        for k in 0..<3 {
+                            let top = p00[k] + (p10[k] - p00[k]) * tx
+                            let bottom = p01[k] + (p11[k] - p01[k]) * tx
+                            o[k] = top + (bottom - top) * ty
+                        }
+                        o += 3
+                    }
+                }
+            }
+        }
+        return DecodedFrame(pixels: FloatRGBPixels(output), width: ow, height: oh)
+    }
+}

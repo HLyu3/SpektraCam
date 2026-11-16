@@ -34,6 +34,10 @@ struct Stock: Identifiable, Hashable, Sendable {
     let type: FilmType
     /// The Mac catalogue's photographed film box, when one is available.
     let coverURL: URL?
+    /// One silver emulsion (`channel_model: bw`): a black-and-white film or paper.
+    var monochrome = false
+    /// The paper the profile was made to print on.
+    var targetPrint: String? = nil
 
     enum Support: String, Sendable {
         case film, paper
@@ -101,7 +105,9 @@ struct StockCatalog: Sendable {
             let resolvedSupport: Stock.Support = (info["stage"] as? String) == "printing"
                 ? .paper : support
             let stock = Stock(id: id, name: name, support: resolvedSupport, type: type,
-                              coverURL: FileManager.default.fileExists(atPath: cover.path) ? cover : nil)
+                              coverURL: FileManager.default.fileExists(atPath: cover.path) ? cover : nil,
+                              monochrome: (info["channel_model"] as? String) == "bw",
+                              targetPrint: info["target_print"] as? String)
             switch (resolvedSupport, type) {
             case (.film, .negative): films.append(stock)
             case (.film, .positive): slides.append(stock)
@@ -109,11 +115,38 @@ struct StockCatalog: Sendable {
             }
         }
 
-        // Sorted by display name: the list is a menu, and a menu is read.
-        return StockCatalog(films: films.sorted { $0.name < $1.name },
-                            papers: papers.sorted { $0.name < $1.name },
-                            slides: slides.sorted { $0.name < $1.name })
+        // Sorted by display name, colour before black and white: the list is a menu, and a menu is read.
+        let order: (Stock, Stock) -> Bool = { ($0.monochrome ? 1 : 0, $0.name) < ($1.monochrome ? 1 : 0, $1.name) }
+        return StockCatalog(films: films.sorted(by: order),
+                            papers: papers.sorted(by: order),
+                            slides: slides.sorted(by: order),
+                            grades: PaperGrade.load(resources: resources))
     }
+
+    /// The bundle's catalogue, for code that has no view model (a recipe's wire delta).
+    static let shared = StockCatalog.load(resources: SpektraEngine.defaultResources())
+
+    // MARK: black and white (upstream `Model/Stock.swift`, the desktop's rules)
+
+    let grades: [PaperGrade]
+
+    func stock(_ id: String) -> Stock? { (films + papers + slides).first { $0.id == id } }
+    func isMonochrome(_ id: String) -> Bool { stock(id)?.monochrome ?? false }
+
+    /// Silver on silver, colour on colour. An unknown stock rules nothing out.
+    func canPrint(film: String, on paper: String) -> Bool {
+        guard let f = stock(film), let p = stock(paper) else { return true }
+        return f.monochrome == p.monochrome
+    }
+
+    /// The paper a film is made for, else the first of its kind.
+    func ownPaper(of film: String) -> String? {
+        guard let f = stock(film) else { return nil }
+        if let own = f.targetPrint, let p = stock(own), p.support == .paper, p.monochrome == f.monochrome { return own }
+        return papers.first { $0.monochrome == f.monochrome }?.id
+    }
+
+    func grade(_ name: String) -> PaperGrade? { grades.first { $0.name == name } }
 
     /// The stocks to show when nothing is chosen yet.
     ///
@@ -159,5 +192,29 @@ struct StockCatalog: Sendable {
             return key
         }
         return nil
+    }
+}
+
+/// A Multigrade filter: the enlarger pack and exposure that print one contrast
+/// grade (`resources_product/paper_grades.json`, fitted on the engine).
+struct PaperGrade: Sendable, Hashable, Identifiable {
+    let name: String
+    let magenta: Double
+    let yellow: Double
+    let printExposure: Double
+    var id: String { name }
+
+    static let standard = "2"
+
+    static func load(resources: URL) -> [PaperGrade] {
+        guard let data = try? Data(contentsOf: resources.appendingPathComponent("paper_grades.json")),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let grades = json["grades"] as? [String: [String: Double]] else { return [] }
+        let order = ["00", "0", "1", "2", "3", "4", "5"]
+        return grades.compactMap { name, g in
+            guard let m = g["m_filter_neutral"], let y = g["y_filter_neutral"], let e = g["print_exposure"] else { return nil }
+            return PaperGrade(name: name, magenta: m, yellow: y, printExposure: e)
+        }
+        .sorted { (order.firstIndex(of: $0.name) ?? 99) < (order.firstIndex(of: $1.name) ?? 99) }
     }
 }

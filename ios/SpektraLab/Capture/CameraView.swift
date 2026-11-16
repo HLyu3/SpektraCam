@@ -1,0 +1,767 @@
+//  CameraView.swift — load a roll, then shoot. Every frame goes straight to the wall,
+//  developed later on the roll it was shot on.
+
+import AVFoundation
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct CameraView: View {
+    @ObservedObject var model: ViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var camera = CameraController()
+    /// Held, not observed: the meter publishes 30 times a second, and redrawing the whole page that often
+    /// lost taps on its menus. Only `LevelOverlay` watches it.
+    @State private var level = LevelMeter()
+    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.proRAW.rawValue
+    @AppStorage("SpektraLab.cameraRoll") private var roll = StockCatalog.defaultFilm
+    /// The size to shoot, in MP; 0 = the lens's largest.
+    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 0
+    @AppStorage("SpektraLab.cameraFlash") private var flash = CameraController.Flash.off.rawValue
+    @AppStorage("SpektraLab.cameraGrid") private var showGrid = true
+    @AppStorage("SpektraLab.cameraLevel") private var showLevel = true
+    @AppStorage("SpektraLab.cameraToPhotos") private var toPhotos = false
+    @AppStorage("SpektraLab.haptics") private var haptics = true
+    /// Develop every shot with the roll's look and put the print in Photos.
+    @AppStorage(ViewModel.autoDevelopKey) private var autoDevelop = true
+    /// The viewfinder in the roll's colours (a cube baked through the engine), or plain.
+    @AppStorage("SpektraLab.cameraFilmLook") private var filmLook = true
+    @State private var finder = FilmViewfinderRenderer()
+    @State private var baking = false
+    @State private var choosingRoll = false
+    @State private var ready = false
+    @State private var problem: String?
+    @State private var pending = 0
+    @State private var shot = 0
+    @State private var blink = false
+    @State private var last: UIImage?
+    @State private var status = CameraController.Status()
+    @State private var histogram = HistogramFeed()
+    @State private var lens: String?
+    /// The back camera's focal length, 35 mm equivalent: a lens and its digital zoom (`aim`).
+    @State private var focal: Double = 24
+    @State private var pinchFrom: Double?
+    @State private var showingSettings = false
+    @State private var deletingLast = false
+    /// The newest shot this camera put in the library (a 无胶卷 shot goes to Photos, not here).
+    private var latestShot: LibraryPhoto? { model.library.filter(\.captured).max { $0.createdAt < $1.createdAt } }
+    /// Single-frame RAW cannot zoom in the sensor (and refuses any digital zoom): only the lenses' own lengths.
+    private var lensesOnly: Bool { chosen == .raw }
+    @State private var front = false
+    @State private var pro = false
+    @State private var proControl: ProControl = .exposure
+    @State private var focusPoint: CGPoint?
+
+    enum ProControl: String, CaseIterable { case exposure = "±EV", shutter = "快门", iso = "ISO", white = "色温" }
+
+    private var chosen: CameraController.Format {
+        let f = CameraController.Format(rawValue: format) ?? .proRAW
+        if ready && f == .proRAW && !status.proRAW { return .heif }
+        if ready && f == .raw && !status.bayer { return .heif }
+        return f
+    }
+
+    /// The roll "" is no film: plain viewfinder, the camera's own file straight into Photos.
+    private var noFilm: Bool { roll.isEmpty }
+
+    /// What the roll prints on, under the strip.
+    private var rollSubtitle: String {
+        guard let look = model.rollRecipe(roll) else { return "不冲洗 · 原始文件直接存进“照片”" }
+        let paper = "冲印 · " + model.filmName(for: look.printStock)
+        return roll.hasPrefix("recipe:") ? "配方 · \(model.filmName(for: look.filmStock)) · " + paper : paper
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            topBar
+            viewfinder
+            lensDial
+            Spacer(minLength: 4)
+            rollCarousel
+            shutterRow
+        }
+        // Format and size go to the camera together (one pipeline rebuild, `setMode`).
+        .onChange(of: "\(format)|\(sizeMP)") { _, _ in
+            // ProRAW comes at 12 or 48 MP; an older 24 MP choice under ProRAW becomes 48.
+            if format == CameraController.Format.proRAW.rawValue, sizeMP == 24 { sizeMP = 48; return }
+            camera.setMode(CameraController.Format(rawValue: format) ?? .proRAW, mp: sizeMP)
+            if ready && !front { lens = nil; aim(focal) }      // RAW snaps to a lens; the others may zoom
+        }
+        .background(Color.black.ignoresSafeArea())
+        .preferredColorScheme(.dark)
+        .statusBarHidden()
+        .task {
+            camera.preferredMP = sizeMP
+            camera.setFormat(CameraController.Format(rawValue: format) ?? .proRAW)
+            let feed = histogram
+            camera.onHistogram = { bins in Task { @MainActor in feed.bins = bins } }
+            let finder = finder
+            camera.onFrame = { finder.push($0) }
+            problem = await camera.start()
+            ready = problem == nil
+            lens = camera.lenses.first { $0.device.deviceType == .builtInWideAngleCamera }?.id
+            focal = Double(camera.lenses.first { $0.id == lens }?.millimetres ?? 24)
+            level.start()
+            while !Task.isCancelled {
+                let next = await camera.status()
+                if next != status { status = next }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+        }
+        .onDisappear { camera.stop(); level.stop() }
+        .sheet(isPresented: $showingSettings) { SettingsView(model: model) }
+        .confirmationDialog("删除刚拍的这张？", isPresented: $deletingLast, titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                if let latest = latestShot {
+                    model.deletePhotos([latest.id])
+                    last = model.library.filter(\.captured).max { $0.createdAt < $1.createdAt }?.thumbnail
+                    if shot > 0 { shot -= 1 }
+                }
+            }
+        } message: {
+            Text("SpektraLab 里的底片会删掉；已经存进“照片”或冲洗好的成片不受影响。")
+        }
+        .sheet(isPresented: $choosingRoll) {
+            RollSheet(model: model, current: roll) { roll = $0 }.equatable()
+        }
+        // Picking a roll shows it: a new film under 实景 looked like "the film does nothing".
+        .onChange(of: roll) { _, r in if !r.isEmpty { filmLook = true } }
+        .task(id: filmLook ? roll : "") {
+            guard filmLook, !noFilm else { finder.setCube(nil, size: 0); return }
+            baking = true
+            let cube = await model.viewfinderLUT(roll: roll)
+            finder.setCube(cube, size: ViewModel.viewfinderLUTSize)
+            baking = false
+        }
+        .sensoryFeedback(.impact(weight: .medium), trigger: shot) { _, _ in haptics }
+    }
+
+    // MARK: top
+
+    /// A camera's top plate: close and flash, the exposure as a little LCD (format, shutter, ISO, EV, the
+    /// histogram behind them), and the settings menu.
+    private var topBar: some View {
+        HStack(spacing: 8) {
+            roundButton("xmark", "关闭相机") { dismiss() }
+            roundButton(flash == "on" ? "bolt.fill" : flash == "auto" ? "bolt.badge.automatic" : "bolt.slash", "闪光灯") { cycleFlash() }
+                .opacity(status.flash ? 1 : 0.35)
+                .disabled(!status.flash)
+            formatMenu
+            HStack(spacing: 10) {
+                Text(shutterText(status.shutter))
+                Text("ISO \(Int(status.iso))")
+                if abs(status.bias) >= 0.05 { Text(String(format: "%+.1f", status.bias)) }
+            }
+            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, minHeight: 34)
+            .background {
+                HistogramFeedView(feed: histogram).opacity(0.35).padding(.vertical, 3)
+            }
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+            .accessibilityElement(children: .combine)
+            Menu {
+                Toggle("拍完自动冲洗", isOn: $autoDevelop)
+                Toggle("同时存入“照片”", isOn: $toPhotos)
+                Divider()
+                Toggle("网格", isOn: $showGrid)
+                Toggle("水平仪", isOn: $showLevel)
+                Divider()
+                Button { showingSettings = true } label: { Label("设置…", systemImage: "gearshape") }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .labGlassInteractive(in: Circle())
+            }
+            .accessibilityLabel("相机设置")
+        }
+        .foregroundStyle(Color.labCream)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private func roundButton(_ symbol: String, _ label: String, _ run: @escaping () -> Void) -> some View {
+        Button(action: run) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .frame(width: 36, height: 36)
+                .labGlassInteractive(in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    /// 拍摄格式: this lens's formats at their sizes, beside the shutter.
+    private var formatMenu: some View {
+        Menu {
+            Section("拍摄格式 · 这颗镜头") {
+                ForEach(CaptureMode.available(sizes: status.sizes, proRAW: status.proRAW, bayer: status.bayer)) { mode in
+                    let on = mode.format == chosen && (mode.format == .raw || mode.megapixels == status.megapixels)
+                    Button {
+                        format = mode.format.rawValue
+                        sizeMP = mode.megapixels
+                    } label: {
+                        Label {
+                            Text(mode.title)
+                            Text(mode.detail)
+                        } icon: {
+                            if on { Image(systemName: "checkmark") }
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(chosen.title).font(.system(size: 11, weight: .heavy))
+                if status.megapixels > 0, chosen != .raw {
+                    Text("\(status.megapixels)").font(.system(size: 10, weight: .semibold, design: .monospaced)).opacity(0.75)
+                }
+                Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).opacity(0.6)
+            }
+            .foregroundStyle(Color.labRed)
+            .padding(.horizontal, 9)
+            .frame(height: 34)
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        }
+        .accessibilityLabel("拍摄格式 \(chosen.title)，\(status.megapixels) MP，点按更改")
+    }
+
+    // MARK: the picture
+
+    private var viewfinder: some View {
+        CameraPreview(session: camera.session) { layerPoint, devicePoint in
+            camera.focus(at: devicePoint)
+            focusPoint = layerPoint
+            Task { try? await Task.sleep(nanoseconds: 1_200_000_000); focusPoint = nil }
+        }
+        .overlay { if filmLook && !noFilm { FilmViewfinder(renderer: finder).allowsHitTesting(false) } }
+        .aspectRatio(3.0 / 4.0, contentMode: .fit)
+        .simultaneousGesture(
+            MagnifyGesture()
+                .onChanged { v in
+                    guard !front, !lensesOnly else { return }
+                    let from = pinchFrom ?? focal
+                    pinchFrom = from
+                    aim(from * v.magnification)
+                }
+                .onEnded { _ in pinchFrom = nil }
+        )
+        .overlay(alignment: .bottom) {
+            if pinchFrom != nil {
+                Text(String(format: "%.1f× · %d mm", focal / 24, Int(focal.rounded())))
+                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Color.labCream)
+                    .padding(.horizontal, 10).frame(height: 26)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.bottom, 10)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            // The preview's look, said in words: a roll shot under 实景 still develops on its film.
+            if !noFilm {
+                VStack(alignment: .leading, spacing: 4) {
+                    Button { filmLook.toggle() } label: {
+                        HStack(spacing: 5) {
+                            if baking { ProgressView().controlSize(.mini).tint(filmLook ? Color.black : Color.labCream) }
+                            else { Image(systemName: filmLook ? "film" : "eye") }
+                            Text(filmLook ? "胶片预览" : "实景预览")
+                            Image(systemName: "arrow.left.arrow.right").font(.system(size: 9, weight: .bold)).opacity(0.6)
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(filmLook ? Color.black : Color.labCream)
+                        .padding(.horizontal, 11)
+                        .frame(height: 30)
+                        .background(filmLook ? AnyShapeStyle(Color.labCream) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    if !filmLook {
+                        Text("取景是实景，拍出来仍是 \(model.rollTitle(roll))")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color.labCream)
+                            .padding(.horizontal, 8).frame(height: 20)
+                            .background(.black.opacity(0.45), in: Capsule())
+                    }
+                }
+                .padding(10)
+                .accessibilityLabel(filmLook ? "取景显示胶片效果，点按切换到实景" : "取景显示实景，拍出来仍套用胶卷，点按切换到胶片效果")
+            }
+        }
+        .overlay { if showGrid { GridLines() } }
+        .overlay { if showLevel { LevelOverlay(level: level) } }
+        .overlay {
+            if let focusPoint {
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(Color.labCream, lineWidth: 1.5)
+                    .frame(width: 70, height: 70)
+                    .position(focusPoint)
+                    .allowsHitTesting(false)
+            }
+        }
+        .overlay(Color.black.opacity(blink ? 0.9 : 0).allowsHitTesting(false))
+        .overlay(alignment: .bottom) {
+            if pro { proPanel.background(.ultraThinMaterial).transition(.move(edge: .bottom).combined(with: .opacity)) }
+        }
+        .overlay(alignment: .topTrailing) {
+            if !noFilm {
+                // The frame counter, as a film camera's window shows it.
+                Text("\(CameraBody.nextFrame)")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.labRed)
+                    .frame(minWidth: 30, minHeight: 26)
+                    .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6))
+                    .padding(10)
+                    .accessibilityLabel("下一格 \(CameraBody.nextFrame)")
+            }
+        }
+        .clipped()
+        .overlay {
+            if let problem {
+                Text(problem)
+                    .font(.callout)
+                    .foregroundStyle(Color.labCream)
+                    .multilineTextAlignment(.center)
+                    .padding(24)
+            }
+        }
+    }
+
+    /// Under the picture: manual (M) at the left, the focal lengths in the middle, the front camera at the right.
+    private var lensDial: some View {
+        HStack(spacing: 8) {
+            Button { withAnimation(.snappy) { pro.toggle() } } label: {
+                Text("M")
+                    .font(.system(size: 14, weight: .heavy))
+                    .foregroundStyle(pro ? Color.black : Color.labCream)
+                    .frame(width: 36, height: 36)
+                    .background(pro ? Color.labRed : Color.white.opacity(0.1), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(pro ? "收起手动控制" : "手动控制")
+            Spacer(minLength: 0)
+            if !front {
+                HStack(spacing: 2) {
+                    ForEach(stops, id: \.self) { mm in
+                        let on = nearestStop == mm
+                        Button { aim(Double(mm)) } label: {
+                            Text(on && abs(focal - Double(mm)) > 0.5 ? "\(Int(focal.rounded()))" : "\(mm)")
+                                .font(.system(size: on ? 14 : 12, weight: .bold, design: .monospaced))
+                                .foregroundStyle(on ? Color.black : Color.labCream.opacity(0.8))
+                                .frame(minWidth: 40, minHeight: 32)
+                                .background(on ? Color.labRed : Color.clear, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(mm) 毫米")
+                    }
+                }
+                .padding(3)
+                .background(Color.white.opacity(0.07), in: Capsule())
+            } else {
+                Text("前置").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Color.clear.frame(width: 36, height: 36)
+        }
+        .foregroundStyle(Color.labCream)
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+    }
+
+    // MARK: pro
+
+    private var proPanel: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 4) {
+                ForEach(ProControl.allCases, id: \.self) { c in
+                    Button { proControl = c } label: {
+                        Text(c.rawValue)
+                            .font(.system(size: 12, weight: proControl == c ? .semibold : .medium))
+                            .foregroundStyle(proControl == c ? Color.black : Color.labCream)
+                            .frame(maxWidth: .infinity, minHeight: 28)
+                            .background(proControl == c ? Color.labCream : Color.white.opacity(0.08), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            proSlider
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var proSlider: some View {
+        switch proControl {
+        case .exposure:
+            proRow(auto: nil, value: String(format: "%+.1f EV", status.bias)) {
+                Slider(value: Binding(get: { Double(status.bias) },
+                                      set: { status.bias = Float($0); camera.setBias(Float($0)) }),
+                       in: Double(max(status.minBias, -3))...Double(min(status.maxBias, 3)), step: 0.1)
+            }
+        case .shutter:
+            // Logarithmic: equal steps are equal stops.
+            proRow(auto: status.manual ? { camera.setAutoExposure() } : nil, value: shutterText(status.shutter)) {
+                Slider(value: Binding(get: { log2(max(status.shutter, 1e-6)) },
+                                      set: { status.shutter = pow(2, $0); camera.setManual(shutter: pow(2, $0), iso: nil) }),
+                       in: log2(status.minShutter)...log2(max(status.maxShutter, status.minShutter * 2)))
+            }
+        case .iso:
+            proRow(auto: status.manual ? { camera.setAutoExposure() } : nil, value: "ISO \(Int(status.iso))") {
+                Slider(value: Binding(get: { log2(Double(max(status.iso, 1))) },
+                                      set: { status.iso = Float(pow(2, $0)); camera.setManual(shutter: nil, iso: Float(pow(2, $0))) }),
+                       in: log2(Double(status.minISO))...log2(Double(max(status.maxISO, status.minISO * 2))))
+            }
+        case .white:
+            proRow(auto: status.wbLocked ? { camera.setTemperature(nil) } : nil, value: "\(Int(status.temperature)) K") {
+                Slider(value: Binding(get: { Double(status.temperature) },
+                                      set: { status.temperature = Float($0); camera.setTemperature(Float($0)) }),
+                       in: 2500...9000, step: 50)
+            }
+        }
+    }
+
+    /// A control row: the "A" switch (lit while automatic; tapping it while manual goes back to auto).
+    private func proRow<S: View>(auto: (() -> Void)?, value: String, @ViewBuilder slider: () -> S) -> some View {
+        HStack(spacing: 10) {
+            Button { auto?() } label: {
+                Text("A")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(auto == nil ? Color.black : Color.labCream)
+                    .frame(width: 30, height: 30)
+                    .background(auto == nil ? Color.labCream : Color.clear, in: Circle())
+                    .overlay(Circle().stroke(Color.labCream, lineWidth: 1.5))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(auto == nil ? "自动" : "恢复自动")
+            slider().tint(Color.labRed)
+            Text(value)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(Color.labCream)
+                .frame(width: 66, alignment: .trailing)
+        }
+    }
+
+    // MARK: roll and shutter
+
+    /// The rolls as canisters on a shelf: no film, the saved recipes, the films (favourites first). The loaded one
+    /// is lit and named underneath, with what it prints on; the grid at the end opens every roll.
+    private var rollCarousel: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            canister(id: "", on: roll.isEmpty) {
+                                Image(systemName: "circle.slash").font(.system(size: 16, weight: .medium))
+                            }
+                            ForEach(model.savedRecipes) { saved in
+                                canister(id: saved.roll, on: saved.roll == roll) {
+                                    Image(systemName: "wand.and.stars").font(.system(size: 16, weight: .medium))
+                                }
+                            }
+                            ForEach(model.filmsFavouritesFirst) { film in
+                                canister(id: film.id, on: film.id == roll) { StockArtwork(stock: film) }
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                    }
+                    .onAppear { proxy.scrollTo(roll, anchor: .center) }
+                    .onChange(of: roll) { _, id in withAnimation { proxy.scrollTo(id, anchor: .center) } }
+                }
+                Button { choosingRoll = true } label: {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.labCream)
+                        .frame(width: 44, height: 50)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("全部胶卷")
+            }
+            VStack(spacing: 1) {
+                Text(roll.isEmpty ? "无胶卷" : model.rollTitle(roll))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.labCream)
+                Text(rollSubtitle)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+        }
+    }
+
+    private func canister<V: View>(id: String, on: Bool, @ViewBuilder face: () -> V) -> some View {
+        Button { roll = id } label: {
+            face()
+                .frame(width: 34, height: 44)
+                .foregroundStyle(Color.labCream.opacity(0.8))
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(on ? Color.labRed : .clear, lineWidth: 2))
+                .scaleEffect(on ? 1.12 : 1)
+                .opacity(on ? 1 : 0.7)
+                .animation(.snappy(duration: 0.2), value: on)
+        }
+        .buttonStyle(.plain)
+        .id(id)
+        .accessibilityLabel(id.isEmpty ? "无胶卷" : model.rollTitle(id))
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private var shutterRow: some View {
+        HStack {
+            ZStack {
+                if let last {
+                    Image(uiImage: last).resizable().scaledToFill()
+                } else {
+                    Color.white.opacity(0.08)
+                }
+                if pending > 0 { ProgressView().tint(.white) }
+            }
+            .frame(width: 52, height: 52)
+            .clipShape(RoundedRectangle(cornerRadius: 9))
+            .overlay(alignment: .topTrailing) {
+                if shot > 0 {
+                    Text("\(shot)")
+                        .font(.system(size: 10, weight: .bold).monospacedDigit())
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Color.labRed, in: Capsule())
+                        .offset(x: 6, y: -6)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if model.developPending > 0 {
+                    Text("冲洗中 \(model.developPending)")
+                        .font(.system(size: 9, weight: .bold).monospacedDigit())
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Color.labCream, in: Capsule())
+                        .fixedSize()
+                        .offset(y: 14)
+                }
+            }
+            // Back to the library, shot or not (the tab bar's camera returns to 底片).
+            .onTapGesture { dismiss() }
+            // Long press: the last shot in the library — open it in the editor, or delete it.
+            .contextMenu {
+                if let latest = latestShot {
+                    Button {
+                        dismiss()
+                        Task { @MainActor in await model.openLibraryPhoto(latest.id) }
+                    } label: { Label("打开编辑", systemImage: "slider.horizontal.3") }
+                    Button(role: .destructive) { deletingLast = true } label: { Label("删除刚拍的这张", systemImage: "trash") }
+                }
+                Button { dismiss() } label: { Label("回到图库", systemImage: "photo.stack") }
+            }
+            .accessibilityLabel("回到图库")
+            .accessibilityLabel(model.developPending > 0 ? "回到照片墙，冲洗中 \(model.developPending) 张" : "回到照片墙")
+            Spacer()
+            Button(action: shoot) {
+                ZStack {
+                    Circle().stroke(Color.labCream, lineWidth: 4).frame(width: 76, height: 76)
+                    Circle().fill(Color.labCream).frame(width: 62, height: 62)
+                    Circle().fill(Color.labRed).frame(width: 10, height: 10).opacity(noFilm ? 0 : 1)
+                        .scaleEffect(blink ? 0.85 : 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(!ready)
+            .accessibilityLabel("拍摄")
+            Spacer()
+            Button {
+                front.toggle()
+                if front, let f = camera.frontLens { camera.use(f.device) }
+                else { lens = nil; aim(focal) }      // back to the back camera at the focal length it had
+            } label: {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.labCream)
+                    .frame(width: 52, height: 52)
+                    .background(Color.white.opacity(0.1), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(camera.frontLens == nil)
+            .accessibilityLabel("切换前后摄像头")
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 16)
+    }
+
+    private func cycleFlash() {
+        let all = CameraController.Flash.allCases
+        let i = all.firstIndex { $0.rawValue == flash } ?? 0
+        flash = all[(i + 1) % all.count].rawValue
+    }
+
+    private func shutterText(_ s: Double) -> String {
+        guard s > 0 else { return "" }
+        return s >= 0.5 ? String(format: "%.1f s", s) : "1/\(Int((1 / s).rounded())) s"
+    }
+
+    // MARK: focal length
+
+    /// The stops in the lens row: each lens's own, and twice the main and the telephoto (Apple's 2× and 8×).
+    private var stops: [Int] {
+        let own = camera.lenses.map(\.millimetres)
+        let main = camera.lenses.first { $0.device.deviceType == .builtInWideAngleCamera }?.millimetres
+        let tele = camera.lenses.first { $0.device.deviceType == .builtInTelephotoCamera }?.millimetres
+        if lensesOnly { return own }
+        return Array(Set(own + [main, tele].compactMap { $0.map { $0 * 2 } })).sorted()
+    }
+
+    private var nearestStop: Int? {
+        stops.min { abs(log(Double($0) / focal)) < abs(log(Double($1) / focal)) }
+    }
+
+    /// Go to a focal length: the longest lens at or under it, zoomed the rest of the way.
+    private func aim(_ mm: Double) {
+        let lenses = camera.lenses
+        guard let widest = lenses.first else { return }
+        let longest = lenses.last!
+        var target = min(max(mm, Double(widest.millimetres)), Double(longest.millimetres) * 4)
+        var pick = lenses.last { Double($0.millimetres) <= target + 0.01 } ?? widest
+        if lensesOnly {
+            // the nearest lens, at its own length
+            pick = lenses.min { abs(log(Double($0.millimetres) / target)) < abs(log(Double($1.millimetres) / target)) } ?? widest
+            target = Double(pick.millimetres)
+        }
+        focal = target
+        let changed = lens != pick.id
+        lens = pick.id
+        if changed { camera.use(pick.device, zoom: target / Double(pick.millimetres)) }
+        else { camera.setZoom(target / Double(pick.millimetres)) }
+    }
+
+    private func shoot() {
+        pending += 1
+        withAnimation(.easeOut(duration: 0.06)) { blink = true }
+        withAnimation(.easeIn(duration: 0.2).delay(0.06)) { blink = false }
+        let format = chosen, film = roll, look = model.rollRecipe(roll), develop = autoDevelop, flashMode = CameraController.Flash(rawValue: flash) ?? .off, save = toPhotos
+        Task {
+            defer { pending -= 1 }
+            do {
+                let result = try await camera.capture(format, flash: flashMode)
+                let thumb = film.isEmpty
+                    ? await model.addShotToPhotos(result.data, isRAW: result.isRAW)
+                    : await model.addCapturedShot(result.data, isRAW: result.isRAW, look: look ?? .standard, toPhotos: save,
+                                                  develop: develop, zoom: result.zoom, askedLongEdge: result.askedLongEdge)
+                if let thumb {
+                    last = thumb
+                    shot += 1
+                }
+            } catch {
+NSLog("SpektraLab capture failed: %@", String(describing: error))
+                problem = "拍摄失败：\(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+// MARK: - pieces
+
+/// The camera's live picture; a tap reports the point on the view and on the sensor.
+struct CameraPreview: UIViewRepresentable {
+    let session: AVCaptureSession
+    var tap: (CGPoint, CGPoint) -> Void = { _, _ in }
+
+    final class PreviewView: UIView {
+        override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+        var preview: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+        var tap: (CGPoint, CGPoint) -> Void = { _, _ in }
+        @objc func tapped(_ g: UITapGestureRecognizer) {
+            let p = g.location(in: self)
+            tap(p, preview.captureDevicePointConverted(fromLayerPoint: p))
+        }
+    }
+
+    func makeUIView(context: Context) -> PreviewView {
+        let view = PreviewView()
+        view.preview.session = session
+        view.preview.videoGravity = .resizeAspectFill
+        view.addGestureRecognizer(UITapGestureRecognizer(target: view, action: #selector(PreviewView.tapped(_:))))
+        return view
+    }
+
+    func updateUIView(_ view: PreviewView, context: Context) { view.tap = tap }
+}
+
+struct HistogramView: View {
+    let bins: [Float]
+    var body: some View {
+        Canvas { ctx, size in
+            ctx.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 6), with: .color(.white.opacity(0.06)))
+            guard bins.count > 1 else { return }
+            var p = Path()
+            p.move(to: CGPoint(x: 0, y: size.height))
+            for (i, v) in bins.enumerated() {
+                p.addLine(to: CGPoint(x: size.width * CGFloat(i) / CGFloat(bins.count - 1),
+                                      y: size.height * (1 - CGFloat(v) * 0.9)))
+            }
+            p.addLine(to: CGPoint(x: size.width, y: size.height))
+            ctx.fill(p, with: .color(.white.opacity(0.45)))
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+struct GridLines: View {
+    var body: some View {
+        GeometryReader { g in
+            Path { p in
+                for i in 1...2 {
+                    let x = g.size.width * CGFloat(i) / 3, y = g.size.height * CGFloat(i) / 3
+                    p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x, y: g.size.height))
+                    p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: g.size.width, y: y))
+                }
+            }
+            .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// A horizon line that turns with the phone, and goes the app's red when it is level.
+struct LevelLine: View {
+    let roll: Double
+    var body: some View {
+        // Nearest of the four ways to hold the phone.
+        let target = (roll / 90).rounded() * 90
+        let off = roll - target
+        let flat = abs(off) < 1
+        HStack(spacing: 6) {
+            Rectangle().frame(width: 12, height: 1.5)
+            Rectangle().frame(width: 90, height: 1.5).rotationEffect(.degrees(flat ? 0 : -off))
+            Rectangle().frame(width: 12, height: 1.5)
+        }
+        .foregroundStyle(flat ? Color.labRed : Color.white.opacity(0.7))
+        .rotationEffect(.degrees(-target))
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The roll grid, kept out of the camera's own redraws: the level meter and the status poll redraw
+/// `CameraView` many times a second, and a sheet rebuilt under a scroll made scrolling back up stutter.
+private struct RollSheet: View, @MainActor Equatable {
+    let model: ViewModel
+    let current: String
+    let pick: (String) -> Void
+    static func == (a: Self, b: Self) -> Bool { a.current == b.current }
+    var body: some View { StockBrowser(model: model, papers: false, current: current, pickFilm: pick) }
+}
+
+/// The live histogram's bins, watched only by the histogram itself (not the whole camera page).
+@MainActor
+final class HistogramFeed: ObservableObject {
+    @Published var bins: [Float] = []
+}
+
+private struct HistogramFeedView: View {
+    @ObservedObject var feed: HistogramFeed
+    var body: some View { HistogramView(bins: feed.bins) }
+}
+
+private struct LevelOverlay: View {
+    @ObservedObject var level: LevelMeter
+    var body: some View { LevelLine(roll: level.roll) }
+}

@@ -65,8 +65,8 @@ build_metallib() {
     airs+=("$air_dir/$name.air")
   done
 
-  echo "==> linking spektrafilm.metallib"
-  xcrun -sdk iphoneos metallib "${airs[@]}" -o "$out/spektrafilm.metallib"
+  echo "==> linking spektralab.metallib"
+  xcrun -sdk iphoneos metallib "${airs[@]}" -o "$out/spektralab.metallib"
 
   local sim_air_dir="$out/air-simulator"
   mkdir -p "$sim_air_dir"
@@ -81,21 +81,21 @@ build_metallib() {
       -Werror -c "$m" -o "$sim_air_dir/$name.air"
     sim_airs+=("$sim_air_dir/$name.air")
   done
-  echo "==> linking spektrafilm-simulator.metallib"
-  xcrun -sdk "$sim_sdk" metallib "${sim_airs[@]}" -o "$out/spektrafilm-simulator.metallib"
+  echo "==> linking spektralab-simulator.metallib"
+  xcrun -sdk "$sim_sdk" metallib "${sim_airs[@]}" -o "$out/spektralab-simulator.metallib"
 
   # `build_resources` selects the matching library when it packs the app
   # archive. Keep both products: a device metallib cannot be loaded by the
   # simulator, and silently choosing whichever was built last is fragile.
-  echo "    -> $out/spektrafilm.metallib"
-  echo "    -> $out/spektrafilm-simulator.metallib"
+  echo "    -> $out/spektralab.metallib"
+  echo "    -> $out/spektralab-simulator.metallib"
 }
 
 build_resources() {
   local platform="${1:-device}"
   case "$platform" in
-    device) local metallib="$engine/build/ios/spektrafilm.metallib" ;;
-    simulator) local metallib="$engine/build/ios/spektrafilm-simulator.metallib" ;;
+    device) local metallib="$engine/build/ios/spektralab.metallib" ;;
+    simulator) local metallib="$engine/build/ios/spektralab-simulator.metallib" ;;
     *) echo "platform must be device or simulator" >&2; exit 2 ;;
   esac
   local src="$engine/resources"
@@ -112,16 +112,23 @@ build_resources() {
 
   # The baked constants: 9.4 MB of measured tables. The engine reads this by
   # name out of the resources directory.
-  cp "$src/spektrafilm_constants.bin" "$staging/"
+  cp "$src/spektralab_constants.bin" "$staging/"
   cp "$src/print_luts.json" "$staging/"
   cp "$src/neutral_print_filters.json" "$staging/"
+  # 2.x: the minilab print catalogue (read at engine start) and the baked CAM16 tables.
+  for extra in minilab cam16; do
+    if [ -d "$src/$extra" ]; then
+      mkdir -p "$staging/$extra"
+      cp "$src/$extra/"* "$staging/$extra/"
+    fi
+  done
 
   # Pick the library for the same platform as the app being built.
   if [ ! -f "$metallib" ]; then
     echo "missing $metallib; run ios/Tools/build-engine.sh metallib first" >&2
     exit 1
   fi
-  cp "$metallib" "$staging/spektrafilm.metallib"
+  cp "$metallib" "$staging/spektralab.metallib"
 
   # The stock profiles. The engine resolves a stock by name against
   # `<resources>/profiles/<stock>.json`, so both directories' profiles are

@@ -10,6 +10,6 @@
 //  `ios/Tools/gen-project.py`), so there is no library to link and no
 //  modulemap to write.
 
-#import "spektrafilm/spk_engine.h"
+#import "spektralab/spk_engine.h"
 #import "RAWDecodeSupport.h"
 #import "LibRawDecodeSupport.h"

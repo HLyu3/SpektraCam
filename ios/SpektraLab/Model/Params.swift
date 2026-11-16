@@ -84,6 +84,16 @@ enum FilmParam: String, CaseIterable, Sendable {
     case yFilterShift = "y_filter_shift"
     /// The print's density curve gamma.
     case densityCurveGamma = "density_curve_gamma"
+    /// UI stops, brighter positive; sent as `print_exposure = 2^-stops` (never on the wire itself).
+    case printBrightness = "print_brightness_stops"
+    case preflash = "preflash_exposure"
+    case halationScatter = "halation_scatter_amount"
+    case couplersAmount = "dir_couplers_amount"
+    case sceneLatitudeActive = "scene_latitude_active"
+    case highlightRoom = "scene_latitude_highlight_room"
+    case shadowRoom = "scene_latitude_shadow_room"
+    case scanFilm = "scan_film"
+    case digitalIntermediate = "digital_intermediate"
 
     var key: String { rawValue }
 }
@@ -101,28 +111,65 @@ struct ParamControl: Identifiable, Sendable {
     /// pipeline. The engine says which, in the `set_params` reply; this is the
     /// app's own note of the same thing, for the UI's benefit.
     let isLive: Bool
+    let group: ParamGroup
+    /// An on/off switch, kept as 0 / 1 like every other control.
+    let isToggle: Bool
+    /// One line under a switch.
+    let note: String?
 
-    init(_ param: FilmParam, title: String, range: ClosedRange<Double>,
-         defaultValue: Double, isLive: Bool = true) {
+    init(_ param: FilmParam, title: String, range: ClosedRange<Double> = 0...1,
+         defaultValue: Double, isLive: Bool = true, group: ParamGroup = .effects,
+         toggle: Bool = false, note: String? = nil) {
         self.id = param.rawValue
         self.title = title
         self.key = param.rawValue
         self.range = range
         self.defaultValue = defaultValue
         self.isLive = isLive
+        self.group = group
+        self.isToggle = toggle
+        self.note = note
     }
+
+    /// What goes on the wire for `value`; nil for a UI-only control.
+    func wire(_ value: Double) -> ParamValue? {
+        if key == FilmParam.printBrightness.key { return nil }
+        return isToggle ? .bool(value >= 0.5) : .number(value)
+    }
+}
+
+/// The develop deck's tool groups (upstream's Print, Placement, Effects, Format).
+enum ParamGroup: String, CaseIterable, Identifiable, Sendable {
+    case exposure = "曝光", curve = "曲线", enlarger = "放大", placement = "置位", effects = "效果", output = "输出"
+    var id: String { rawValue }
 }
 
 /// The controls the iOS app shows, in the order it shows them.
 enum ParamCatalog {
     static let all: [ParamControl] = [
-        ParamControl(.exposureCompensation, title: "曝光补偿", range: -3...3, defaultValue: 0),
-        ParamControl(.grainAmount, title: "颗粒", range: 0...1, defaultValue: 1),
-        ParamControl(.halationAmount, title: "光晕", range: 0...1, defaultValue: 1),
-        ParamControl(.glareAmount, title: "眩光", range: 0...1, defaultValue: 1),
-        ParamControl(.densityCurveGamma, title: "密度曲线", range: 0.2...1.5, defaultValue: 1),
-        ParamControl(.mFilterShift, title: "滤色包 M", range: -1...1, defaultValue: 0),
-        ParamControl(.yFilterShift, title: "滤色包 Y", range: -1...1, defaultValue: 0),
+        ParamControl(.exposureCompensation, title: "曝光补偿", range: -3...3, defaultValue: 0, group: .exposure),
+
+        ParamControl(.printBrightness, title: "印放亮度", range: -3...3, defaultValue: 0, group: .enlarger),
+        ParamControl(.yFilterShift, title: "黄 ↔ 蓝", range: -1...1, defaultValue: 0, group: .enlarger),
+        ParamControl(.mFilterShift, title: "品红 ↔ 绿", range: -1...1, defaultValue: 0, group: .enlarger),
+        ParamControl(.preflash, title: "预闪", range: 0...0.2, defaultValue: 0, group: .enlarger),
+        ParamControl(.densityCurveGamma, title: "密度曲线", range: 0.2...1.5, defaultValue: 1, group: .enlarger),
+
+        ParamControl(.sceneLatitudeActive, title: "场景置位", defaultValue: 0, group: .placement, toggle: true,
+                     note: "把超出相纸宽容度的高光和阴影柔和地收进来，像冲印师傅手工遮挡加光"),
+        ParamControl(.highlightRoom, title: "高光收回", range: 0...6, defaultValue: 0, group: .placement),
+        ParamControl(.shadowRoom, title: "阴影提起", range: 0...6, defaultValue: 0, group: .placement),
+
+        ParamControl(.grainAmount, title: "颗粒", range: 0...2, defaultValue: 1),
+        ParamControl(.halationAmount, title: "光晕", range: 0...4, defaultValue: 1),
+        ParamControl(.halationScatter, title: "光晕扩散", range: 0...1, defaultValue: 1),
+        ParamControl(.glareAmount, title: "眩光", range: 0...3, defaultValue: 1),
+        ParamControl(.couplersAmount, title: "成色剂", range: 0...1.5, defaultValue: 1),
+
+        ParamControl(.scanFilm, title: "扫描底片", defaultValue: 0, group: .output, toggle: true,
+                     note: "不印放，直接看冲出来的底片（负片会是橙色的反相）"),
+        ParamControl(.digitalIntermediate, title: "数字中间片", defaultValue: 0, group: .output, toggle: true,
+                     note: "像电影后期那样把底片转成平淡的 Log 画面，留给后期调色"),
     ]
 
     static func control(for key: String) -> ParamControl? {
@@ -167,7 +214,7 @@ enum ParamDefaults {
             "filter_shift_scale": .number(40),
         ]
         for control in ParamCatalog.all {
-            delta[control.key] = .number(control.defaultValue)
+            if let v = control.wire(control.defaultValue) { delta[control.key] = v }
         }
         return delta
     }

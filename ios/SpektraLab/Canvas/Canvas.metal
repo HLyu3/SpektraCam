@@ -91,10 +91,39 @@ float encodeTransfer(float value, uint mode) {
     return value;
 }
 
+/// Enable HDR (upstream `HDRRendition`'s kernels, `HDRGrainGain.log2Gain`): the session's tables and the
+/// screen's share of them. `on` 0 draws today's SDR picture, clamped.
+struct CanvasHDR {
+    float lo, hi, top, kappa;
+    float rhoMax, tau, weight, on;
+};
+
+/// log2 of a pixel's linear luminance (Rec. 709 / sRGB primaries: the preview session's space).
+kernel void canvasLog2Y(texture2d<float, access::read> source [[texture(0)]],
+                        texture2d<float, access::write> out [[texture(1)]],
+                        uint2 gid [[thread_position_in_grid]]) {
+    if (gid.x >= out.get_width() || gid.y >= out.get_height()) return;
+    float3 c = source.read(gid).rgb;
+    float3 l = float3(decodeTransfer(c.r, 0u), decodeTransfer(c.g, 0u), decodeTransfer(c.b, 0u));
+    float y = dot(l, float3(0.2126, 0.7152, 0.0722));
+    out.write(float4(log2(max(y, 1e-30)), 0, 0, 0), gid);
+}
+
+/// A table of 256 over [lo, hi], read linearly (the kernels' own reading).
+static float tableAt(constant float* t, float x, float lo, float hi) {
+    float u = clamp((x - lo) / (hi - lo), 0.0f, 1.0f) * 255.0f;
+    int i0 = min(int(floor(u)), 254);
+    float f = u - float(i0);
+    return t[i0] + (t[i0 + 1] - t[i0]) * f;
+}
+
 fragment float4 canvasFragment(CanvasVertexOut in [[stage_in]],
                                texture2d<float> source [[texture(0)]],
+                               texture2d<float> localTone [[texture(1)]],
                                constant CanvasTransform& transform [[buffer(0)]],
-                               constant float4& frame [[buffer(1)]]) {
+                               constant float4& frame [[buffer(1)]],
+                               constant CanvasHDR& hdr [[buffer(2)]],
+                               constant float* tables [[buffer(3)]]) {
     float2 position = (in.uv * 2.0 - 1.0) * float2(1.0, -1.0);
     if (position.x < frame.x || position.x > frame.y ||
         position.y < frame.z || position.y > frame.w) {
@@ -125,6 +154,16 @@ fragment float4 canvasFragment(CanvasVertexOut in [[stage_in]],
                              encodeTransfer(converted.g, transform.targetCCTFMode),
                              encodeTransfer(converted.b, transform.targetCCTFMode));
 
-    // The drawable is `bgra8Unorm`; clamp before conversion to 8-bit.
-    return float4(clamp(encoded, 0.0, 1.0), 1.0);
+    if (hdr.on < 0.5) return float4(clamp(encoded, 0.0, 1.0), 1.0);
+
+    // Enable HDR: log2 gain = Ks(L') + κ·clamp(ρ(L'), 0, ρmax)·(log2 Y − L'), L' the local tone held within τ.
+    float3 lin = float3(decodeTransfer(encoded.r, 0u), decodeTransfer(encoded.g, 0u), decodeTransfer(encoded.b, 0u));
+    float l2y = log2(max(dot(lin, float3(0.2126, 0.7152, 0.0722)), 1e-30));
+    float L = localTone.sample(linearSampler, photoUV).r;
+    L = l2y - clamp(l2y - L, -hdr.tau, hdr.tau);
+    float g = tableAt(tables, L, hdr.lo, hdr.hi);
+    float rho = clamp(tableAt(tables + 256, L, hdr.lo, hdr.hi), 0.0f, hdr.rhoMax);
+    float gain = clamp(g + hdr.kappa * rho * (l2y - L), 0.0f, hdr.top);
+    lin *= exp2(hdr.weight * gain);
+    return float4(encodeTransfer(lin.r, 0u), encodeTransfer(lin.g, 0u), encodeTransfer(lin.b, 0u), 1.0);
 }

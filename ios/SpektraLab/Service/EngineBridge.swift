@@ -1,7 +1,7 @@
 //  EngineBridge.swift — the render engine's C ABI, in Swift.
 //
 //  The engine is C++ compiled into this app (see ios/Tools/gen-project.py) and
-//  reached through the `extern "C"` surface in `engine/include/spektrafilm/
+//  reached through the `extern "C"` surface in `engine/include/spektralab/
 //  spk_engine.h`. Nothing here is iOS-specific: the same calls drive the macOS
 //  app. What is iOS-specific is *where the pixels come from* and *where they
 //  go* — a Photos-picker image in, a Photos-library image out.
@@ -93,7 +93,7 @@ final class SpektraEngine: @unchecked Sendable {
     /// On iOS this is `Bundle.main.resourceURL/engine` — the folder reference
     /// `Resources/engine` puts in the bundle. The engine resolves every asset
     /// relative to this path, so it must be the directory *containing*
-    /// `spektrafilm_constants.bin`, not the file.
+    /// `spektralab_constants.bin`, not the file.
     let resources: URL
 
     /// Creates the engine on `device`.
@@ -106,7 +106,7 @@ final class SpektraEngine: @unchecked Sendable {
         let dir = resources ?? SpektraEngine.defaultResources()
         self.resources = dir
 
-        let constants = dir.appendingPathComponent("spektrafilm_constants.bin")
+        let constants = dir.appendingPathComponent("spektralab_constants.bin")
         guard FileManager.default.fileExists(atPath: constants.path) else {
             throw EngineError.noResources(dir.path)
         }
@@ -177,13 +177,13 @@ final class SpektraEngine: @unchecked Sendable {
     /// A six-entry test bundle installed fine on the same device, so the entry
     /// count is what matters.
     ///
-    /// - Returns: the directory holding `spektrafilm_constants.bin`.
+    /// - Returns: the directory holding `spektralab_constants.bin`.
     static func defaultResources() -> URL {
         if let env = ProcessInfo.processInfo.environment["SPEKTRAFILM_ENGINE_RESOURCES"],
            !env.isEmpty {
             return URL(fileURLWithPath: env)
         }
-        if let bundled = Bundle.main.url(forResource: "spektrafilm_constants",
+        if let bundled = Bundle.main.url(forResource: "spektralab_constants",
                                          withExtension: "bin", subdirectory: "Resources/engine") {
             return bundled.deletingLastPathComponent()
         }
@@ -209,7 +209,7 @@ final class SpektraEngine: @unchecked Sendable {
         // Production builds carry the complete archive. Never require a
         // network connection to recover from an engine startup error.
         let bundled = defaultResources()
-        guard FileManager.default.fileExists(atPath: bundled.appendingPathComponent("spektrafilm_constants.bin").path) else {
+        guard FileManager.default.fileExists(atPath: bundled.appendingPathComponent("spektralab_constants.bin").path) else {
             throw EngineError.noResources("安装包缺少内置资源，请重新安装完整版本")
         }
         return bundled
@@ -246,7 +246,7 @@ final class SpektraEngine: @unchecked Sendable {
         let digest = SHA256.hash(data: blob).map { String(format: "%02x", $0) }.joined()
         let root = caches.appendingPathComponent("engine-\(digest)", isDirectory: true)
         if fileManager.fileExists(
-            atPath: root.appendingPathComponent("spektrafilm_constants.bin").path) {
+            atPath: root.appendingPathComponent("spektralab_constants.bin").path) {
             return root
         }
 
@@ -433,6 +433,19 @@ final class SpektraEngine: @unchecked Sendable {
         return try decode(out, as: SolveReply.self)
     }
 
+    /// Enable HDR's gain curve for this session (`spk_session_hdr_curve`, API-SPEC §19.2): the reply's
+    /// JSON, parsed by `HDRSessionCurve.parse`. Throws where the engine refuses (no curve for this medium).
+    func hdrCurve(headroom: Double = HDRSessionCurve.headroom) throws -> String {
+        guard let session else { throw EngineError.failed(status: -1, message: "no session is open") }
+        var out: UnsafeMutablePointer<CChar>?
+        guard HDRSessionCurve.request(headroom: headroom).withCString({ spk_session_hdr_curve(session, $0, &out) }) == EngineStatus.ok,
+              let out else {
+            throw EngineError.failed(status: -1, message: lastError)
+        }
+        defer { spk_string_free(out) }
+        return String(cString: out)
+    }
+
     /// Pay the fixed per-stock-pair setup before the user is looking, so the
     /// first preview is not the slow one. Idempotent.
     func warmUp(filmStock: String, printStock: String) throws {
@@ -494,7 +507,15 @@ final class SpektraEngine: @unchecked Sendable {
     /// `CGDataProvider` and `spk_result_free` releases the texture when Core
     /// Graphics is finished. That gives JPEG encoding a zero-copy 16-bit
     /// sRGB source instead of three full-frame CPU copies.
-    func renderBitmap(tier: String = "full", reprint: Bool = false) throws -> RenderedBitmap {
+    /// Free the engine's pooled GPU buffers that nothing holds (engine 2.x `spk_trim_pool`).
+    /// Safe beside a live result: sessions, cached negatives and a returned bitmap are untouched.
+    @discardableResult
+    func trimPool(keepBytes: Int = 0) -> Int {
+        Int(spk_trim_pool(engine, keepBytes))
+    }
+
+    func renderBitmap(tier: String = "full", reprint: Bool = false,
+                      colorSpace: CGColorSpace? = nil) throws -> RenderedBitmap {
         guard let session else { throw EngineError.failed(status: -1, message: "no session is open") }
         var result = spk_result()
         let status = tier.withCString { tierPtr in
@@ -503,7 +524,7 @@ final class SpektraEngine: @unchecked Sendable {
         guard status == EngineStatus.ok else {
             throw EngineError.failed(status: status, message: lastError)
         }
-        guard let cgImage = Self.makeCGImage(from: &result) else {
+        guard let cgImage = Self.makeCGImage(from: &result, colorSpace: colorSpace) else {
             spk_result_free(&result)
             throw EngineError.failed(status: -1, message: "引擎没有返回可导出的图像")
         }
@@ -516,7 +537,10 @@ final class SpektraEngine: @unchecked Sendable {
     /// Box `spk_result` so Core Graphics can release the engine pixels itself.
     /// The result owns both the texture and the `rgba16` rows; freeing it after
     /// the provider is released is the only correct lifetime.
-    private static func makeCGImage(from result: inout spk_result) -> CGImage? {
+    /// `colorSpace` must name the space the session's `output_color_space`
+    /// encoded into; the pixels are not converted here, only tagged.
+    private static func makeCGImage(from result: inout spk_result,
+                                    colorSpace requested: CGColorSpace? = nil) -> CGImage? {
         guard let rows = result.rgba16,
               result.width > 0, result.height > 0,
               result.row_stride_px >= result.width else {
@@ -555,7 +579,7 @@ final class SpektraEngine: @unchecked Sendable {
 
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue
                                       | CGBitmapInfo.byteOrder16Little.rawValue)
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        guard let colorSpace = requested ?? CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
         return CGImage(width: width,
                        height: height,
                        bitsPerComponent: 16,

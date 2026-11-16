@@ -18,9 +18,13 @@ CIImage *SPKDecodeRAWImage(NSData *data, NSString *identifierHint) {
             return nil;
         }
 
+        // Settings › 镜头校正 (on unless switched off): the camera's own distortion and vignetting
+        // correction, as the file describes it (ProRAW and DNGs carry it).
+        NSNumber *setting = [[NSUserDefaults standardUserDefaults] objectForKey:@"SpektraLab.lensCorrection"];
+        const BOOL correct = setting == nil ? YES : setting.boolValue;
         SPKTrySetter(@"lens correction", ^{
             if (raw.isLensCorrectionSupported) {
-                raw.lensCorrectionEnabled = NO;
+                raw.lensCorrectionEnabled = correct;
             }
         });
         SPKTrySetter(@"draft mode", ^{
