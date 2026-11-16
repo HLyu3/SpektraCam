@@ -2,7 +2,7 @@
 
 **Spektra Cam 是 [SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（Mac 上的胶片冲洗软件）的非官方 iPhone 移植版。** 用的是同一个胶片物理引擎——胶片曝光、染料层、颗粒、光晕、放大机与相纸，一路算下来，而不是给照片套一张 LUT——并在 iPhone 上加了相机、观片台等功能。
 
-> 非官方：不是 SpektraLab 作者发布的 App。
+> 非官方：不是 SpektraLab 作者发布的 App。作者自己的官方 iPhone 版在 App Store：[SpektraLab for iPhone](https://spektralab.app/mobile/)。
 > 胶片引擎来自 [JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（本版用 2.4.0 引擎）；
 > 起点是它的 iOS 社区移植版 [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS) 1.2.0，之后界面重做、功能大幅扩展。
 
