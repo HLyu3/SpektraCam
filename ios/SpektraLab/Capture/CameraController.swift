@@ -558,17 +558,18 @@ struct CaptureMode: Identifiable, Hashable {
     var id: String { "\(format.rawValue)-\(megapixels)" }
     var title: String { "\(format.title) · \(megapixels) MP" }
 
-    /// Rough file size and what the mode is for (ProRAW ~1.6 MB a MP, HEIF ~0.2).
+    /// Rough file size and what the mode is for, in words a newcomer can choose by — the camera's format menu is
+    /// the only place most people meet these (ProRAW ~1.6 MB a MP, HEIF ~0.2, single-frame RAW ~0.85, measured).
     var detail: String {
-        let mb = Double(megapixels) * (format == .heif ? 0.2 : format == .raw ? 2.0 : 1.6)
+        let mb = Double(megapixels) * (format == .heif ? 0.2 : format == .raw ? 0.85 : 1.6)
         let size = mb >= 10 ? String(format: "约 %.0f MB", mb) : String(format: "约 %.1f MB", mb)
         switch (format, megapixels) {
-        case (.raw, _): return size + " · 单帧原始数据，没有合成、降噪和锐化"
-        case (.proRAW, 40...): return size + " · 后期空间最大"
-        case (.proRAW, _): return size + " · 原始数据，文件小一些"
         case (.heif, 40...): return size + " · 细节最多"
         case (.heif, 20...): return size + " · 细节和体积平衡"
-        default: return size + " · 最省空间"
+        case (.heif, _): return size + " · 最省空间"
+        case (.proRAW, 40...): return size + " · 后期空间最大"
+        case (.proRAW, _): return size + " · 原始数据，文件小一些"
+        case (.raw, _): return size
         }
     }
 

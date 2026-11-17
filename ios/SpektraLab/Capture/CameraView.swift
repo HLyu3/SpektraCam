@@ -36,6 +36,7 @@ struct CameraView: View {
     @State private var finder = FilmViewfinderRenderer()
     @State private var baking = false
     @State private var choosingRoll = false
+    @State private var choosingFormat = false
     @State private var savingCombo = false
     @State private var renaming: SavedRecipe?
     @State private var comboName = ""
@@ -50,7 +51,6 @@ struct CameraView: View {
     @State private var lens: String?
     /// The back camera's focal length, 35 mm equivalent: a lens and its digital zoom (`aim`).
     @State private var focal: Double = 24
-    @State private var pinchFrom: Double?
     @State private var showingSettings = false
     /// The controls turned upright for how the phone is held (`LevelMeter.uiTurn`); the layout stays portrait.
     @State private var turn: Double = 0
@@ -248,25 +248,9 @@ struct CameraView: View {
     }
 
     /// 拍摄格式: this lens's formats at their sizes, beside the shutter.
+    // A sheet, not a system menu: a menu showed the titles only, and these choices need their explanation.
     private var formatMenu: some View {
-        Menu {
-            Section("拍摄格式 · 这颗镜头") {
-                ForEach(CaptureMode.available(sizes: status.sizes, proRAW: status.proRAW, bayer: status.bayer)) { mode in
-                    let on = mode.format == chosen && (mode.format == .raw || mode.megapixels == status.megapixels)
-                    Button {
-                        format = mode.format.rawValue
-                        sizeMP = mode.megapixels
-                    } label: {
-                        Label {
-                            Text(mode.title)
-                            Text(mode.detail)
-                        } icon: {
-                            if on { Image(systemName: "checkmark") }
-                        }
-                    }
-                }
-            }
-        } label: {
+        Button { choosingFormat = true } label: {
             HStack(spacing: 3) {
                 Text(chosen.title).font(.system(size: 11, weight: .heavy))
                 if status.megapixels > 0, chosen != .raw {
@@ -279,7 +263,19 @@ struct CameraView: View {
             .frame(height: 34)
             .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("拍摄格式 \(chosen.title)，\(status.megapixels) MP，点按更改")
+        .sheet(isPresented: $choosingFormat) {
+            FormatSheet(modes: CaptureMode.available(sizes: status.sizes, proRAW: status.proRAW, bayer: status.bayer),
+                        isOn: { $0.format == chosen && ($0.format == .raw || $0.megapixels == status.megapixels) },
+                        pick: { mode in
+                            format = mode.format.rawValue
+                            sizeMP = mode.megapixels
+                            choosingFormat = false
+                        })
+                .presentationDetents([.medium, .large])
+                .presentationBackground(Color.labInk)
+        }
     }
 
     // MARK: the picture
@@ -314,26 +310,8 @@ struct CameraView: View {
         }
         .overlay { if filmLook && !noFilm { FilmViewfinder(renderer: finder).allowsHitTesting(false) } }
         .aspectRatio(3.0 / 4.0, contentMode: .fit)
-        .simultaneousGesture(
-            MagnifyGesture()
-                .onChanged { v in
-                    guard !front, !lensesOnly else { return }
-                    let from = pinchFrom ?? focal
-                    pinchFrom = from
-                    aim(from * v.magnification)
-                }
-                .onEnded { _ in pinchFrom = nil }
-        )
-        .overlay(alignment: .bottom) {
-            if pinchFrom != nil {
-                Text("\(zoomText(focal))× · \(Int(focal.rounded())) mm")
-                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Color.labCream)
-                    .padding(.horizontal, 10).frame(height: 26)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding(.bottom, 10)
-            }
-        }
+        // No pinch zoom (the owner, 2026-11-16): the lens stops (0.5 · 1 · 2 · 4 · 8, native or in-sensor) are where
+        // the picture is best; finer framing is the editor's crop.
         .overlay(alignment: .topLeading) {
             // The preview's look, said in words: a roll shot under 实景 still develops on its film.
             if !noFilm {
@@ -462,6 +440,9 @@ struct CameraView: View {
                         Button { aim(Double(mm)) } label: {
                             Text(lensText(on && abs(focal - Double(mm)) > 0.5 ? focal : Double(mm), selected: on))
                                 .font(.system(size: on ? 14 : 12, weight: .bold, design: .monospaced))
+                                .lineLimit(1)
+                                .fixedSize()
+                                .padding(.horizontal, 4)
                                 .rotationEffect(.degrees(turn))
                                 .foregroundStyle(on ? Color.black : Color.labCream.opacity(0.8))
                                 .frame(minWidth: 40, minHeight: 32)
@@ -819,7 +800,9 @@ struct CameraView: View {
 
     /// A lens row label: the zoom (the chosen one with ×, as the Camera app does) or the focal length.
     private func lensText(_ mm: Double, selected: Bool) -> String {
-        lensLabel == "mm" ? "\(Int(mm.rounded()))" : zoomText(mm) + (selected ? "×" : "")
+        if lensLabel == "mm" { return "\(Int(mm.rounded()))" }
+        // "0.5" in full (the owner prefers it to Camera's ".5"); the label is fixed-size, so it is never cut off.
+        return zoomText(mm) + (selected ? "×" : "")
     }
 
     private var nearestStop: Int? {
@@ -849,7 +832,13 @@ struct CameraView: View {
         pending += 1
         withAnimation(.easeOut(duration: 0.06)) { blink = true }
         withAnimation(.easeIn(duration: 0.2).delay(0.06)) { blink = false }
-        let format = chosen, film = roll, look = model.rollRecipe(roll, paper: rollPaper), develop = autoDevelop, flashMode = CameraController.Flash(rawValue: flash) ?? .off, save = toPhotos
+        var shotLook = model.rollRecipe(roll, paper: rollPaper)
+        // The exposure dragged in the viewfinder (the sun) is the photographer's: kept in the photo as its exposure
+        // compensation, on top of the develop's own meter — which otherwise re-metered it away. Not in manual mode.
+        if !status.manual, abs(status.bias) >= 0.05 {
+            shotLook?.params[FilmParam.exposureCompensation.key] = (Double(status.bias) * 10).rounded() / 10
+        }
+        let format = chosen, film = roll, look = shotLook, develop = autoDevelop, flashMode = CameraController.Flash(rawValue: flash) ?? .off, save = toPhotos
         Task {
             defer { pending -= 1 }
             do {
@@ -1059,6 +1048,54 @@ struct PaperMenu: View, @MainActor Equatable {
                 .presentationDetents([.medium, .large])
                 .presentationBackground(Color.labInk)
         }
+    }
+}
+
+/// 拍摄格式: every size this lens offers, each with what it is for, grouped by format.
+struct FormatSheet: View {
+    let modes: [CaptureMode]
+    let isOn: (CaptureMode) -> Bool
+    let pick: (CaptureMode) -> Void
+
+    private static let order: [(CameraController.Format, String, String)] = [
+        (.heif, "HEIF · 日常推荐", "和原相机一样把几帧合成一张、降噪，最干净，文件小。随手拍、室内、夜景都用它。"),
+        (.proRAW, "ProRAW · 认真拍时用", "也是多帧合成，但存成 RAW，亮处和暗处留得更多：逆光、天空很亮、反差大的场景，冲洗出的高光过渡更像胶片。文件很大。"),
+        (.raw, "RAW · 单帧原始", "只读传感器的一帧，不合成、不降噪、不锐化。白天光线足时颗粒最原始；暗光和长焦下噪点很多，不推荐日常用。"),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(Self.order, id: \.0) { item in
+                    let (format, title, note) = item
+                    let rows = modes.filter { $0.format == format }
+                    if !rows.isEmpty {
+                        Section {
+                            ForEach(rows) { mode in
+                                Button { pick(mode) } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(mode.title).foregroundStyle(Color.labCream)
+                                            Text(mode.detail).font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        if isOn(mode) { Image(systemName: "checkmark").foregroundStyle(Color.labRed) }
+                                    }
+                                }
+                            }
+                        } header: {
+                            Text(title)
+                        } footer: {
+                            Text(note)
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .navigationTitle("拍摄格式")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .preferredColorScheme(.dark)
     }
 }
 

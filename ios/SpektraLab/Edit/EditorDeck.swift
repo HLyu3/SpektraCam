@@ -71,14 +71,15 @@ extension EditTool {
                  reset: { $0.setCrop(FrameCrop()) },
                  panel: { m, ctx in AnyView(ToolScroll {
                      Button(action: ctx.openCrop) {
-                         Label("裁剪和拉直…", systemImage: "crop.rotate")
+                         Label("裁剪、拉直和旋转…", systemImage: "crop.rotate")
                              .font(.subheadline.weight(.semibold))
                              .frame(maxWidth: .infinity, minHeight: 44)
                              .background(Color.white.opacity(0.08), in: Capsule())
                      }
                      .buttonStyle(.plain)
                      .foregroundStyle(Color.labCream)
-                     Note(m.crop.isIdentity ? "完整画面。" : String(format: "已裁剪 · 拉直 %.1f°", m.crop.angle))
+                     Note(m.crop.isIdentity ? "完整画面。"
+                          : String(format: "已裁剪 · 拉直 %.1f°", m.crop.angle) + (m.crop.isOriented ? " · 已旋转" : ""))
                  }) }),
         EditTool(id: "format", title: "画幅", stage: .frame,
                  modified: { $0.filmFormatMM != 36 },
@@ -131,10 +132,14 @@ extension EditTool {
 
         // 曝光
         EditTool(id: "exposure", title: "曝光", stage: .develop,
-                 modified: { paramsMoved([.exposureCompensation], $0) || $0.exposureMethod != "balanced" },
-                 reset: { resetParams([.exposureCompensation], $0) { $0.exposureMethod = nil } },
+                 // Either default meter is "unmodified": balanced (older photos) or 保高光 (new ones); reset goes to 保高光.
+                 modified: { paramsMoved([.exposureCompensation], $0)
+                     || !["balanced", "protect_highlights", PhotoRecipe.newPhotoMeter].contains($0.exposureMethod) },
+                 // Reset: a camera shot back to 相机, anything imported back to the engine's meter.
+                 reset: { m in resetParams([.exposureCompensation], m) {
+                     $0.exposureMethod = m.editingPhoto?.captured == true ? PhotoRecipe.newPhotoMeter : nil } },
                  panel: { m, _ in AnyView(ToolScroll {
-                     ChipRow(title: "测光", options: [("balanced", "均衡"), ("center", "中央"), ("protect_highlights", "保高光"),
+                     ChipRow(title: "测光", options: [("camera", "相机"), ("balanced", "均衡"), ("center", "中央"), ("protect_highlights", "保高光"),
                                                      ("protect_shadows", "保阴影"), ("manual", "手动")],
                              selected: m.exposureMethod) { m.setExposureMethod($0) }
                      sliders([.exposureCompensation], m)
@@ -155,17 +160,34 @@ extension EditTool {
         EditTool(id: "film", title: "胶片", stage: .film,
                  panel: { m, ctx in AnyView(StockPanel(model: m, papers: false, browse: { ctx.browseStocks(false) })) }),
         EditTool(id: "leak", title: "漏光", stage: .film,
-                 modified: { !$0.leakKind.isEmpty },
-                 reset: { m in m.edit { $0.leakKind = nil; $0.leakAmount = nil } },
+                 modified: { !$0.leakKind.isEmpty || ($0.recipe.leakEdge ?? 0) > 0 || $0.recipe.leakSeed != nil },
+                 reset: { m in m.edit { $0.leakKind = nil; $0.leakAmount = nil; $0.leakEdge = nil; $0.leakSeed = nil } },
                  panel: { m, _ in AnyView(ToolScroll {
-                     ChipRow(title: "漏光", options: [("", "关"), ("auto", "自动"), ("band", "条带"), ("wash", "泛光")]
-                                 + (m.filmFormatMM >= 56 && !m.filmBorderEnabled ? [("spot", "光斑")] : []),
+                     // Engine 2.4.1: a spot on any format (it needed a 120 back's window before).
+                     ChipRow(title: "漏光", options: [("", "关"), ("auto", "自动"), ("band", "条带"), ("wash", "泛光"), ("spot", "光斑")],
                              selected: m.leakKind) { m.setLeak(kind: $0) }
                      if !m.leakKind.isEmpty {
                          FinishSlider(title: "强度", value: Binding(get: { m.leakAmount }, set: { m.setLeak(amount: $0) }),
                                       range: 0...4, rest: 1, text: { String(format: "%.1f", $0) })
                      }
-                     Note("没经过镜头的光漏到胶片上。位置和方向由设置里的机身号决定。")
+                     // 边缘烧灼: beside any kind, at its own strength; 0 is off.
+                     FinishSlider(title: "边缘烧灼", value: Binding(get: { m.recipe.leakEdge ?? 0 }, set: { m.setLeak(edge: $0) }),
+                                  range: 0...4, rest: 0, text: { $0 <= 0 ? "关" : String(format: "%.1f", $0) })
+                     if !m.leakKind.isEmpty || (m.recipe.leakEdge ?? 0) > 0 {
+                         HStack(spacing: 8) {
+                             Button { m.shuffleLeak() } label: {
+                                 Label("随机位置", systemImage: "dice").font(.footnote.weight(.semibold))
+                             }
+                             if m.recipe.leakSeed != nil {
+                                 Button { m.shuffleLeak(false) } label: {
+                                     Text("回到机身位置").font(.footnote.weight(.semibold))
+                                 }
+                             }
+                         }
+                         .buttonStyle(.bordered)
+                         .tint(Color.labCream)
+                     }
+                     Note("没经过镜头的光漏到胶片上。边缘烧灼是胶片边缘被光烧到的一条亮边，可以单独用，也可以和上面的漏光一起用。位置和形状默认由设置里的机身号决定，“随机位置”给这张照片换一个。")
                  }) }),
         EditTool(id: "halation", title: "光晕", stage: .film,
                  modified: { paramsMoved([.halationAmount, .halationScatter], $0) || $0.antihalationRemoved },
@@ -242,6 +264,14 @@ extension EditTool {
                  modified: { !$0.adjustments.colorBalance.isNeutral },
                  reset: { m in var a = m.adjustments; a.colorBalance = ColorBalance(); m.setAdjustments(a) },
                  panel: { m, _ in AnyView(FinishPanel(model: m, fixedTool: .balance)) }),
+        EditTool(id: "mixer", title: "通道混合", stage: .finish,
+                 modified: { !$0.adjustments.channelMixer.isNeutral },
+                 reset: { m in var a = m.adjustments; a.channelMixer = ChannelMixer(); m.setAdjustments(a) },
+                 panel: { m, _ in AnyView(FinishPanel(model: m, fixedTool: .mixer)) }),
+        EditTool(id: "watermark", title: "水印", stage: .finish,
+                 modified: { $0.recipe.watermarks != nil },
+                 reset: { m in m.edit { $0.watermarks = nil } },
+                 panel: { m, _ in AnyView(WatermarkPanel(model: m, shelf: m.watermarkShelf)) }),
         EditTool(id: "hdr", title: "HDR", stage: .finish,
                  modified: { $0.recipe.hdr == true },
                  reset: { $0.setHDREnabled(false) },

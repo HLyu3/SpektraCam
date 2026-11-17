@@ -17,6 +17,10 @@ struct FrameCrop: Codable, Equatable, Sendable {
     var aspect: Aspect = .free
     /// The fixed ratio is turned on its side (3:2 → 2:3).
     var portrait = false
+    /// Quarter turns clockwise, then — applied first — a left-right mirror; both after the crop. Optional so
+    /// manifests written before them decode.
+    var turns: Int? = nil
+    var mirrored: Bool? = nil
 
     static let maxAngle = 45.0
     static let minSide = 0.08
@@ -36,7 +40,42 @@ struct FrameCrop: Codable, Equatable, Sendable {
         }
     }
 
-    var isIdentity: Bool { cx == 0.5 && cy == 0.5 && width == 1 && height == 1 && angle == 0 }
+    var isIdentity: Bool { cx == 0.5 && cy == 0.5 && width == 1 && height == 1 && angle == 0 && !isOriented }
+    var quarterTurns: Int { ((turns ?? 0) % 4 + 4) % 4 }
+    var isOriented: Bool { quarterTurns != 0 || mirrored == true }
+
+    /// The picture as seen turned a quarter clockwise (`by` 1) or anticlockwise (−1).
+    func turned(_ by: Int) -> FrameCrop { var c = self; c.turns = ((quarterTurns + by) % 4 + 4) % 4; return c.tidied }
+    /// The picture as seen mirrored left-right, or top-bottom. Mirroring after a turn reverses the turn
+    /// (H·R = R⁻¹·H), so the stored turn changes too.
+    func flipped(vertically: Bool) -> FrameCrop {
+        var c = self
+        c.turns = ((vertically ? 2 : 0) - quarterTurns + 4) % 4
+        c.mirrored = mirrored == true ? nil : true
+        return c.tidied
+    }
+    private var tidied: FrameCrop { var c = self; if c.turns == 0 { c.turns = nil }; return c }
+
+    /// Moves `channels`-wide pixels of a w×h picture through the mirror and turns.
+    static func orient<T>(_ src: UnsafePointer<T>, width w: Int, height h: Int, channels n: Int,
+                          turns: Int, mirrored: Bool, into dst: UnsafeMutablePointer<T>) {
+        let ow = turns % 2 == 0 ? w : h
+        nonisolated(unsafe) let (input, output) = (src, dst)
+        DispatchQueue.concurrentPerform(iterations: turns % 2 == 0 ? h : w) { oy in
+            for ox in 0..<ow {
+                var (x, y): (Int, Int)
+                switch turns {
+                case 1: (x, y) = (oy, h - 1 - ox)
+                case 2: (x, y) = (w - 1 - ox, h - 1 - oy)
+                case 3: (x, y) = (w - 1 - oy, ox)
+                default: (x, y) = (ox, oy)
+                }
+                if mirrored { x = w - 1 - x }
+                let s = input + (y * w + x) * n, d = output + (oy * ow + ox) * n
+                for k in 0..<n { d[k] = s[k] }
+            }
+        }
+    }
 
     /// Width over height the rectangle is held to, in pixels; nil when free.
     func ratio(source: CGSize) -> CGFloat? {
@@ -118,7 +157,13 @@ struct FrameCrop: Codable, Equatable, Sendable {
         ctx.translateBy(x: -source.width / 2, y: -source.height / 2)
         ctx.translateBy(x: 0, y: source.height); ctx.scaleBy(x: 1, y: -1)
         ctx.draw(image, in: CGRect(origin: .zero, size: source))
-        return ctx.makeImage()
+        guard isOriented, let data = ctx.data?.assumingMemoryBound(to: UInt32.self) else { return ctx.makeImage() }
+        let t = quarterTurns, (ow, oh) = t % 2 == 0 ? (out.width, out.height) : (out.height, out.width)
+        guard let turned = CGContext(data: nil, width: ow, height: oh, bitsPerComponent: 8, bytesPerRow: ow * 4,
+                                     space: space, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+              let to = turned.data?.assumingMemoryBound(to: UInt32.self) else { return nil }
+        Self.orient(data, width: out.width, height: out.height, channels: 1, turns: t, mirrored: mirrored == true, into: to)
+        return turned.makeImage()
     }
 }
 
@@ -126,6 +171,23 @@ extension DecodedFrame {
     /// The frame through `crop`. A plain crop is a row copy; a straighten resamples (bilinear).
     func applying(_ crop: FrameCrop?) -> DecodedFrame {
         guard let crop, !crop.isIdentity else { return self }
+        guard crop.isOriented else { return cut(crop) }
+        var flat = crop; flat.turns = nil; flat.mirrored = nil
+        let piece = cut(flat), t = crop.quarterTurns
+        var output = [Float](repeating: 0, count: piece.width * piece.height * 3)
+        piece.pixels.withUnsafeBufferPointer { src in
+            output.withUnsafeMutableBufferPointer { dst in
+                guard let from = src.baseAddress, let to = dst.baseAddress else { return }
+                FrameCrop.orient(from, width: piece.width, height: piece.height, channels: 3, turns: t,
+                                 mirrored: crop.mirrored == true, into: to)
+            }
+        }
+        return t % 2 == 0 ? DecodedFrame(pixels: FloatRGBPixels(output), width: piece.width, height: piece.height)
+            : DecodedFrame(pixels: FloatRGBPixels(output), width: piece.height, height: piece.width)
+    }
+
+    private func cut(_ crop: FrameCrop) -> DecodedFrame {
+        guard !crop.isIdentity else { return self }
         let source = CGSize(width: width, height: height)
         let out = crop.outputSize(source: source), r = crop.rect(in: source)
         if crop.angle == 0 {

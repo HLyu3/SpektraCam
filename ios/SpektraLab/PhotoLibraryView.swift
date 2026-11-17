@@ -116,11 +116,7 @@ struct PhotoLibraryView: View {
     }
 
     private var selectablePhotoIDs: Set<UUID> {
-        var ids = Set(visiblePhotos.map(\.id))
-        if let source = model.recipeSourcePhotoID {
-            ids.remove(source)
-        }
-        return ids
+        Set(visiblePhotos.map(\.id))
     }
 
     var body: some View {
@@ -130,7 +126,7 @@ struct PhotoLibraryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    if selecting, let recipe = model.clipboardRecipe {
+                    if let recipe = model.clipboardRecipe {
                         clipboardBanner(recipe)
                     }
                     if !selecting, let r = model.cullReminder {
@@ -213,11 +209,6 @@ struct PhotoLibraryView: View {
         .animation(.snappy(duration: 0.22), value: model.libraryMessage)
         .animation(.easeInOut(duration: 0.18), value: model.libraryBusy)
         .sensoryFeedback(.selection, trigger: selected)
-        .onChange(of: model.recipeSourcePhotoID) { _, source in
-            if let source {
-                selected.remove(source)
-            }
-        }
         .fileImporter(isPresented: $showingFileImporter,
                       allowedContentTypes: [.image, .rawImage, .folder],
                       allowsMultipleSelection: true) { result in
@@ -242,15 +233,32 @@ struct PhotoLibraryView: View {
         .confirmationDialog("删除这些照片？",
                             isPresented: $showingDelete,
                             titleVisibility: .visible) {
-            Button("删除 \(deleteIDs.count) 张照片", role: .destructive) {
+            let inPhotos = model.photosAssets(of: deleteIDs)
+            Button("只从底片删除 \(deleteIDs.count) 张", role: .destructive) {
                 model.deletePhotos(deleteIDs)
                 selected.subtract(deleteIDs)
                 deleteIDs = []
                 if model.library.isEmpty { selecting = false }
             }
+            if !inPhotos.isEmpty {
+                // Also the originals / prints these have in Photos (iOS asks once more).
+                Button("同时从“照片”删除（\(inPhotos.count) 张）", role: .destructive) {
+                    let ids = deleteIDs
+                    deleteIDs = []
+                    Task { @MainActor in
+                        if await model.deleteFromPhotos(inPhotos) {
+                            model.deletePhotos(ids)
+                            selected.subtract(ids)
+                            if model.library.isEmpty { selecting = false }
+                        }
+                    }
+                }
+            }
             Button("取消", role: .cancel) { deleteIDs = [] }
         } message: {
-            Text("原图和缩略图都会从 Spektra Cam 的照片库移除，不会影响系统相册。")
+            Text(model.photosAssets(of: deleteIDs).isEmpty
+                 ? "原图和缩略图会从 Spektra Cam 的底片库移除，不影响系统相册。"
+                 : "这些照片在“照片”里还有原片或冲洗好的成片。“只从底片删除”不动“照片”；“同时删除”会把它们移到“最近删除”（iOS 会再确认一次，30 天内可恢复）。")
         }
         .task(id: model.libraryMessage) {
             guard model.libraryMessage != nil else { return }
@@ -390,11 +398,18 @@ struct PhotoLibraryView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
             Spacer(minLength: 0)
-            Text(model.recipeSourcePhotoID != nil
-                 ? "来源照片已锁定"
-                 : (selecting ? "选择后粘贴" : "长按照片可复制"))
+            Text(selecting ? "选好后点下方粘贴" : "长按照片粘贴")
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Color.labCream.opacity(0.38))
+                .foregroundStyle(Color.labCream.opacity(0.5))
+            Button { model.clearClipboard() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color.labCream.opacity(0.55))
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("清除复制的配方")
         }
         .padding(.horizontal, 13)
         .frame(height: 40)
@@ -404,7 +419,7 @@ struct PhotoLibraryView: View {
     private var sectionHeader: some View {
         HStack(alignment: .center, spacing: 8) {
             if selecting {
-                Text("轻点选择 · 横向滑动连选")
+                Text(showingSystemPhotos ? "轻点选择" : "轻点选择 · 横向滑动连选")   // 系统相册: taps only
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.labCream.opacity(0.76))
                 Spacer()
@@ -615,7 +630,6 @@ struct PhotoLibraryView: View {
         }
         guard let run = slide, let i = run.order.firstIndex(of: hit) else { return }
         var range = Set(run.order[min(run.anchor, i)...max(run.anchor, i)])
-        if let source = model.recipeSourcePhotoID { range.remove(source) }
         let next = run.adding ? run.base.union(range) : run.base.subtracting(range)
         if next != selected { selected = next }
     }
@@ -666,11 +680,7 @@ struct PhotoLibraryView: View {
                         } label: {
                             Label(photo.favorite ? "取消收藏" : "收藏", systemImage: photo.favorite ? "heart.slash" : "heart")
                         }
-                        Button {
-                            copyRecipe(from: photo.id)
-                        } label: {
-                            Label("复制配方", systemImage: "doc.on.doc")
-                        }
+                        recipeButtons(photo)
                         Divider()
                         Button(role: .destructive) {
                             deleteIDs = [photo.id]
@@ -681,8 +691,13 @@ struct PhotoLibraryView: View {
                     }
                 }
             }
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("wall")) } action: { tileFrames[photo.id] = $0 }
-            .onDisappear { tileFrames[photo.id] = nil }
+            // Only while selecting (slide select needs them): every tile writing its frame into the page's state on
+            // every frame of a pinch's column change re-laid the whole wall per frame, and the pinch stuttered.
+            // `selecting` is part of the value, so turning selection on reports each tile once.
+            .onGeometryChange(for: CGRect.self) { [tracking = selecting] in tracking ? $0.frame(in: .named("wall")) : .zero } action: { f in
+                if selecting { tileFrames[photo.id] = f } else if !tileFrames.isEmpty { tileFrames = [:] }
+            }
+            .onDisappear { if selecting { tileFrames[photo.id] = nil } }
     }
 
     private func photoTile(_ photo: LibraryPhoto) -> some View {
@@ -698,7 +713,6 @@ struct PhotoLibraryView: View {
                 Image(uiImage: photo.thumbnail)
                     .resizable()
                     .scaledToFill()
-                    .saturation(isRecipeSource ? 0.12 : 1)
             }
             .overlay {
                 ZStack(alignment: .bottom) {
@@ -738,9 +752,6 @@ struct PhotoLibraryView: View {
                     if isSelected {
                         Color.labRed.opacity(0.10)
                     }
-                    if isRecipeSource {
-                        Color.black.opacity(selecting ? 0.34 : 0.24)
-                    }
                 }
             }
             .clipShape(shape)
@@ -760,41 +771,19 @@ struct PhotoLibraryView: View {
             }
             .overlay(alignment: .topTrailing) {
                 if selecting {
-                    if isRecipeSource {
-                        ZStack {
-                            Circle().fill(Color.black.opacity(0.48))
-                            Circle().strokeBorder(Color.white.opacity(0.40), lineWidth: 1)
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(Color.white.opacity(0.82))
-                        }
-                        .frame(width: 22, height: 22)
-                        .padding(6)
-                    } else {
-                        ZStack {
-                            Circle()
-                                .fill(isSelected ? Color.labRed : Color.black.opacity(0.28))
-                            Circle()
-                                .strokeBorder(Color.white.opacity(isSelected ? 0 : 0.72), lineWidth: 1.5)
-                            if isSelected {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        .frame(width: 22, height: 22)
-                        .shadow(color: .black.opacity(0.28), radius: 3, y: 1)
-                        .padding(6)
-                    }
-                } else if isRecipeSource {
                     ZStack {
-                        Circle().fill(Color.black.opacity(0.46))
-                        Circle().strokeBorder(Color.white.opacity(0.28), lineWidth: 1)
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Color.white.opacity(0.78))
+                        Circle()
+                            .fill(isSelected ? Color.labRed : Color.black.opacity(0.28))
+                        Circle()
+                            .strokeBorder(Color.white.opacity(isSelected ? 0 : 0.72), lineWidth: 1.5)
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
                     }
                     .frame(width: 22, height: 22)
+                    .shadow(color: .black.opacity(0.28), radius: 3, y: 1)
                     .padding(6)
                 } else if photo.isEdited && columnCount <= 4 {
                     Menu {
@@ -803,11 +792,7 @@ struct PhotoLibraryView: View {
                         } label: {
                             Label("编辑", systemImage: "slider.horizontal.3")
                         }
-                        Button {
-                            copyRecipe(from: photo.id)
-                        } label: {
-                            Label("复制配方", systemImage: "doc.on.doc")
-                        }
+                        recipeButtons(photo)
                         Button(role: .destructive) {
                             deleteIDs = [photo.id]
                             showingDelete = true
@@ -995,6 +980,18 @@ struct PhotoLibraryView: View {
                 .foregroundStyle(Color.labCream)
                 .contentTransition(.numericText())
             Spacer(minLength: 4)
+            // 全选 / 取消全选, as in 底片: every photo of the album shown.
+            let all = photosFeed.assets.map { a in (0..<a.count).map { a.object(at: $0).localIdentifier } } ?? []
+            let allOn = !all.isEmpty && count == all.count
+            Button { selectedAssets = allOn ? [] : all } label: {
+                Text(allOn ? "取消全选" : "全选")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.labCream)
+                    .padding(.horizontal, 11)
+                    .frame(height: 30)
+                    .background(Color.white.opacity(0.16), in: Capsule())
+            }
+            .buttonStyle(.plain)
             if count == 2 {
                 barAction("做成双拼", "rectangle.split.2x1") {
                     let ids = await model.linkAssets(selectedAssets)
@@ -1016,6 +1013,12 @@ struct PhotoLibraryView: View {
                 }
                 .disabled(count == 0)
             }
+            barAction("删除", "trash") {
+                // Straight from Photos (iOS asks first; Recently Deleted keeps them 30 days).
+                if await model.deleteFromPhotos(selectedAssets) { selectedAssets.removeAll() }
+            }
+            .disabled(count == 0)
+            .opacity(count == 0 ? 0.4 : 1)
             barAction(model.clipboardRecipe == nil ? "先复制配方" : "粘贴配方", "doc.on.clipboard") {
                 let ids = await model.linkAssets(selectedAssets)
                 await model.pasteRecipe(to: Set(ids))
@@ -1064,6 +1067,21 @@ struct PhotoLibraryView: View {
                 .foregroundStyle(Color.labCream.opacity(0.88))
         }
         .buttonStyle(.plain)
+    }
+
+    /// 复制 / 粘贴 / 清除 for one photo's menus.
+    @ViewBuilder private func recipeButtons(_ photo: LibraryPhoto) -> some View {
+        Button { copyRecipe(from: photo.id) } label: { Label("复制配方", systemImage: "doc.on.doc") }
+        if let recipe = model.clipboardRecipe {
+            if model.recipeSourcePhotoID != photo.id {
+                Button {
+                    Task { @MainActor in await model.pasteRecipe(to: [photo.id]) }
+                } label: {
+                    Label("粘贴配方 · \(model.filmName(for: recipe.filmID))", systemImage: "doc.on.clipboard")
+                }
+            }
+            Button { model.clearClipboard() } label: { Label("清除复制的配方", systemImage: "xmark.circle") }
+        }
     }
 
     private func copyRecipe(from id: UUID) {

@@ -125,6 +125,7 @@ struct EditorView: View {
     @State private var cropImage: CropImage?
     @State private var browsingPapers: Bool?
     @State private var savingRecipe = false
+    @AppStorage(ViewModel.histogramKey) private var showHistogram = false
     @State private var recipeName = ""
     /// Long-press on the picture: the imported photograph while the finger is down.
     @GestureState private var comparing = false
@@ -359,6 +360,9 @@ struct EditorView: View {
                 Button { recipeName = model.currentLookName; savingRecipe = true } label: {
                     Label("存为配方…", systemImage: "wand.and.stars")
                 }
+                Toggle(isOn: Binding(get: { showHistogram }, set: { showHistogram = $0; model.refreshHistogram() })) {
+                    Label("直方图", systemImage: "chart.bar.xaxis")
+                }
                 Button { showingDiagnostics = true } label: {
                     Label("诊断信息", systemImage: "info.circle")
                 }
@@ -391,6 +395,13 @@ struct EditorView: View {
                         // MTLTexture is not Hashable; the engine's progress id is
                         // what tells SwiftUI the picture changed.
                         .id(model.renderIdentity)
+                        .overlay {
+                            if let marks = model.recipe.watermarks, zoom <= 1, !model.showingOriginal,
+                               let t = model.renderedTexture {
+                                WatermarkOverlay(placements: marks, shelf: model.watermarkShelf,
+                                                 picture: CGSize(width: t.width, height: t.height), area: proxy.size)
+                            }
+                        }
                         .simultaneousGesture(imageGestures)
                         .simultaneousGesture(pictureTapGesture)
                         .simultaneousGesture(compareGesture)
@@ -401,6 +412,21 @@ struct EditorView: View {
                 }
             } else {
                 emptyState
+            }
+
+            // ⋯ › 直方图: over the picture's top-left corner, out of the way of the 原图 button.
+            if showHistogram, let h = model.histogram, !immersive {
+                VStack {
+                    HStack {
+                        HistogramPlot(channels: h)
+                            .frame(width: 132, height: 62)
+                            .padding(12)
+                            .allowsHitTesting(false)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .transition(.opacity)
             }
 
             if model.renderedTexture != nil {
@@ -856,6 +882,7 @@ struct StockTile: View {
     private var typeLabel: String {
         if stock.support == .paper { return stock.monochrome ? "黑白相纸" : recommended ? "相纸 · 推荐" : "相纸" }
         if stock.monochrome { return "黑白负片" }
+        if stock.isCine { return "电影负片" }
         return stock.type == .positive ? "反转片" : "负片"
     }
 }
@@ -970,7 +997,19 @@ struct FilmEffectsSheet: View {
                     gateChip(id: FilmGateCatalog.automaticID,
                              title: "自动",
                              detail: model.selectedGate.title)
-                    ForEach(FilmGateCatalog.gates) { gate in
+                    ForEach(FilmGateCatalog.gates.filter { !$0.manualOnly || $0.id == "135_sprocket" }) { gate in
+                        gateChip(id: gate.id, title: gate.title, detail: gate.detail)
+                    }
+                }
+            }
+
+            // Engine 2.4.1's motion-picture gauges: their own row.
+            Text("电影画幅（颜色在“胶片”里选，如 Vision3）")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 7) {
+                    ForEach(FilmGateCatalog.gates.filter { $0.manualOnly && $0.id != "135_sprocket" }) { gate in
                         gateChip(id: gate.id, title: gate.title, detail: gate.detail)
                     }
                 }
@@ -1193,15 +1232,10 @@ struct StockBrowser: View {
     @State private var newName = ""
 
     private var sections: [(String, [Stock])] {
-        if papers {
-            return [("彩色相纸", model.papers.filter { !$0.monochrome }),
-                    ("黑白相纸", model.papers.filter(\.monochrome))].filter { !$0.1.isEmpty }
-        }
+        // By maker (upstream 2.4.1): each tile still says what kind of film or paper it is.
+        if papers { return Stock.byBrand(model.papers) }
         let favourites = model.films.filter { model.favoriteFilms.contains($0.id) }
-        return [("收藏", favourites),
-                ("彩色负片", model.films.filter { !$0.monochrome && $0.type == .negative }),
-                ("反转片", model.films.filter { $0.type == .positive }),
-                ("黑白负片", model.films.filter(\.monochrome))].filter { !$0.1.isEmpty }
+        return ([("收藏", favourites)] + Stock.byBrand(model.films)).filter { !$0.1.isEmpty }
     }
 
     /// A saved look: in the camera it becomes the roll, in the editor it goes on the photo.
@@ -1358,4 +1392,30 @@ struct TileFlow: Layout {
 struct BrowseStocks: Identifiable {
     let papers: Bool
     var id: Bool { papers }
+}
+
+/// The editor's histogram: red, green and blue over a dark plate, added where they overlap (white where all three are).
+struct HistogramPlot: View {
+    let channels: [[Float]]
+
+    var body: some View {
+        Canvas { ctx, size in
+            ctx.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 7), with: .color(.black.opacity(0.5)))
+            ctx.blendMode = .plusLighter
+            let colours: [Color] = [Color(red: 1, green: 0.25, blue: 0.25), Color(red: 0.3, green: 1, blue: 0.35),
+                                    Color(red: 0.3, green: 0.5, blue: 1)]
+            for (c, bins) in channels.enumerated() where bins.count > 1 {
+                var p = Path()
+                p.move(to: CGPoint(x: 0, y: size.height))
+                for (i, v) in bins.enumerated() {
+                    p.addLine(to: CGPoint(x: size.width * CGFloat(i) / CGFloat(bins.count - 1),
+                                          y: size.height * (1 - CGFloat(v) * 0.92)))
+                }
+                p.addLine(to: CGPoint(x: size.width, y: size.height))
+                p.closeSubpath()
+                ctx.fill(p, with: .color(colours[c].opacity(0.55)))
+            }
+        }
+        .accessibilityLabel("直方图")
+    }
 }

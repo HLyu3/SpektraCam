@@ -171,6 +171,8 @@ struct StockCatalog: Sendable {
         switch film {
         case let f where f.hasPrefix("kodak_vision3") || f == "cinestill_800t": ["kodak_2383", "kodak_2393"]
         case "kodak_portra_400": ["kodak_portra_endura", "kodak_supra_endura", "kodak_ultra_endura"]
+        // Portra VC (vivid colour, engine 2.4.1) also on the vivid Ultra Endura; NC and the rest on the portrait papers.
+        case let f where f.hasPrefix("kodak_portra") && f.hasSuffix("vc"): ["kodak_portra_endura", "kodak_ultra_endura", "kodak_supra_endura"]
         case let f where f.hasPrefix("kodak_portra"): ["kodak_portra_endura", "kodak_supra_endura"]
         case "kodak_ektar_100": ["kodak_ultra_endura"]
         case let f where f.hasPrefix("fujifilm_") : ["fujifilm_crystal_archive_typeii"]
@@ -239,5 +241,35 @@ struct PaperGrade: Sendable, Hashable, Identifiable {
             return PaperGrade(name: name, magenta: m, yellow: y, printExposure: e)
         }
         .sorted { (order.firstIndex(of: $0.name) ?? 99) < (order.firstIndex(of: $1.name) ?? 99) }
+    }
+}
+
+// MARK: - brand, then name (upstream 2.4.1, `StockPreviewGrid`)
+extension Stock {
+    /// The maker, as the pickers' headers name it: the name's first word ("Kodak", "Fujifilm", "CineStill", "Ilford").
+    var brand: String { name.split(separator: " ").first.map(String.init) ?? name }
+    /// A motion-picture negative (Vision3, CineStill): its tile says 电影负片.
+    var isCine: Bool { id.hasPrefix("kodak_vision3") || id.hasPrefix("cinestill") }
+
+    /// By maker, then by name — case-blind, numbers by value (Portra 160 < 400 < 800 < 800 Push 1), as a reader
+    /// files them.
+    static func brandOrdered(_ stocks: [Stock]) -> [Stock] {
+        let posix = Locale(identifier: "en_US_POSIX")
+        func order(_ a: String, _ b: String) -> ComparisonResult {
+            a.compare(b, options: [.caseInsensitive, .numeric], range: nil, locale: posix)
+        }
+        return stocks.sorted { a, b in
+            let byBrand = order(a.brand, b.brand)
+            return byBrand != .orderedSame ? byBrand == .orderedAscending : order(a.name, b.name) == .orderedAscending
+        }
+    }
+
+    /// Already brand-ordered stocks in runs of one maker, for the pickers' sections.
+    static func byBrand(_ stocks: [Stock]) -> [(String, [Stock])] {
+        var out: [(String, [Stock])] = []
+        for s in stocks {
+            if out.last?.0 == s.brand { out[out.count - 1].1.append(s) } else { out.append((s.brand, [s])) }
+        }
+        return out
     }
 }

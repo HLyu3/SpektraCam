@@ -16,6 +16,10 @@ struct FilmGate: Identifiable, Hashable, Sendable {
     let longEdgeMM: Double
     let shortEdgeMM: Double
     let supportsDateBack: Bool
+    /// The film's own width (across the strip), mm: the light table's size for it (`LightTableFrames.sizeMM`).
+    var filmWidthMM: Double = 35
+    /// A motion-picture gauge (engine 2.4.1) or the sprocket panorama: offered, never chosen by 自动.
+    var manualOnly = false
 
     /// Long edge over short edge. The engine accepts either orientation.
     var aspect: CGFloat { CGFloat(longEdgeMM / shortEdgeMM) }
@@ -78,21 +82,34 @@ enum FilmGateCatalog {
         FilmGate(id: "135_half", title: "半格", detail: "135 半格 · 竖构图",
                  longEdgeMM: 24.0, shortEdgeMM: 18.0, supportsDateBack: true),
         FilmGate(id: "120_645", title: "120 / 645", detail: "6×4.5 · 片边字 / 日期",
-                 longEdgeMM: 56.0, shortEdgeMM: 41.5, supportsDateBack: true),
+                 longEdgeMM: 56.0, shortEdgeMM: 41.5, supportsDateBack: true, filmWidthMM: 61),
         FilmGate(id: "120_6x6", title: "120 / 6×6", detail: "6×6 · 片边字 / 日期",
-                 longEdgeMM: 56.0, shortEdgeMM: 56.0, supportsDateBack: true),
+                 longEdgeMM: 56.0, shortEdgeMM: 56.0, supportsDateBack: true, filmWidthMM: 61),
         FilmGate(id: "120_6x7", title: "120 / 6×7", detail: "6×7 · 片边字 / 日期",
-                 longEdgeMM: 69.5, shortEdgeMM: 56.0, supportsDateBack: true),
+                 longEdgeMM: 69.5, shortEdgeMM: 56.0, supportsDateBack: true, filmWidthMM: 61),
         FilmGate(id: "120_6x8", title: "120 / 6×8", detail: "6×8 · 片边字 / 日期",
-                 longEdgeMM: 76.0, shortEdgeMM: 56.0, supportsDateBack: true),
+                 longEdgeMM: 76.0, shortEdgeMM: 56.0, supportsDateBack: true, filmWidthMM: 61),
         FilmGate(id: "120_6x9", title: "120 / 6×9", detail: "6×9 · 片边字 / 日期",
-                 longEdgeMM: 84.0, shortEdgeMM: 56.0, supportsDateBack: true),
+                 longEdgeMM: 84.0, shortEdgeMM: 56.0, supportsDateBack: true, filmWidthMM: 61),
         FilmGate(id: "135_xpan", title: "XPan", detail: "135 全景 · 无日期后背",
                  longEdgeMM: 65.0, shortEdgeMM: 24.0, supportsDateBack: false),
         FilmGate(id: "120_6x12", title: "120 / 6×12", detail: "全景 · 无日期后背",
-                 longEdgeMM: 112.0, shortEdgeMM: 56.0, supportsDateBack: false),
+                 longEdgeMM: 112.0, shortEdgeMM: 56.0, supportsDateBack: false, filmWidthMM: 61),
         FilmGate(id: "120_6x17", title: "120 / 6×17", detail: "全景 · 无日期后背",
-                 longEdgeMM: 168.0, shortEdgeMM: 56.0, supportsDateBack: false),
+                 longEdgeMM: 168.0, shortEdgeMM: 56.0, supportsDateBack: false, filmWidthMM: 61),
+        // Below: the engine's own sizes (`overscan.cpp` kFormats / kCine), offered by name only.
+        FilmGate(id: "135_sprocket", title: "齿孔全景", detail: "135 · 连齿孔一起曝光",
+                 longEdgeMM: 72.0, shortEdgeMM: 36.0, supportsDateBack: false, manualOnly: true),
+        FilmGate(id: "8_super", title: "Super 8", detail: "8 mm 电影 · 单边齿孔",
+                 longEdgeMM: 5.79, shortEdgeMM: 4.01, supportsDateBack: false, filmWidthMM: 7.976, manualOnly: true),
+        FilmGate(id: "16_super", title: "Super 16", detail: "16 mm 电影 · 单边齿孔",
+                 longEdgeMM: 12.35, shortEdgeMM: 7.50, supportsDateBack: false, filmWidthMM: 15.95, manualOnly: true),
+        FilmGate(id: "35_4perf", title: "35 mm 电影", detail: "4 齿孔 · 电影摄影机画幅",
+                 longEdgeMM: 24.89, shortEdgeMM: 18.67, supportsDateBack: false, manualOnly: true),
+        FilmGate(id: "65_5perf", title: "65 mm 电影", detail: "5 齿孔 · 宽银幕",
+                 longEdgeMM: 52.63, shortEdgeMM: 23.01, supportsDateBack: false, filmWidthMM: 64.97, manualOnly: true),
+        FilmGate(id: "65_15perf", title: "IMAX", detail: "65 mm · 15 齿孔 · 横向走片",
+                 longEdgeMM: 70.41, shortEdgeMM: 52.63, supportsDateBack: false, filmWidthMM: 64.97, manualOnly: true),
     ]
 
     static func gate(id: String) -> FilmGate? {
@@ -119,7 +136,7 @@ enum FilmGateCatalog {
             return square
         }
 
-        let panoramas = gates.filter { $0.aspect >= 1.9 }
+        let panoramas = gates.filter { $0.aspect >= 1.9 && !$0.manualOnly }
         if let panoramic = panoramas.min(by: {
             abs(log(Double(source / $0.aspect))) < abs(log(Double(source / $1.aspect)))
         }), abs(log(Double(source / panoramic.aspect))) < 0.06 {

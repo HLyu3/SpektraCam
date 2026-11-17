@@ -84,6 +84,8 @@ struct PhotosWall: View {
     @Binding var selected: [String]
     /// Tiles a row: the library's pinch level.
     var columnCount = 3
+    // No slide selection here (taps and 全选 only, the owner's choice): each slide step looked photos up in the
+    // Photos library and was slow, and tile frames written back while a delete reshuffled the wall crashed SwiftUI.
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: columnCount >= 7 ? 1 : 4, alignment: .top), count: columnCount)
     }
@@ -119,6 +121,7 @@ struct PhotosWall: View {
                             }
                     }
                 }
+
             } else {
                 ProgressView().tint(Color.labCream).frame(maxWidth: .infinity).padding(.vertical, 60)
             }
@@ -129,6 +132,7 @@ struct PhotosWall: View {
             model.pruneDeletedAssets()
         }
     }
+
 }
 
 /// The album menu, for the wall's section header.

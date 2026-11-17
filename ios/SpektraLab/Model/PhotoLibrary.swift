@@ -46,6 +46,10 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
     /// Light leak (`leak_kind`: auto, band, wash, spot; nil = off) and its strength, 0…4.
     var leakKind: String? = nil
     var leakAmount: Double? = nil
+    /// 边缘烧灼 (engine 2.4.1 `leak_edge`): the edge burn's own strength, 0…4, beside any kind; nil = off.
+    var leakEdge: Double? = nil
+    /// 随机 (`leak_seed`): the leak's own place and shape; nil = the camera body's (`overscan_camera_seed`).
+    var leakSeed: Int? = nil
     /// Diffusion filter on the lens (`diffusion_filter_family`; nil = none) and its grade, 1/8…2.
     var diffusionFamily: String? = nil
     var diffusionStrength: Double? = nil
@@ -55,6 +59,8 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
     /// Enable HDR: the print's highlights past white on an HDR screen and a gain map in JPEG / HEIF exports.
     /// Not sent to the engine; nil is off.
     var hdr: Bool? = nil
+    /// 水印 over the finished picture (`Edit/Watermark.swift`); never on the wire. nil = none.
+    var watermarks: [WatermarkPlacement]? = nil
     /// 无胶片: the original as the system renders it (plus 后期), no engine. nil is off.
     var noFilm: Bool? = nil
 
@@ -69,11 +75,17 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
             .map { String(format: "%.5f", min(max($0, 0), 1)) }.joined(separator: ",")
     }
 
+    /// The meter a new photograph starts with: 相机 (the camera's own exposure, `LibraryPhoto.cameraEV`). Before it,
+    /// 保高光. "Balanced" lifted a dark room with white cabinets about 2 EV
+    /// and blew them out (a 4× kitchen shot, 2026-11-16); protect-highlights fixed it and left an ordinary scene
+    /// exactly as balanced develops it (measured through the engine). Older photos keep their meter.
+    static let newPhotoMeter = "camera"     // for shots from this app's camera only (`ViewModel.rollRecipe`)
+
     /// The look a newly imported photograph starts with.
     static var standard: PhotoRecipe {
         var defaults: [String: Double] = [:]
         for control in ParamCatalog.all { defaults[control.key] = control.defaultValue }
-        return PhotoRecipe(filmStock: StockCatalog.defaultFilm,
+        var r = PhotoRecipe(filmStock: StockCatalog.defaultFilm,
                            printStock: StockCatalog.defaultPaper,
                            params: defaults,
                            filmBorderEnabled: false,
@@ -83,6 +95,7 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
                            dateBackStyle: DateBackStyle.lcd.rawValue,
                            dateBackPlacement: DateBackPlacement.frame.rawValue,
                            dateBackCorner: DateBackCorner.br.rawValue)
+        return r          // imports meter with the engine (均衡, as upstream); camera shots set 相机 (`rollRecipe`)
     }
 
     /// Parameters from an older library may not have every key this build
@@ -102,7 +115,8 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
                      frameNumber: Int = 12,
                      imageAspect: CGFloat,
                      stamp: Date,
-                     shootingData: String) -> [String: ParamValue] {
+                     shootingData: String,
+                     cameraEV: Double? = nil) -> [String: ParamValue] {
         var delta = ParamDefaults.delta(film: filmStock, paper: printStock)
         for (key, value) in normalizedParams {
             if let control = ParamCatalog.control(for: key) {
@@ -112,8 +126,20 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
             }
         }
         let method = exposureMethod ?? "balanced"
-        delta["auto_exposure"] = .bool(method != "manual")
-        if method != "manual" { delta["auto_exposure_method"] = .string(method) }
+        if method == "camera", let cameraEV {
+            // 相机测光: developed at the exposure the camera metered (`LibraryPhoto.cameraEV`), not re-metered; the
+            // photo's own compensation (the viewfinder drag, the slider) on top.
+            delta["auto_exposure"] = .bool(false)
+            let user = params[FilmParam.exposureCompensation.key] ?? 0
+            delta[FilmParam.exposureCompensation.key] = .number(min(max(cameraEV + user, -8), 8))
+        } else if method == "camera" {
+            // Not measured yet (it is, before any develop): the safe meter meanwhile.
+            delta["auto_exposure"] = .bool(true)
+            delta["auto_exposure_method"] = .string("protect_highlights")
+        } else {
+            delta["auto_exposure"] = .bool(method != "manual")
+            if method != "manual" { delta["auto_exposure_method"] = .string(method) }
+        }
         delta["camera_filter"] = .string(lensFilter ?? "")
         delta["scene_curve"] = .string(Self.sceneCurveWire(sceneCurve))
         // Sent always, so turning either off reaches an open session (upstream `sometimesSent`).
@@ -121,6 +147,9 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
         delta["leak_amount"] = .number(min(max(leakAmount ?? 1, 0), 4))
         delta["leak_rate"] = .number(1)          // one photograph: its leak always shows
         delta["leak_front"] = .number(-1)        // where it comes from: the camera body's own
+        // Sent always (0 = off / the body's own), so taking either away reaches an open session.
+        delta["leak_edge"] = .number(min(max(leakEdge ?? 0, 0), 4))
+        delta["leak_seed"] = .number(Double(leakSeed ?? 0))
         delta["diffusion_filter_active"] = .bool(diffusionFamily != nil)
         delta["diffusion_filter_family"] = .string(diffusionFamily ?? "black_pro_mist")
         delta["diffusion_filter_strength"] = .number(min(max(diffusionStrength ?? 0.5, 0), 2))
@@ -227,6 +256,13 @@ struct LibraryPhoto: Identifiable {
     /// The file it was imported from ("name|size|mtime"): importing that file again skips it while this photo
     /// is in the library; once deleted, it can come in again.
     var importedFrom: String? = nil
+    /// 相机测光: how many EV this photo's linear decode sits under the camera's own develop of it (Apple's rendering,
+    /// log-average brightness) — the exposure the camera metered. Measured once (`ViewModel.ensureCameraEV`).
+    var cameraEV: Double? = nil
+    /// The print last exported to Photos (its asset id) and the look it was developed with (`exportLookKey`): an
+    /// export finds it and asks whether to replace it, saying whether the look changed since.
+    var exportedAssetID: String? = nil
+    var exportedLook: String? = nil
     var isEdited: Bool
     var thumbnail: UIImage
 
@@ -267,6 +303,9 @@ struct LibraryManifestEntry: Codable {
     /// When the picture was taken (EXIF, or the Photos asset's date); nil until read (`fillCaptureDates`).
     var capturedAt: Date? = nil
     var importedFrom: String? = nil
+    var cameraEV: Double? = nil
+    var exportedAssetID: String? = nil
+    var exportedLook: String? = nil
     var isEdited: Bool
 }
 

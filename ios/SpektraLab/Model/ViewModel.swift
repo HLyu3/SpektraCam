@@ -100,6 +100,9 @@ final class ViewModel: ObservableObject {
             reloadPreviewForFilmEffect()
             return
         }
+        var onlyMarks = a
+        onlyMarks.watermarks = b.watermarks
+        if onlyMarks == b { return }            // drawn over the canvas (`WatermarkOverlay`); the print is the same
         var onlyHDR = a
         onlyHDR.hdr = b.hdr
         if onlyHDR == b {
@@ -146,12 +149,16 @@ final class ViewModel: ObservableObject {
         if r.paperGrade == PaperGrade.standard { r.paperGrade = nil }
         if r.edgeText?.isEmpty == true { r.edgeText = nil }
         if r.antihalationRemoved == false { r.antihalationRemoved = nil }
-        if r.exposureMethod == "balanced" { r.exposureMethod = nil }
+        // 均衡 chosen stays "balanced": nil means an older photo that never chose (it develops balanced, but a new
+        // photo inheriting "上次使用" takes 保高光 from it, not 均衡 — `newPhotoRecipe`).
         if r.lensFilter?.isEmpty == true { r.lensFilter = nil }
         if r.filmFormatMM == 36 { r.filmFormatMM = nil }
         if r.sceneCurve?.isIdentity == true { r.sceneCurve = nil }
         if r.leakKind?.isEmpty == true || r.leakKind == "off" { r.leakKind = nil }
         if r.leakAmount == 1 { r.leakAmount = nil }
+        if (r.leakEdge ?? 0) <= 0 { r.leakEdge = nil }
+        if r.leakSeed == 0 { r.leakSeed = nil }
+        if r.watermarks?.isEmpty == true { r.watermarks = nil }
         if r.diffusionFamily?.isEmpty == true { r.diffusionFamily = nil }
         if r.diffusionStrength == 0.5 { r.diffusionStrength = nil }
         if r.lensCharacter?.isEmpty == true { r.lensCharacter = nil }
@@ -206,10 +213,20 @@ final class ViewModel: ObservableObject {
     func setLensFilter(_ f: String) { edit { $0.lensFilter = f } }
     func setFilmFormat(_ mm: Double) { edit { $0.filmFormatMM = mm } }
     func setSceneCurve(_ c: CurveSet) { edit { $0.sceneCurve = c } }
-    func setLeak(kind: String? = nil, amount: Double? = nil) {
+    func setLeak(kind: String? = nil, amount: Double? = nil, edge: Double? = nil) {
         edit { r in
             if let kind { r.leakKind = kind }
             if let amount { r.leakAmount = amount }
+            if let edge { r.leakEdge = edge }
+        }
+    }
+    /// 随机: a new place and shape for this photo's leak (never the one it has); `false` goes back to the body's.
+    func shuffleLeak(_ on: Bool = true) {
+        edit { r in
+            guard on else { r.leakSeed = nil; return }
+            var next = r.leakSeed ?? 0
+            while next == (r.leakSeed ?? 0) { next = Int.random(in: 1...Int(Int32.max)) }
+            r.leakSeed = next
         }
     }
     func setDiffusion(family: String? = nil, strength: Double? = nil) {
@@ -291,8 +308,9 @@ final class ViewModel: ObservableObject {
     }
 
     /// The stocks, in the order the scrolling strip shows them.
-    var films: [Stock] { catalog.films + catalog.slides }
-    var papers: [Stock] { catalog.papers }
+    /// Films and papers by maker, then by name (upstream 2.4.1's `brandOrder`): every picker reads these.
+    var films: [Stock] { Stock.brandOrdered(catalog.films + catalog.slides) }
+    var papers: [Stock] { Stock.brandOrdered(catalog.papers) }
 
     /// The editor's name for the look: "无胶片" or the film.
     var currentLookName: String { recipe.noFilm == true ? "无胶片" : currentFilmName }
@@ -700,7 +718,8 @@ final class ViewModel: ObservableObject {
                                   frameNumber: editingPhoto?.frameNumber ?? 12,
                                   imageAspect: naturalAspect,
                                   stamp: dateStampDate,
-                                  shootingData: shootingDataText)
+                                  shootingData: shootingDataText,
+                                  cameraEV: editingPhoto?.cameraEV)
         // The live tier at the preview size the photo was decoded at (Settings › 预览尺寸).
         delta["preview_long_edge"] = .number(Double(ImageDecoder.previewLongEdge))
         // A slide with HDR on develops stretched, with one grain seed for both renditions (`HDRSlide`).
@@ -724,6 +743,8 @@ final class ViewModel: ObservableObject {
     private static let clipboardRecipeSourceKey = "SpektraLab.clipboardRecipeSource"
 
     var libraryRootURL: URL { libraryRoot }
+    /// 水印's marks on disk.
+    lazy var watermarkShelf = WatermarkShelf(root: libraryRoot)
 
     private var libraryRoot: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory,
@@ -936,6 +957,37 @@ final class ViewModel: ObservableObject {
         return done
     }
 
+    /// What these library photos have in Photos: a linked original (a 无胶卷 shot, a photo read in place) and the
+    /// print last exported (auto-develop included).
+    func photosAssets(of ids: Set<UUID>) -> [String] {
+        library.filter { ids.contains($0.id) }.flatMap { [$0.assetID, $0.exportedAssetID].compactMap { $0 } }
+    }
+
+    /// Deletes pictures from Photos (iOS asks first; they go to Recently Deleted for 30 days), and drops the library
+    /// entries that only pointed at them. False when refused, or nothing was found.
+    @discardableResult
+    func deleteFromPhotos(_ assetIDs: [String]) async -> Bool {
+        guard !assetIDs.isEmpty, await PhotoAssets.authorize() else {
+            libraryMessage = "没有相册权限，无法删除“照片”里的照片"
+            return false
+        }
+        // Off the main actor: Photos runs the change block on its own queue, and a block made here inherited the
+        // main actor's isolation — Swift's executor check stopped the app the moment Photos ran it.
+        let count = await PhotoLibrary.deleteAssets(assetIDs)
+        guard count > 0 else {
+            if count == 0 { libraryMessage = "“照片”里已经没有这些照片了" }
+            return false        // none found, or the person said no in iOS's own prompt
+        }
+        let gone = Set(assetIDs)
+        deletePhotos(Set(library.filter { $0.assetID.map(gone.contains) ?? false }.map(\.id)))
+        for i in library.indices where library[i].exportedAssetID.map(gone.contains) ?? false {
+            library[i].exportedAssetID = nil
+        }
+        saveLibraryManifest()
+        libraryMessage = "已从“照片”删除 \(count) 张"
+        return true
+    }
+
     /// Several system photos linked at once, in the order given (for paste, pair and copy).
     func linkAssets(_ ids: [String]) async -> [UUID] {
         var out: [UUID] = []
@@ -996,6 +1048,9 @@ final class ViewModel: ObservableObject {
                                 exportedAt: entry.exportedAt,
                                 capturedAt: entry.capturedAt,
                                 importedFrom: entry.importedFrom,
+                                cameraEV: entry.cameraEV,
+                                exportedAssetID: entry.exportedAssetID,
+                                exportedLook: entry.exportedLook,
                                 isEdited: entry.isEdited,
                                 thumbnail: thumbnail)
         }.sorted { $0.createdAt > $1.createdAt }
@@ -1051,6 +1106,17 @@ final class ViewModel: ObservableObject {
             UserDefaults.standard.set(true, forKey: rollKey)
             if !thumbnailsToDevelop.isEmpty { await developImportThumbnails() }
         }
+        // 2026-11-17 builds gave imports 相机测光 too; the owner wants it for camera shots only. Untouched ones
+        // go back to the engine's meter, once.
+        let importsMeterKey = "SpektraLab.importsEngineMeterFixed"
+        if editingPhotoID == nil, !UserDefaults.standard.bool(forKey: importsMeterKey) {
+            for i in library.indices where !library[i].captured && !library[i].isEdited
+                && library[i].recipe.exposureMethod == PhotoRecipe.newPhotoMeter {
+                library[i].recipe.exposureMethod = nil
+            }
+            saveLibraryManifest()
+            UserDefaults.standard.set(true, forKey: importsMeterKey)
+        }
         let missing = library.filter { $0.capturedAt == nil }
         guard !missing.isEmpty else { return }
         var found: [UUID: Date] = [:]
@@ -1102,6 +1168,9 @@ final class ViewModel: ObservableObject {
                                  exportedAt: photo.exportedAt,
                                  capturedAt: photo.capturedAt,
                                  importedFrom: photo.importedFrom,
+                                 cameraEV: photo.cameraEV,
+                                 exportedAssetID: photo.exportedAssetID,
+                                 exportedLook: photo.exportedLook,
                                  isEdited: photo.isEdited)
         }
         guard let data = try? JSONEncoder().encode(entries) else { return }
@@ -1149,6 +1218,7 @@ final class ViewModel: ObservableObject {
             return
         }
         libraryBusy = "正在打开 \(photo.name)…"
+        await ensureCameraEV(id)
         apply(photo.recipe)
         crop = photo.crop ?? FrameCrop()
         dateStampDate = photo.createdAt
@@ -1210,6 +1280,15 @@ final class ViewModel: ObservableObject {
         if let data = try? JSONEncoder().encode(photo.recipe) {
             UIPasteboard.general.string = "spektralab-recipe:v1:" + data.base64EncodedString()
         }
+    }
+
+    /// Forget the copied look (the wall's banner ✕ and the photo menus' 清除).
+    func clearClipboard() {
+        clipboardRecipe = nil
+        recipeSourcePhotoID = nil
+        UserDefaults.standard.removeObject(forKey: Self.clipboardRecipeKey)
+        UserDefaults.standard.removeObject(forKey: Self.clipboardRecipeSourceKey)
+        libraryMessage = "已清除复制的配方"
     }
 
     /// Apply the copied look to every selected photo and refresh each wall
@@ -1334,6 +1413,7 @@ final class ViewModel: ObservableObject {
             if let a = recipe.adjustments, a.isActive, let layer2 = Layer2Renderer.shared {
                 image = try layer2.image(try layer2.source(image), a, space: Layer2Renderer.previewSpace)
             }
+            image = Watermark.composite(image, watermarkShelf.resolved(recipe.watermarks))
             return longEdge > 900 ? UIImage(cgImage: image) : LibraryThumbnail.downscale(image)
         }
         let decoded = try await Task.detached(priority: .userInitiated) {
@@ -1350,11 +1430,22 @@ final class ViewModel: ObservableObject {
             ? decoded.centerCropped(toTargetAspect: orientation.targetAspect(for: gate,
                                                                             sourceAspect: sourceAspect))
             : decoded
+        var cameraEV = photo.cameraEV
+        if cameraEV == nil, recipe.exposureMethod == "camera" {
+            cameraEV = await Task.detached(priority: .userInitiated) {
+                ImageDecoder.cameraExposureEV(data: data, typeHint: hintID.flatMap(UTType.init))
+            }.value
+            if let ev = cameraEV, let i = library.firstIndex(where: { $0.id == photo.id }) {
+                library[i].cameraEV = ev
+                saveLibraryManifest()
+            }
+        }
         var delta = recipe.engineDelta(filmName: filmName(for: recipe.filmStock),
                                        frameNumber: photo.frameNumber ?? 12,
                                        imageAspect: sourceAspect,
                                        stamp: photo.createdAt,
-                                       shootingData: "1/125  F2.8  ISO 400  50mm")
+                                       shootingData: "1/125  F2.8  ISO 400  50mm",
+                                       cameraEV: cameraEV)
         delta[ParamDefaults.productDefaultsKey] = .bool(true)
         delta["preview_long_edge"] = .number(Double(longEdge))
         let openDelta = delta
@@ -1371,12 +1462,12 @@ final class ViewModel: ObservableObject {
             try engine.solve(target: "both")
             return try engine.renderBitmap(tier: "live", reprint: false)
         }
+        var picture = bitmap.cgImage
         if let a = recipe.adjustments, a.isActive, let layer2 = Layer2Renderer.shared {
-            let adjusted = try layer2.image(try layer2.source(bitmap.cgImage), a,
-                                            space: Layer2Renderer.previewSpace)
-            return longEdge > 900 ? UIImage(cgImage: adjusted) : LibraryThumbnail.downscale(adjusted)
+            picture = try layer2.image(try layer2.source(bitmap.cgImage), a, space: Layer2Renderer.previewSpace)
         }
-        return longEdge > 900 ? UIImage(cgImage: bitmap.cgImage) : LibraryThumbnail.downscale(bitmap.cgImage)
+        picture = Watermark.composite(picture, watermarkShelf.resolved(recipe.watermarks))
+        return longEdge > 900 ? UIImage(cgImage: picture) : LibraryThumbnail.downscale(picture)
     }
 
     /// Load an already-decoded frame: open a session and render the first
@@ -1529,6 +1620,18 @@ final class ViewModel: ObservableObject {
         }
     }
 
+    /// 相机测光's measure for a photo, once: how far its linear decode sits under the camera's own develop of it.
+    func ensureCameraEV(_ id: UUID) async {
+        guard let photo = library.first(where: { $0.id == id }), photo.cameraEV == nil,
+              let data = try? await originalData(for: photo) else { return }
+        let hint = photo.typeIdentifier.flatMap(UTType.init)
+        let ev = await Task.detached(priority: .userInitiated) { ImageDecoder.cameraExposureEV(data: data, typeHint: hint) }.value
+        guard let ev, let i = library.firstIndex(where: { $0.id == id }) else { return }
+        library[i].cameraEV = ev
+        saveLibraryManifest()
+        NSLog("SpektraLab camera meter: %@ %+.2f EV", photo.name, ev)
+    }
+
     /// The paper a film prints on when it is chosen — the editor and a camera roll use this one rule, so a shot and
     /// the same film picked later match. A silver film: its own paper; else the recommended paper last picked for it
     /// in the camera's 冲印 menu, or its first (`StockCatalog.recommendedPapers`); else Crystal Archive. A paper
@@ -1669,6 +1772,7 @@ final class ViewModel: ObservableObject {
     private func renderNow() async {
         guard renderInFlight == false else {
             NSLog("SpektraLab render: skipped, one in flight")
+            needsRender = true          // run after it: a frame opened meanwhile must still be drawn
             return
         }
         guard let engine, let renderer else { return }
@@ -1833,6 +1937,34 @@ final class ViewModel: ObservableObject {
         guard !showingOriginal else { return }
         renderer?.setTexture(texture)
         renderedTexture = texture
+        refreshHistogram()
+    }
+
+    // MARK: - histogram (⋯ › 直方图)
+
+    static let histogramKey = "SpektraLab.showHistogram"
+    /// The picture on the canvas, red / green / blue, 64 bins each; nil while hidden.
+    @Published private(set) var histogram: [[Float]]?
+    private var histogramQueue: MTLCommandQueue?
+    private var histogramBusy = false
+    private var histogramAgain = false
+
+    /// Counts the canvas's picture again, one count at a time (a drag's renders coalesce into the last).
+    func refreshHistogram() {
+        guard UserDefaults.standard.bool(forKey: Self.histogramKey), let texture = renderedTexture else {
+            if histogram != nil { histogram = nil }
+            return
+        }
+        if histogramBusy { histogramAgain = true; return }
+        if histogramQueue == nil { histogramQueue = texture.device.makeCommandQueue() }
+        guard let queue = histogramQueue else { return }
+        histogramBusy = true
+        Task { @MainActor in
+            let counted = await TextureHistogram.compute(texture, queue: queue)
+            histogram = counted
+            histogramBusy = false
+            if histogramAgain { histogramAgain = false; refreshHistogram() }
+        }
     }
 
     /// The imported file as the system decodes it, sRGB, long edge 2048.
@@ -1946,7 +2078,10 @@ final class ViewModel: ObservableObject {
             plain.noFilm = true          // an import starts as itself; the owner picks a film when developing
             return plain
         }
-        return recipe
+        // Imports meter with the engine, whatever the inherited look's meter (相机 belongs to camera shots).
+        var inherited = recipe
+        if inherited.exposureMethod == PhotoRecipe.newPhotoMeter { inherited.exposureMethod = nil }
+        return inherited
     }
 
     func toggleFavorite(_ id: UUID) {
@@ -2335,7 +2470,25 @@ final class ViewModel: ObservableObject {
     /// An export holds the engine: the editor is locked and renders wait until it is done.
     @Published private(set) var exporting = false
 
-    func export(toPhotos: Bool = false) async {
+    /// The look a print is developed with, as a key: the recipe and the crop. Equal keys = the same print.
+    func exportLookKey(recipe: PhotoRecipe, crop: FrameCrop?) -> String {
+        struct Look: Encodable { let recipe: PhotoRecipe; let crop: FrameCrop? }
+        let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(Look(recipe: recipe, crop: crop)).base64EncodedString()) ?? ""
+    }
+
+    /// The editor's photo already has a print in Photos: whether its look changed since. Nil when there is none
+    /// (never exported, or deleted from Photos — read access permitting; without it the print is assumed there).
+    func previousPrint() -> (assetID: String, changed: Bool)? {
+        guard let photo = editingPhoto, let asset = photo.exportedAssetID else { return nil }
+        if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized,
+           PHAsset.fetchAssets(withLocalIdentifiers: [asset], options: nil).count == 0 { return nil }
+        let now = exportLookKey(recipe: currentRecipe, crop: crop.isIdentity ? nil : crop)
+        return (asset, photo.exportedLook != now)
+    }
+
+    /// `replacing`: a print of this photo already in Photos, moved to Recently Deleted once the new one is saved.
+    func export(toPhotos: Bool = false, replacing: String? = nil) async {
         guard !exporting else { return }
         guard let engine, let originalData else {
             statusText = "还没有可导出的照片"
@@ -2459,6 +2612,12 @@ final class ViewModel: ObservableObject {
                 }
                 copy = nil
             }
+            let marks = watermarkShelf.resolved(recipe.watermarks)
+            if !marks.isEmpty {
+                stage("水印")
+                let picture = cgImage
+                cgImage = await Task.detached(priority: .userInitiated) { Watermark.composite(picture, marks) }.value
+            }
             stage("编码 \(options.format.title) \(bitmap.width)×\(bitmap.height)")
             let source: Data? = options.keepMetadata ? data : nil
             var gainMap: HDRGainMap.Attachment?
@@ -2498,10 +2657,18 @@ final class ViewModel: ObservableObject {
             switch options.destination {
             case .photos:
                 stage("保存到相册")
-                try await PhotoLibrary.saveImage(at: url)
+                let assetID = try await PhotoLibrary.saveImage(at: url)
                 if let id = editingPhotoID, let i = library.firstIndex(where: { $0.id == id }) {
                     library[i].exportedAt = Date()
+                    if let assetID {
+                        library[i].exportedAssetID = assetID
+                        library[i].exportedLook = exportLookKey(recipe: recipe, crop: crop.isIdentity ? nil : crop)
+                    }
                     saveLibraryManifest()
+                }
+                if let replacing, replacing != assetID {
+                    stage("删除旧成片")
+                    _ = await PhotoLibrary.deleteAsset(replacing)
                 }
                 doneText = String(format: "已导出 %d×%d · %.1f MB 到相册",
                                   bitmap.width, bitmap.height, megabytes) + (memoryCap == nil ? "" : "（内存不够，已缩小）")
@@ -2813,16 +2980,36 @@ struct PickedImageData: Transferable {
 /// Saving to the photo library, with the permission the app needs.
 enum PhotoLibrary {
     /// Ask for permission and save. Photos keeps JPEG, HEIF and TIFF as they are.
-    static func saveImage(at url: URL) async throws {
+    /// Saves the file into Photos and returns the new asset's id (nil if Photos did not say).
+    @discardableResult
+    static func saveImage(at url: URL) async throws -> String? {
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized || status == .limited else {
             throw ExportError.permissionDenied
         }
         defer { try? FileManager.default.removeItem(at: url) }
+        final class Box: @unchecked Sendable { var id: String? }
+        let box = Box()
         try await PHPhotoLibrary.shared().performChanges {
-            PHAssetCreationRequest.forAsset()
-                .addResource(with: .photo, fileURL: url, options: nil)
+            let request = PHAssetCreationRequest.forAsset()
+            request.addResource(with: .photo, fileURL: url, options: nil)
+            box.id = request.placeholderForCreatedAsset?.localIdentifier
         }
+        return box.id
+    }
+
+    /// Moves a print to Photos' Recently Deleted (iOS asks the person first). False if refused or gone.
+    static func deleteAsset(_ id: String) async -> Bool { await deleteAssets([id]) > 0 }
+
+    /// Moves pictures to Photos' Recently Deleted (iOS asks first): how many, 0 if none were found, -1 if refused.
+    /// Nonisolated on purpose: Photos calls the change block on its own queue (see `deleteFromPhotos`).
+    nonisolated static func deleteAssets(_ ids: [String]) async -> Int {
+        let found = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+        guard found.count > 0 else { return 0 }
+        do {
+            try await PHPhotoLibrary.shared().performChanges { PHAssetChangeRequest.deleteAssets(found) }
+            return found.count
+        } catch { return -1 }
     }
 }
 

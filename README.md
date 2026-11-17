@@ -3,7 +3,7 @@
 **Spektra Cam 是 [SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（Mac 上的胶片冲洗软件）的非官方 iPhone 移植版。** 用的是同一个胶片物理引擎——胶片曝光、染料层、颗粒、光晕、放大机与相纸，一路算下来，而不是给照片套一张 LUT——并在 iPhone 上加了相机、观片台等功能。
 
 > 非官方：不是 SpektraLab 作者发布的 App。
-> 胶片引擎来自 [JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（本版用 2.4.0 引擎）；
+> 胶片引擎来自 [JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（本版用 2.4.1 引擎）；
 > 起点是它的 iOS 社区移植版 [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS) 1.2.0，之后界面重做、功能大幅扩展。
 
 ## 截图
@@ -18,7 +18,7 @@
 
 ## 下载与安装
 
-到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.1.0-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
+到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.1.1-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
 
 | 工具 | 做法 |
 |---|---|
@@ -29,6 +29,24 @@
 - **目前只在 iPhone 17 Pro Max（iOS 27）上测试过。** 其他机型能装，但镜头焦段、拍摄尺寸、导出内存上限和 HDR 亮度没有验证过，可能有问题。
 - 免费 Apple ID 的签名 7 天后过期，要重新安装。
 - IPA 里带了全部引擎资源，第一次打开不需要联网下载。
+
+## 2.1.1 的变化（相对 2.1.0）
+
+**引擎升到 SpektraLab 2.4.1**
+- 新胶片：Portra 160 NC / 160 VC / 400 NC / 400 VC（VC 默认配 Portra Endura 相纸）。
+- 漏光加「边缘烧灼」，可以换随机位置或回到机身位置。
+- 片边里多了「电影画幅」：Super 8、Super 16、35 mm 4 齿孔、65 mm 5 / 15 齿孔，以及 135 带齿孔全幅。
+- 胶片和相纸按品牌排列。
+
+**编辑**
+- 裁剪页像「照片」一样：框不动，拖动、双指缩放照片；新增向左转 90° 和水平翻转。
+- 色彩平衡改成四个色轮（全局、阴影、中间调、高光）。
+- 新增**通道混合**和**水印**（PNG 标志或文字，放在四个角，可调大小、边距、透明度、旋转和颜色；导出、缩略图、观片台都会带上）。
+- 编辑页 ⋯ 菜单可以打开直方图。
+
+**拍摄与底片**
+- 拍摄格式改成说明页：HEIF（日常推荐）、ProRAW（认真拍时用）、RAW（单帧，只适合光线充足）各写清楚用途和文件大小。
+- 复制配方后，长按任意照片就能粘贴或清除；来源照片不再被锁住。
 
 ## 2.1.0 的变化（相对 2.0.0）
 
@@ -105,10 +123,10 @@
 git clone <本仓库地址>
 cd SpektraLab-iOS-SpektraCam
 
-# 引擎：上游 2.4.0
+# 引擎：上游 2.4.1
 GITHUB_TOKEN="<你的 GitHub Token>" python3 tools/fetch-engine.py \
-  JamesQiu2005/SpektraLab 87de3b6c837f9e21ad67924c50b169b3bacbfc5e .
-# 2.4.0 去掉了胶片封面图：从上一个引擎版本取回 engine/resources_product/film_covers
+  JamesQiu2005/SpektraLab f61769b6779632497cb9c457945326c8de45436e .
+# 2.4.x 去掉了胶片封面图：从上一个引擎版本取回 engine/resources_product/film_covers
 GITHUB_TOKEN="<你的 GitHub Token>" python3 tools/fetch-engine.py \
   JamesQiu2005/SpektraLab 02d82b56cf65f0f8e802a708612edc4e9a4790af /tmp/engine-1.3.5
 cp -R /tmp/engine-1.3.5/engine/resources_product/film_covers engine/resources_product/

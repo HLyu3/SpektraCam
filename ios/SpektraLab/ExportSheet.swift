@@ -9,6 +9,15 @@ import UIKit
 struct ExportSheet: View {
     @ObservedObject var model: ViewModel
     @Environment(\.dismiss) private var dismiss
+    /// The print of this photo already in Photos, while the replace / keep-both question is up.
+    @State private var previousPrint: (assetID: String, changed: Bool)?
+
+    private func start(replacing: String?) {
+        dismiss()
+        _ = Task<Void, Never> { @MainActor in
+            await model.export(replacing: replacing)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -78,14 +87,27 @@ struct ExportSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("导出") {
-                        dismiss()
-                        _ = Task<Void, Never> { @MainActor in
-                            await model.export()
+                        // A print of this photo already in Photos: ask first (replace, keep both, or not now).
+                        if model.exportOptions.destination == .photos, let previous = model.previousPrint() {
+                            previousPrint = previous
+                        } else {
+                            start(replacing: nil)
                         }
                     }
                     .fontWeight(.semibold)
                 }
             }
+        }
+        .confirmationDialog("“照片”里已经有这张的成片",
+                            isPresented: Binding(get: { previousPrint != nil }, set: { if !$0 { previousPrint = nil } }),
+                            titleVisibility: .visible, presenting: previousPrint) { previous in
+            Button("替换旧的成片") { start(replacing: previous.assetID) }
+            Button("另存一张") { start(replacing: nil) }
+            Button("取消", role: .cancel) {}
+        } message: { previous in
+            Text(previous.changed
+                 ? "上次导出后改过这张照片（胶片、相纸、曝光、后期或裁剪），新成片会和旧的不一样。替换会把旧的移到“最近删除”。"
+                 : "上次导出后没有改过，新成片和旧的一样。替换会把旧的移到“最近删除”。")
         }
         .tint(Color.labRed)
         .presentationDetents([.medium, .large])

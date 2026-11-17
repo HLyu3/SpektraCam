@@ -464,6 +464,35 @@ enum ImageDecoder {
     /// scale factor. The fixed floor catches files where iOS reports the
     /// preview's size as the file's size too -- Nikon NEF does exactly that
     /// on iOS 27, with a 160x120 "native" frame for a 6048x4024 sensor.
+    /// 相机测光: the EV between the camera's own develop of a file (Core Image's default rendering — what Photos
+    /// shows, the brightness the camera metered for) and this decoder's linear decode of it, by log-average
+    /// luminance at a small size. Developing the linear frame this much brighter, without the engine's own meter, puts
+    /// it where the camera exposed it (measured 2026-11-16: a 4× kitchen RAW and a 48 MP ProRAW both land right,
+    /// where re-metering blew the kitchen out). Nil when either side cannot be read.
+    nonisolated static func cameraExposureEV(data: Data, typeHint: UTType?) -> Double? {
+        guard let space = linearProPhoto,
+              var apple = CIImage(data: data, options: [.applyOrientationProperty: true]),
+              let ours = try? decode(data: data, maxLongEdge: 512, typeHint: typeHint) else { return nil }
+        let long = max(apple.extent.width, apple.extent.height)
+        if long > 512 { apple = apple.transformed(by: CGAffineTransform(scaleX: 512 / long, y: 512 / long)) }
+        let e = apple.extent.integral
+        let w = Int(e.width), h = Int(e.height)
+        guard w > 0, h > 0 else { return nil }
+        var px = [Float](repeating: 0, count: w * h * 4)
+        CIContext(options: [.cacheIntermediates: false]).render(
+            apple.transformed(by: CGAffineTransform(translationX: -e.origin.x, y: -e.origin.y)),
+            toBitmap: &px, rowBytes: w * 16, bounds: CGRect(x: 0, y: 0, width: w, height: h), format: .RGBAf, colorSpace: space)
+        func logAverage(_ count: Int, _ at: (Int) -> (Float, Float)) -> Double {
+            var sum = 0.0
+            for i in 0..<count { let (r, g) = at(i); sum += log2(max(0.288 * Double(r) + 0.712 * Double(g), 1e-5)) }
+            return sum / Double(max(count, 1))
+        }
+        let a = logAverage(w * h) { (px[$0 * 4], px[$0 * 4 + 1]) }
+        let b = ours.pixels.withUnsafeBufferPointer { p in logAverage(ours.width * ours.height) { (p[$0 * 3], p[$0 * 3 + 1]) } }
+        let ev = a - b
+        return ev.isFinite ? min(max(ev, -6), 6) : nil
+    }
+
     /// Every pixel (near) black: a develop that failed without saying so.
     static func isBlack(_ image: CIImage) -> Bool {
         guard let average = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: image,

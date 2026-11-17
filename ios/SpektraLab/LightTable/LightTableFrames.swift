@@ -92,7 +92,7 @@ enum LightTableFrames {
         let r = photo.recipe
         if r.filmBorderEnabled {
             let gate = FilmGateCatalog.resolve(selection: r.overscanFormat, imageAspect: photo.sourceAspect)
-            let across = gate.id.hasPrefix("120") ? 61.0 : 35.0
+            let across = gate.filmWidthMM          // 35 mm, 61 for 120, ~8 for Super 8, ~65 for 65 mm
             return aspect >= 1 ? CGSize(width: across * aspect, height: across) : CGSize(width: across, height: across / aspect)
         }
         let format = r.filmFormatMM ?? 36

@@ -13,9 +13,10 @@ struct FinishPanel: View {
     @State private var hue: HSLHue = .red
     @State private var channel: CurveChannel = .rgb
     @State private var zone: ColorBalance.Zone = .master
+    @State private var output: ChannelMixer.Channel = .red
 
     enum FinishTool: String, CaseIterable, Identifiable {
-        case light = "光线", colour = "色彩", hsl = "HSL", curve = "曲线", balance = "色彩平衡"
+        case light = "光线", colour = "色彩", hsl = "HSL", curve = "曲线", balance = "色彩平衡", mixer = "通道混合"
         var id: String { rawValue }
     }
 
@@ -34,6 +35,8 @@ struct FinishPanel: View {
                 curvePanel
             case .balance:
                 balancePanel
+            case .mixer:
+                mixerPanel
             }
         }
         .padding(.horizontal, 14)
@@ -82,6 +85,7 @@ struct FinishPanel: View {
         case .hsl: return a.hsl.isNeutral
         case .curve: return a.curves.isIdentity
         case .balance: return a.colorBalance.isNeutral
+        case .mixer: return a.channelMixer.isNeutral
         }
     }
 
@@ -93,6 +97,7 @@ struct FinishPanel: View {
         case .hsl: a.hsl = HSLSet()
         case .curve: a.curves = CurveSet()
         case .balance: a.colorBalance = ColorBalance()
+        case .mixer: a.channelMixer = ChannelMixer()
         }
         model.setAdjustments(a)
     }
@@ -164,23 +169,108 @@ struct FinishPanel: View {
         }
     }
 
-    private var balancePanel: some View {
-        VStack(spacing: 7) {
-            Picker("区域", selection: $zone) {
-                ForEach(ColorBalance.Zone.allCases) { Text($0.title).tag($0) }
+    /// Each output channel takes a share of every input: red out = red in + these offsets.
+    private var mixerPanel: some View {
+        let tint: [ChannelMixer.Channel: Color] = [.red: .red, .green: .green, .blue: .blue]
+        // Scrolls: taller than the deck's panel, it was centred and ran up under the tool row.
+        return ScrollView { VStack(spacing: 7) {
+            Picker("输出", selection: $output) {
+                ForEach(ChannelMixer.Channel.allCases) { Text("输出" + $0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            FinishSlider(title: "色相", value: bind(\.colorBalance[zone].hue), range: 0...360, rest: 0,
-                         text: { String(format: "%.0f°", $0) },
-                         track: LinearGradient(colors: stride(from: 0.0, through: 1, by: 1 / 6).map {
-                             Color(hue: $0, saturation: 0.7, brightness: 0.9)
-                         }, startPoint: .leading, endPoint: .trailing))
-            FinishSlider(title: "强度", value: bind(\.colorBalance[zone].saturation), range: 0...1, rest: 0,
-                         text: { String(format: "%.0f", $0 * 100) })
-            FinishSlider(title: "明度", value: bind(\.colorBalance[zone].luminance), range: -1...1, rest: 0,
+            ForEach(ChannelMixer.Channel.allCases) { input in
+                FinishSlider(title: "取" + input.title, value: bind(\.channelMixer[output][input]),
+                             range: ChannelMixer.range, rest: 0,
+                             track: LinearGradient(colors: [.black, tint[input] ?? .white],
+                                                   startPoint: .leading, endPoint: .trailing))
+            }
+            // Not a black-and-white tool here: it runs on the finished print, already grey on a silver paper.
+            Text("例：输出红里多取一些绿，绿色的地方会偏红。在成片上调，黑白相纸的成片已经是灰的，调它没有作用。双击名字回到 0。")
+                .font(.caption2).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.top, 4) }
+    }
+
+    private var balancePanel: some View {
+        VStack(spacing: 8) {
+            // All four zones at a glance; the one tapped or dragged gets the 明度 slider.
+            HStack(spacing: 6) {
+                ForEach(ColorBalance.Zone.allCases) { z in
+                    VStack(spacing: 4) {
+                        ColourWheel(zone: bind(\.colorBalance[z]), selected: z == zone) { zone = z }
+                            .frame(width: 70, height: 70)
+                        Text(z.title).font(.caption2)
+                            .foregroundStyle(z == zone ? Color.labCream : Color.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            FinishSlider(title: "\(zone.title) · 明度", value: bind(\.colorBalance[zone].luminance), range: -1...1, rest: 0,
                          text: { Fmt.signed($0 * 100, decimals: 0) })
+            Text("拖动色轮里的点调色相和强度，双击色轮复位。")
+                .font(.caption2).foregroundStyle(.secondary)
             Spacer(minLength: 0)
         }
+    }
+}
+
+// MARK: - a colour wheel (hue round the rim, strength out from the centre)
+
+struct ColourWheel: View {
+    @Binding var zone: ColorZone
+    let selected: Bool
+    let pick: () -> Void
+    @State private var start: CGPoint?
+
+    /// The puck in unit coordinates, y up: hue 0° = red on the right, counter-clockwise as on a colour wheel.
+    private var puck: CGPoint {
+        let h = zone.hue * .pi / 180
+        return CGPoint(x: cos(h) * zone.saturation, y: sin(h) * zone.saturation)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let r = min(proxy.size.width, proxy.size.height) / 2
+            let c = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            ZStack {
+                // Clockwise from the right on screen is counter-clockwise in hue: the colours run backwards.
+                Circle().fill(AngularGradient(colors: stride(from: 1.0, through: 0, by: -1 / 12).map {
+                    Color(hue: $0, saturation: 0.75, brightness: 0.85)
+                }, center: .center))
+                Circle().fill(RadialGradient(colors: [Color(white: 0.55), Color(white: 0.55).opacity(0)],
+                                             center: .center, startRadius: 0, endRadius: r))
+                Circle().stroke(selected ? Color.labCream : Color.white.opacity(0.2), lineWidth: selected ? 2 : 1)
+                Circle()
+                    .fill(Color.white)
+                    .overlay(Circle().stroke(Color.black.opacity(0.5), lineWidth: 1))
+                    .frame(width: 12, height: 12)
+                    .position(x: c.x + puck.x * r, y: c.y - puck.y * r)
+            }
+            .contentShape(Circle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { g in
+                    pick()
+                    if start == nil { start = puck }
+                    guard let s = start else { return }
+                    // Half speed: a small wheel under a thumb needs it.
+                    var x = s.x + g.translation.width / r * 0.5, y = s.y - g.translation.height / r * 0.5
+                    let len = hypot(x, y)
+                    if len > 1 { x /= len; y /= len }
+                    var next = zone
+                    next.saturation = min(hypot(x, y), 1)
+                    if next.saturation > 0.001 {
+                        let deg = atan2(y, x) * 180 / .pi
+                        next.hue = deg < 0 ? deg + 360 : deg
+                    } else { next.saturation = 0 }
+                    zone = next
+                }
+                .onEnded { _ in start = nil })
+            .simultaneousGesture(TapGesture(count: 2).onEnded { var next = zone; next.hue = 0; next.saturation = 0; zone = next })
+        }
+        .accessibilityElement()
+        .accessibilityLabel("色轮")
+        .accessibilityValue(String(format: "色相 %.0f°，强度 %.0f", zone.hue, zone.saturation * 100))
     }
 }
 

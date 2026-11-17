@@ -8,11 +8,13 @@
 		89E16FC080E6CEAED03F1090 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
 		0F37D509A29FE31B966BC646 /* Canvas.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = "Canvas.metal"; sourceTree = "<group>"; };
 		6481373DFC48635F9DA41BBD /* CanvasRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CanvasRenderer.swift"; sourceTree = "<group>"; };
+		0C158E5E8CE9B3959EC31540 /* TextureHistogram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TextureHistogram.swift"; sourceTree = "<group>"; };
 		82BC613FBF20D36E130F8DB1 /* Canvas */ = {
 			isa = PBXGroup;
 			children = (
 				0F37D509A29FE31B966BC646 /* Canvas.metal */,
-				6481373DFC48635F9DA41BBD /* CanvasRenderer.swift */
+				6481373DFC48635F9DA41BBD /* CanvasRenderer.swift */,
+				0C158E5E8CE9B3959EC31540 /* TextureHistogram.swift */
 			);
 			path = "Canvas";
 			sourceTree = "<group>";
@@ -40,6 +42,7 @@
 		038B2F29ADA1BD108CF897AC /* Layer2Kernel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Layer2Kernel.swift"; sourceTree = "<group>"; };
 		5AD6ACCD1BB3BEFE738691CC /* Layer2Renderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Layer2Renderer.swift"; sourceTree = "<group>"; };
 		ED18289047175E04732CED17 /* Layer2Shims.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Layer2Shims.swift"; sourceTree = "<group>"; };
+		1146BBDB7FEB387773123990 /* Watermark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Watermark.swift"; sourceTree = "<group>"; };
 		6F2E613BD707C2C2300FC122 /* Edit */ = {
 			isa = PBXGroup;
 			children = (
@@ -52,7 +55,8 @@
 				47E95F0E4F98EE0B789B99B4 /* HalfFramePair.swift */,
 				038B2F29ADA1BD108CF897AC /* Layer2Kernel.swift */,
 				5AD6ACCD1BB3BEFE738691CC /* Layer2Renderer.swift */,
-				ED18289047175E04732CED17 /* Layer2Shims.swift */
+				ED18289047175E04732CED17 /* Layer2Shims.swift */,
+				1146BBDB7FEB387773123990 /* Watermark.swift */
 			);
 			path = "Edit";
 			sourceTree = "<group>";
@@ -521,6 +525,7 @@
 		};
 		D80D77ABA04A87184A432B7B /* Canvas.metal */ = {isa = PBXBuildFile; fileRef = 0F37D509A29FE31B966BC646; };
 		337A3AF87FBF3D77E29C2387 /* CanvasRenderer.swift */ = {isa = PBXBuildFile; fileRef = 6481373DFC48635F9DA41BBD; };
+		58352053BF44A438743AFDB9 /* TextureHistogram.swift */ = {isa = PBXBuildFile; fileRef = 0C158E5E8CE9B3959EC31540; };
 		83CADA8B4FD9D2E9A25F8727 /* CameraController.swift */ = {isa = PBXBuildFile; fileRef = 52A538842517C5DA691BE5AF; };
 		AB44C8CFF36B5CF8AEE7F90F /* CameraView.swift */ = {isa = PBXBuildFile; fileRef = 79CABA3BA4F03790402F16E4; };
 		B919C1A93DA578384525C954 /* FilmViewfinder.swift */ = {isa = PBXBuildFile; fileRef = B416C9C160B7ED1FE5400EA3; };
@@ -534,6 +539,7 @@
 		8A669D16B06FA54984862B60 /* Layer2Kernel.swift */ = {isa = PBXBuildFile; fileRef = 038B2F29ADA1BD108CF897AC; };
 		86083ADB8D7816F56B38F6BD /* Layer2Renderer.swift */ = {isa = PBXBuildFile; fileRef = 5AD6ACCD1BB3BEFE738691CC; };
 		B47E3304978A18A3CC2AF989 /* Layer2Shims.swift */ = {isa = PBXBuildFile; fileRef = ED18289047175E04732CED17; };
+		C0BB97E57670AF6A05BBB515 /* Watermark.swift */ = {isa = PBXBuildFile; fileRef = 1146BBDB7FEB387773123990; };
 		8F2218D74932543ADE1F1D2F /* HDRExport.swift */ = {isa = PBXBuildFile; fileRef = 744ADE80DEC00B8F39D14859; };
 		8B0CC154FFE45D986161F5B3 /* HDRGainMap.swift */ = {isa = PBXBuildFile; fileRef = 15D3EF0373408BEE2EF2B410; };
 		2E54BB319EFED3415B2832FA /* HDRGrainGain.swift */ = {isa = PBXBuildFile; fileRef = 9FD8FE273815E934BAF2FC1B; };
@@ -697,6 +703,7 @@
 			files = (
 				D80D77ABA04A87184A432B7B /* Canvas.metal */,
 				337A3AF87FBF3D77E29C2387 /* CanvasRenderer.swift */,
+				58352053BF44A438743AFDB9 /* TextureHistogram.swift */,
 				83CADA8B4FD9D2E9A25F8727 /* CameraController.swift */,
 				AB44C8CFF36B5CF8AEE7F90F /* CameraView.swift */,
 				B919C1A93DA578384525C954 /* FilmViewfinder.swift */,
@@ -710,6 +717,7 @@
 				8A669D16B06FA54984862B60 /* Layer2Kernel.swift */,
 				86083ADB8D7816F56B38F6BD /* Layer2Renderer.swift */,
 				B47E3304978A18A3CC2AF989 /* Layer2Shims.swift */,
+				C0BB97E57670AF6A05BBB515 /* Watermark.swift */,
 				8F2218D74932543ADE1F1D2F /* HDRExport.swift */,
 				8B0CC154FFE45D986161F5B3 /* HDRGainMap.swift */,
 				2E54BB319EFED3415B2832FA /* HDRGrainGain.swift */,
@@ -951,7 +959,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_DEBUG_DYLIB = NO;
@@ -961,7 +969,7 @@
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
@@ -985,14 +993,14 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
 				PRODUCT_NAME = ShareExtension;
@@ -1081,7 +1089,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1107,7 +1115,7 @@
 				INFOPLIST_FILE = SpektraLab/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1140,7 +1148,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1163,7 +1171,7 @@
 				INFOPLIST_FILE = SpektraLab/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = NO;
