@@ -85,6 +85,12 @@ struct PhotoLibraryView: View {
     @State private var slide: SlideRun?
     private struct SlideRun { var order: [UUID]; var anchor: Int; var adding: Bool; var base: Set<UUID> }
     @State private var pairing: PairSpec?
+    /// 查看: the photo tapped, and the wall's order to swipe through.
+    private struct Viewing: Identifiable { let id: UUID; let ids: [UUID] }
+    @State private var viewing: Viewing?
+    /// 对比: two selected photos.
+    private struct Comparing: Identifiable { let ids: [UUID]; var id: String { ids.map(\.uuidString).joined() } }
+    @State private var comparing: Comparing?
     @State private var showingPicker = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingSettings = false
@@ -110,6 +116,11 @@ struct PhotoLibraryView: View {
     @State private var selectedAssets: [String] = []
     @State private var deleteIDs: Set<UUID> = []
     @State private var showingDelete = false
+    /// The export button's question: these photos, in wall order, waiting for 导出 or 取消.
+    @State private var exportQuestion: [UUID]?
+    @State private var exportSettingsOpen = false
+    /// A narrow phone: the selection bar's two-photo actions show their icons only, so 粘贴 keeps its room.
+    @State private var narrowBar = false
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: dense ? 1 : 3, alignment: .top), count: min(max(columnCount, 1), 14))
@@ -197,6 +208,10 @@ struct PhotoLibraryView: View {
         .animation(.snappy(duration: 0.22), value: selected)
         .sheet(isPresented: $showingSettings) { SettingsView(model: model) }
         .fullScreenCover(isPresented: $culling) { CullView(model: model) }
+        .fullScreenCover(item: $viewing) { v in
+            PhotoViewer(model: model, ids: v.ids, current: v.id) { _ in }
+        }
+        .fullScreenCover(item: $comparing) { c in PhotoCompare(model: model, ids: c.ids) }
         .task(id: model.library.count) { await model.fillCaptureDates() }
         .onAppear { model.pruneDeletedAssets() }
         .onChange(of: scenePhase) { _, phase in
@@ -230,6 +245,31 @@ struct PhotoLibraryView: View {
         } message: { _ in
             Text("会作为新照片再加进底片，已有的不受影响。")
         }
+        .confirmationDialog("导出选中的 \(exportQuestion?.count ?? 0) 张？",
+                            isPresented: Binding(get: { exportQuestion != nil }, set: { if !$0 { exportQuestion = nil } }),
+                            titleVisibility: .visible) {
+            let ids = exportQuestion ?? []
+            let before = model.previousPrints(of: ids)
+            if before.count > 0 {
+                // As the editor's export asks for one photo: replace the old prints, or keep both.
+                Button("导出，替换旧的 \(before.count) 张成片") { batchExport(ids, replacingOld: true); exportQuestion = nil }
+                Button("导出，旧成片也保留") { batchExport(ids); exportQuestion = nil }
+            } else {
+                Button("导出 \(ids.count) 张") { batchExport(ids); exportQuestion = nil }
+            }
+            Button("更改导出格式…") { exportQuestion = nil; exportSettingsOpen = true }
+            Button("取消", role: .cancel) { exportQuestion = nil }
+        } message: {
+            let ids = exportQuestion ?? []
+            let before = model.previousPrints(of: ids)
+            let format = "格式：\(model.exportOptions.format.title) · \(model.exportOptions.colorSpace.title)\(model.exportOptions.format.usesQuality ? " · 质量 \(Int((model.exportOptions.quality * 100).rounded()))" : "")（在编辑页的“导出”里改）。"
+            let old: String = before.count == 0 ? "这几张都还没导出过。"
+                : "其中 \(before.count) 张已经导出过，“照片”里有它们的成片" + (before.changed > 0
+                    ? "；\(before.changed) 张在导出后又改过，新成片会和旧的不一样。"
+                    : "，导出后都没改过，新成片和旧的一样。") + "替换会把旧的移到“最近删除”。"
+            Text("每张按自己的配方冲洗，存到“照片”。" + old + "\n" + format)
+        }
+        .sheet(isPresented: $exportSettingsOpen) { ExportSettingsSheet(model: model) }
         .confirmationDialog("删除这些照片？",
                             isPresented: $showingDelete,
                             titleVisibility: .visible) {
@@ -838,7 +878,8 @@ struct PhotoLibraryView: View {
                     guard !isRecipeSource else { return }
                     if isSelected { selected.remove(photo.id) } else { selected.insert(photo.id) }
                 } else {
-                    Task { @MainActor in await model.openLibraryPhoto(photo.id) }
+                    // 查看 first, as Photos does (the owner, 2026-11-17); 编辑 is in the viewer and the long-press menu.
+                    viewing = Viewing(id: photo.id, ids: sections.flatMap { $0.photos.map(\.id) })
                 }
             }
     }
@@ -878,10 +919,28 @@ struct PhotoLibraryView: View {
                 if selected.count == 2 {
                     Button {
                         let ids = model.library.map(\.id).filter { selected.contains($0) }
+                        comparing = Comparing(ids: ids)
+                    } label: {
+                        Group {
+                            if narrowBar { Image(systemName: "rectangle.split.1x2").accessibilityLabel("对比") }
+                            else { Label("对比", systemImage: "rectangle.split.1x2") }
+                        }
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 13)
+                            .frame(height: 46)
+                            .background(Color.white.opacity(0.08), in: Capsule())
+                            .foregroundStyle(Color.labCream.opacity(0.88))
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        let ids = model.library.map(\.id).filter { selected.contains($0) }
                         // The wall is newest first; a strip reads left to right, oldest first.
                         pairing = PairSpec(left: ids[1], right: ids[0])
                     } label: {
-                        Label("做成双拼", systemImage: "rectangle.split.2x1")
+                        Group {
+                            if narrowBar { Image(systemName: "rectangle.split.2x1").accessibilityLabel("做成双拼") }
+                            else { Label("做成双拼", systemImage: "rectangle.split.2x1") }
+                        }
                             .font(.system(size: 12, weight: .semibold))
                             .padding(.horizontal, 13)
                             .frame(height: 46)
@@ -944,6 +1003,19 @@ struct PhotoLibraryView: View {
                 .buttonStyle(.plain)
                 .disabled(selected.isEmpty || model.clipboardRecipe == nil)
 
+                // 批量导出 (the selection only — an "everything edited" item was misread, the owner, 2026-11-17): each
+                // photo developed with its own look, saved to Photos with the export sheet's settings.
+                Button { exportQuestion = model.library.map(\.id).filter { selected.contains($0) } } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(width: 46, height: 46)
+                        .background(Color.white.opacity(0.08), in: Circle())
+                        .foregroundStyle(selected.isEmpty ? Color.labCream.opacity(0.35) : Color.labCream.opacity(0.88))
+                }
+                .buttonStyle(.plain)
+                .disabled(selected.isEmpty)
+                .accessibilityLabel("导出选中的照片")
+
                 Button {
                     deleteIDs = selected
                     showingDelete = true
@@ -958,6 +1030,7 @@ struct PhotoLibraryView: View {
                 .disabled(selected.isEmpty)
             }
         }
+        .onGeometryChange(for: Bool.self) { $0.size.width < 380 } action: { narrowBar = $0 }
         .padding(14)
         // A dark base under the glass: over bright photos the glass alone washed the buttons out.
         .background(Color.labInk.opacity(0.72), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -1087,6 +1160,13 @@ struct PhotoLibraryView: View {
     private func copyRecipe(from id: UUID) {
         selected.remove(id)
         model.copyRecipe(from: id)
+    }
+
+    private func batchExport(_ ids: [UUID], replacingOld: Bool = false) {
+        guard !ids.isEmpty else { return }
+        selected.removeAll()
+        selecting = false
+        Task { @MainActor in _ = await model.exportPhotos(ids, replacingOld: replacingOld) }
     }
 
     private func paste() {

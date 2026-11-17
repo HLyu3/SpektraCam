@@ -32,8 +32,8 @@ enum ExportFormat: String, CaseIterable, Identifiable, Codable, Sendable {
 
     var detail: String {
         switch self {
-        case .jpeg: "8 位，兼容性最好，适合分享"
-        case .heif: "10 位，体积约为 JPEG 的一半，渐变更平滑"
+        case .jpeg: "8 位，兼容性最好：发给 Windows 电脑、网页、老设备时用"
+        case .heif: "推荐 · 10 位，体积约为 JPEG 的一半，天空等渐变更平滑；iPhone、Mac 和主流 App 都能看"
         case .tiff16: "16 位无损（LZW），适合再修图或打印，文件很大"
         case .png: "16 位无损，网页和大多数软件都能打开，文件很大"
         }
@@ -58,6 +58,31 @@ enum ExportFormat: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 
     var usesQuality: Bool { self == .jpeg || self == .heif }
+}
+
+/// One-tap export settings for the common uses, with the one we recommend first.
+struct ExportPreset: Identifiable {
+    let id: String
+    let title: String
+    let detail: String
+    let format: ExportFormat
+    let colorSpace: ExportColorSpace
+    let quality: Double
+
+    static let all: [ExportPreset] = [
+        ExportPreset(id: "daily", title: "日常（推荐）", detail: "HEIF · P3 · 90", format: .heif, colorSpace: .displayP3, quality: 0.9),
+        ExportPreset(id: "share", title: "发给别人 / 上网", detail: "JPEG · sRGB · 90", format: .jpeg, colorSpace: .sRGB, quality: 0.9),
+        ExportPreset(id: "edit", title: "再修图 / 打印", detail: "TIFF 16 位 · Adobe RGB", format: .tiff16, colorSpace: .adobeRGB, quality: 1),
+    ]
+
+    func matches(_ o: ExportOptions) -> Bool {
+        o.format == format && o.colorSpace == colorSpace && (!format.usesQuality || abs(o.quality - quality) < 0.005)
+    }
+
+    func apply(to o: inout ExportOptions) {
+        o.format = format; o.colorSpace = colorSpace
+        if format.usesQuality { o.quality = quality }
+    }
 }
 
 enum ExportColorSpace: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -88,8 +113,8 @@ enum ExportColorSpace: String, CaseIterable, Identifiable, Codable, Sendable {
 
     var detail: String {
         switch self {
-        case .sRGB: "网页与社交平台的通用标准"
-        case .displayP3: "iPhone 和 Mac 屏幕的色域，比 sRGB 更鲜艳的颜色不会被裁掉"
+        case .sRGB: "网页与社交平台的通用标准：发给别人、发到网上、在 Windows 电脑上看时最稳妥"
+        case .displayP3: "推荐 · iPhone 和 Mac 屏幕的色域，和编辑时看到的一样；比 sRGB 更鲜艳的颜色不会被裁掉"
         case .adobeRGB: "印刷常用，青绿色域更宽"
         case .proPhoto: "最大色域，建议只配合 TIFF 16 位使用，8 位 JPEG 容易出现色带"
         }
@@ -132,10 +157,10 @@ enum ExportDestination: String, CaseIterable, Identifiable, Codable, Sendable {
 }
 
 struct ExportOptions: Codable, Equatable, Sendable {
-    var format: ExportFormat = .jpeg
+    var format: ExportFormat = .heif         // the recommended preset (`ExportPreset` 日常)
     var colorSpace: ExportColorSpace = .displayP3
     /// 0.7 ... 1.0. Ignored for TIFF.
-    var quality: Double = 0.92
+    var quality: Double = 0.9
     var destination: ExportDestination = .photos
     /// Copy the camera's EXIF, GPS and make/model from the original file.
     var keepMetadata: Bool = true

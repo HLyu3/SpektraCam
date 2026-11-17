@@ -268,7 +268,7 @@ final class LightTableRenderer: @unchecked Sendable {
             var q = LoupeQ(at: SIMD4(Float(loupe.at.x), Float(loupe.at.y), Float(side), 0),
                            view: SIMD4(Float(view.width), Float(view.height), 0, 0))
             var u = [SIMD4(Float(loupe.radius), Float(loupe.rim), Float(LightTable.lensPad), Float(loupe.alpha)),
-                     SIMD4(LightTable.bigLens ? 0.86 : 0, 0, 0, 0)]
+                     SIMD4(LightTable.bigLens ? 1.0 : 0, 0, 0, 0)]       // the big lens on black, nothing else (the owner)
             enc.setRenderPipelineState(loupeState)
             enc.setVertexBytes(&q, length: MemoryLayout<LoupeQ>.stride, index: 0)
             u.withUnsafeBytes { enc.setFragmentBytes($0.baseAddress!, length: $0.count, index: 0) }

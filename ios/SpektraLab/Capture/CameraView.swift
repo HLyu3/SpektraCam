@@ -9,7 +9,10 @@ import UniformTypeIdentifiers
 struct CameraView: View {
     @ObservedObject var model: ViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var camera = CameraController()
+    /// How the camera closes when it is laid over the tabs (`MainTabs`, faded in and out) rather than presented.
+    var close: (() -> Void)? = nil
+    private func leave() { if let close { close() } else { dismiss() } }
+    @State private var camera = CameraController.shared
     /// Held, not observed: the meter publishes 30 times a second, and redrawing the whole page that often
     /// lost taps on its menus. Only `LevelOverlay` watches it.
     @State private var level = LevelMeter()
@@ -34,7 +37,7 @@ struct CameraView: View {
     @AppStorage("SpektraLab.cameraFilmLook") private var filmLook = true
     /// The lens row's labels: "x" zoom factors as the Camera app shows them (0.5, 1×, 2, 4), or "mm" focal lengths.
     @AppStorage("SpektraLab.cameraLensLabel") private var lensLabel = "x"
-    @State private var finder = FilmViewfinderRenderer()
+    @State private var finder = FilmViewfinderRenderer.shared
     @State private var baking = false
     @State private var choosingRoll = false
     @State private var choosingFormat = false
@@ -65,6 +68,11 @@ struct CameraView: View {
     /// Single-frame RAW cannot zoom in the sensor (and refuses any digital zoom): only the lenses' own lengths.
     private var lensesOnly: Bool { chosen == .raw }
     @State private var front = false
+    /// The opening: the viewfinder appears through an iris that opens once the camera runs, and sharpens as it does
+    /// (it hid the beat between the page and the first frames that read as a stall).
+    @State private var irisOpen = false
+    /// A narrow phone (a Pro, an SE: under 420 pt) — the rows are laid out tighter.
+    @State private var narrow = false
     @State private var pro = false
     @State private var proControl: ProControl = .exposure
     @State private var focusPoint: CGPoint?
@@ -107,6 +115,17 @@ struct CameraView: View {
         VStack(spacing: 0) {
             topBar
             viewfinder
+                .overlay {
+                    // Seven blades closing over the viewfinder, opening (and turning) as a lens's aperture does.
+                    ZStack {
+                        ApertureBlades(open: irisOpen ? 1 : 0)
+                            .fill(Color(white: 0.07), style: FillStyle(eoFill: true))
+                        ApertureBlades(open: irisOpen ? 1 : 0, edgesOnly: true)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    }
+                    .allowsHitTesting(false)
+                }
+                .clipped()
             lensDial
             Spacer(minLength: 4)
             rollCarousel
@@ -120,6 +139,7 @@ struct CameraView: View {
             camera.setMode(chosen, mp: chosenMP)
             if ready && !front { lens = nil; aim(focal) }      // RAW snaps to a lens; the others may zoom
         }
+        .onGeometryChange(for: Bool.self) { $0.size.width < 420 } action: { narrow = $0 }   // 17 Pro 402, 14 Pro 393, SE 375; Pro Max 440
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .statusBarHidden()
@@ -137,7 +157,10 @@ struct CameraView: View {
             camera.onFrame = { finder.push($0) }
             problem = await camera.start()
             ready = problem == nil
+            withAnimation(.easeInOut(duration: 0.55)) { irisOpen = true }
             lens = camera.lenses.first { $0.device.deviceType == .builtInWideAngleCamera }?.id
+            // The shared camera may still be on the lens (or the front camera) of the last visit: back to the main one.
+            if let main = camera.lenses.first(where: { $0.id == lens }) { camera.use(main.device, zoom: 1) }
             focal = Double(camera.lenses.first { $0.id == lens }?.millimetres ?? 24)
             level.start()
             while !Task.isCancelled {
@@ -146,7 +169,7 @@ struct CameraView: View {
                 try? await Task.sleep(nanoseconds: 250_000_000)
             }
         }
-        .onDisappear { camera.stop(); level.stop() }
+        .onDisappear { camera.stop(); level.stop(); irisOpen = false }
         // The Camera Control button (and the volume buttons) is the shutter while this page is up.
         .onCameraCaptureEvent { event in
             if event.phase == .ended { shoot() }
@@ -203,16 +226,16 @@ struct CameraView: View {
 
     // MARK: top
 
-    /// A camera's top plate: close and flash, the exposure as a little LCD (format, shutter, ISO, EV, the
+    /// A camera's top plate (no close: the 底片 button bottom left goes back, as Camera's thumbnail does): flash, the exposure as a little LCD (format, shutter, ISO, EV, the
     /// histogram behind them), and the settings menu.
     private var topBar: some View {
-        HStack(spacing: 8) {
-            roundButton("xmark", "关闭相机") { dismiss() }
+        HStack(spacing: narrow ? 6 : 8) {
             roundButton(flash == "on" ? "bolt.fill" : flash == "auto" ? "bolt.badge.automatic" : "bolt.slash", "闪光灯") { cycleFlash() }
                 .opacity(status.flash ? 1 : 0.35)
                 .disabled(!status.flash)
             formatMenu
-            HStack(spacing: 10) {
+                .layoutPriority(1)                  // the readout gives way first on a narrow phone
+            HStack(spacing: narrow ? 6 : 10) {
                 Text(shutterText(status.shutter))
                 Text("ISO \(Int(status.iso))")
                 if abs(status.bias) >= 0.05 { Text(String(format: "%+.1f", status.bias)) }
@@ -241,9 +264,9 @@ struct CameraView: View {
                 Button { showingSettings = true } label: { Label("设置…", systemImage: "gearshape") }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .rotationEffect(.degrees(turn))
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
                     .labGlassInteractive(in: Circle())
             }
             .accessibilityLabel("相机设置")
@@ -256,9 +279,9 @@ struct CameraView: View {
     private func roundButton(_ symbol: String, _ label: String, _ run: @escaping () -> Void) -> some View {
         Button(action: run) {
             Image(systemName: symbol)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .rotationEffect(.degrees(turn))
-                .frame(width: 36, height: 36)
+                .frame(width: 44, height: 44)
                 .labGlassInteractive(in: Circle())
         }
         .buttonStyle(.plain)
@@ -270,15 +293,15 @@ struct CameraView: View {
     private var formatMenu: some View {
         Button { choosingFormat = true } label: {
             HStack(spacing: 3) {
-                Text(chosen.title).font(.system(size: 11, weight: .heavy))
+                Text(chosen.title).font(.system(size: 13, weight: .heavy))
                 if status.megapixels > 0, chosen != .raw {
-                    Text("\(status.megapixels)").font(.system(size: 10, weight: .semibold, design: .monospaced)).opacity(0.75)
+                    Text("\(status.megapixels)").font(.system(size: 11, weight: .semibold, design: .monospaced)).opacity(0.75)
                 }
-                Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).opacity(0.6)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).opacity(0.6)
             }
             .foregroundStyle(Color.labRed)
-            .padding(.horizontal, 9)
-            .frame(height: 34)
+            .padding(.horizontal, 11)
+            .frame(height: 44)
             .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
@@ -461,7 +484,7 @@ struct CameraView: View {
                     .font(.system(size: 14, weight: .heavy))
                     .rotationEffect(.degrees(turn))
                     .foregroundStyle(pro ? Color.black : Color.labCream)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
                     .background(pro ? Color.labRed : Color.white.opacity(0.1), in: Circle())
             }
             .buttonStyle(.plain)
@@ -479,7 +502,7 @@ struct CameraView: View {
                                 .padding(.horizontal, 4)
                                 .rotationEffect(.degrees(turn))
                                 .foregroundStyle(on ? Color.black : Color.labCream.opacity(0.8))
-                                .frame(minWidth: 40, minHeight: 32)
+                                .frame(minWidth: narrow ? 38 : 44, minHeight: 40)
                                 .background(on ? Color.labRed : Color.clear, in: Capsule())
                         }
                         .buttonStyle(.plain)
@@ -492,7 +515,7 @@ struct CameraView: View {
                 Text("前置").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            Color.clear.frame(width: 36, height: 36)
+            Color.clear.frame(width: 44, height: 44)
         }
         .foregroundStyle(Color.labCream)
         .padding(.horizontal, 12)
@@ -559,9 +582,11 @@ struct CameraView: View {
                 Text("A")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(auto == nil ? Color.black : Color.labCream)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 34, height: 34)
                     .background(auto == nil ? Color.labCream : Color.clear, in: Circle())
                     .overlay(Circle().stroke(Color.labCream, lineWidth: 1.5))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(auto == nil ? "自动" : "恢复自动")
@@ -659,6 +684,9 @@ struct CameraView: View {
                 }
             }
             .lineLimit(1)
+            .truncationMode(.middle)
+            // Clear of the star at the edge, whatever the paper's name and the phone's width.
+            .padding(.horizontal, 60)
             // Name and paper centred on the screen; the star at the row's edge, out of the way of the symmetry.
             .frame(maxWidth: .infinity)
             .overlay(alignment: .trailing) {
@@ -689,7 +717,7 @@ struct CameraView: View {
             Image(systemName: saved != nil ? "star.fill" : "star")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(saved != nil ? Color.labRed : Color.labCream.opacity(0.8))
-                .frame(width: 36, height: 36)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -720,7 +748,7 @@ struct CameraView: View {
                 if let last {
                     Image(uiImage: last).resizable().scaledToFill()
                 } else {
-                    Color.white.opacity(0.08)
+                    EmptyFilmMark()
                 }
                 if pending > 0 { ProgressView().tint(.white) }
             }
@@ -745,20 +773,26 @@ struct CameraView: View {
                         .background(Color.labCream, in: Capsule())
                         .fixedSize()
                         .offset(y: 14)
+                } else if last == nil {
+                    Text("底片")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.labCream.opacity(0.7))
+                        .fixedSize()
+                        .offset(y: 15)
                 }
             }
             // Back to the library, shot or not (the tab bar's camera returns to 底片).
-            .onTapGesture { dismiss() }
+            .onTapGesture { leave() }
             // Long press: the last shot in the library — open it in the editor, or delete it.
             .contextMenu {
                 if let latest = latestShot {
                     Button {
-                        dismiss()
+                        leave()
                         Task { @MainActor in await model.openLibraryPhoto(latest.id) }
                     } label: { Label("打开编辑", systemImage: "slider.horizontal.3") }
                     Button(role: .destructive) { deletingLast = true } label: { Label("删除刚拍的这张", systemImage: "trash") }
                 }
-                Button { dismiss() } label: { Label("回到图库", systemImage: "photo.stack") }
+                Button { leave() } label: { Label("回到图库", systemImage: "photo.stack") }
             }
             .accessibilityLabel("回到图库")
             .accessibilityLabel(model.developPending > 0 ? "回到照片墙，冲洗中 \(model.developPending) 张" : "回到照片墙")
@@ -1066,12 +1100,14 @@ struct PaperMenu: View, @MainActor Equatable {
                 Text(title)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
-            .font(.system(size: 11, weight: .medium))
+            .font(.system(size: 13, weight: .medium))
             .foregroundStyle(Color.labCream.opacity(0.85))
-            .padding(.horizontal, 9)
-            .frame(height: 22)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
             .background(Color.white.opacity(0.08), in: Capsule())
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+            .padding(.vertical, 6)                 // a 44 pt target round the 32 pt chip
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("相纸：\(title)，点按更换")
@@ -1181,5 +1217,59 @@ struct PaperSheet: View {
                 if paper.id == current { Image(systemName: "checkmark").foregroundStyle(Color.labRed) }
             }
         }
+    }
+}
+
+
+/// A lens aperture of seven blades: the hole a heptagon that grows and turns as `open` goes 0 → 1 (closed to past
+/// the corners of the rectangle). Filled even-odd it is the blades; `edgesOnly` draws each blade's leading edge.
+struct ApertureBlades: Shape {
+    var open: CGFloat
+    var edgesOnly = false
+    var animatableData: CGFloat {
+        get { open }
+        set { open = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let n = 7
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        let reach = hypot(rect.width, rect.height) / 2 / cos(.pi / CGFloat(n)) + 2   // the hole's corners past the view's
+        let r = max(0.5, reach * open)
+        let turn = (1 - open) * 0.9                                                      // radians, the blades' swing
+        let corners = (0..<n).map { i -> CGPoint in
+            let a = turn + CGFloat(i) * 2 * .pi / CGFloat(n) - .pi / 2
+            return CGPoint(x: c.x + r * cos(a), y: c.y + r * sin(a))
+        }
+        var p = Path()
+        if edgesOnly {
+            // Each blade's edge: along a side of the hole and on past its corner, out of the view.
+            for i in 0..<n {
+                let a = corners[i], b = corners[(i + 1) % n]
+                let d = CGPoint(x: b.x - a.x, y: b.y - a.y), len = max(hypot(d.x, d.y), 0.001)
+                let far = CGPoint(x: b.x + d.x / len * reach * 2, y: b.y + d.y / len * reach * 2)
+                p.move(to: a); p.addLine(to: far)
+            }
+            return p
+        }
+        p.addRect(rect.insetBy(dx: -2, dy: -2))
+        p.addLines(corners); p.closeSubpath()
+        return p
+    }
+}
+
+
+/// The last-shot button before any shot: where it goes — the 底片 tab's own icon, so it reads as "the library"
+/// (a drawn piece of unexposed film was pretty but said nothing about where a tap leads).
+struct EmptyFilmMark: View {
+    var body: some View {
+        ZStack {
+            Color.white.opacity(0.07)
+            Image(systemName: "photo.stack")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.labCream.opacity(0.75))
+        }
+        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+        .accessibilityHidden(true)
     }
 }

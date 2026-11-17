@@ -130,6 +130,9 @@ struct EditorView: View {
     @State private var zoom: CGFloat = 1
     @State private var savedZoom: CGFloat = 1
     @State private var pan = CGSize.zero
+    /// The zoom hint: shown for a moment the first time a photo is zoomed past 1.5×, then not again for that photo.
+    @State private var zoomHint = false
+    @State private var zoomHintDone = false
     @State private var savedPan = CGSize.zero
     @State private var copyToast = false
     @State private var cropImage: CropImage?
@@ -152,6 +155,21 @@ struct EditorView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 picture
+                    // Every photo opens whole: the last one's zoom is not kept (the owner, 2026-11-17). Here, not on
+                    // the canvas: that is rebuilt on every render (`.id(renderIdentity)`).
+                    .onChange(of: model.editingPhotoID) { _, _ in
+                        zoom = 1; savedZoom = 1; pan = .zero; savedPan = .zero; zoomHint = false; zoomHintDone = false
+                    }
+                    .onChange(of: zoom > 1.5) { _, past in
+                        guard past, !zoomHintDone else { return }
+                        zoomHintDone = true
+                        withAnimation(.easeOut(duration: 0.2)) { zoomHint = true }
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            withAnimation(.easeOut(duration: 0.4)) { zoomHint = false }
+                        }
+                    }
+                    .onAppear { zoom = 1; savedZoom = 1; pan = .zero; savedPan = .zero }
                 if !immersive {
                     EditorDeck(model: model,
                                context: EditContext(
@@ -447,6 +465,23 @@ struct EditorView: View {
                 }
             } else {
                 emptyState
+            }
+
+            // Zoomed in: the canvas is the preview develop (Settings › 预览尺寸), soft past 1×; the export is full size.
+            // At the top: at the bottom the 原图 button and undo / redo covered it. Under the histogram when it is on.
+            // Small, see-through, gone after 3 s and not repeated for the photo (the owner: it was in the way).
+            if zoomHint, !immersive, model.renderedTexture != nil {
+                VStack {
+                    Text("预览图放大略模糊，导出是全尺寸")
+                        .font(.system(size: 10, weight: .medium)).foregroundStyle(Color.labCream.opacity(0.8))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Color.black.opacity(0.35), in: Capsule())
+                        .padding(.top, showHistogram && model.histogram != nil ? 86 : 10)
+                        .padding(.horizontal, 12)
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
 
             // ⋯ › 直方图: over the picture's top-left corner, out of the way of the 原图 button.

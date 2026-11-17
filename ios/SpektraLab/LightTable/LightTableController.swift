@@ -47,6 +47,8 @@ final class LightTableController {
     private(set) var selected: UUID?
     /// The loupe is up (or on its way up).
     private(set) var loupeOn = false
+    /// Where the loupe stands on the table (the finger), for the page's drawn loupe; nil when it is lifted.
+    private(set) var loupeStand: CGPoint?
     /// The angle of the film being turned, as a person reads it, while it is turned (`showAngle`).
     private(set) var turningAngle: String?
     /// What was last said for a reader (`say`): a film placed, taken off, turned.
@@ -723,6 +725,12 @@ final class LightTableController {
     /// website's touch loupe); nil puts it away. It magnifies what the view shows, three times.
     /// The point the loupe looks at, on the screen.
     var loupeCentre: CGPoint { loupePoint }
+    /// The table's circle the small lens shows at the loupe's own power, view points: what the drawn loupe's foot
+    /// rings (the renderer's span, `lensPad · lensRadius / mag`). Its own power, not the live one: after a hold the
+    /// live one eases back from 8× and the ring, drawn at that moment, stayed tiny.
+    func loupeFootRadius(power: Double) -> CGFloat {
+        CGFloat(LightTable.lensPad * viewport.smallLensRadius / max(power, 1))
+    }
 
     // MARK: this app: leaning in, the lamp
 
@@ -730,7 +738,11 @@ final class LightTableController {
     @ObservationIgnored private var leanTask: Task<Void, Never>?
     /// The loupe held still leans in (the other project's "凑近": 8×, or 1.6× a power already past it) and
     /// eases back when the finger lifts.
-    func loupeLean(_ on: Bool) {
+    /// `fromPress`: the long press's own lean (the big lens). The table's gesture, cancelled as that press begins,
+    /// ends its lean a beat later — which put the big lens straight back to 3×: while the big lens is up, only the
+    /// press itself may end its lean.
+    func loupeLean(_ on: Bool, fromPress: Bool = false) {
+        if !on, LightTable.bigLens, !fromPress { return }
         if on {
             guard leanBase == nil, loupeOn else { return }
             leanBase = LightTable.mag
@@ -762,8 +774,12 @@ final class LightTableController {
     /// The immersive loupe (a long press): a lens most of the view wide, centred on the finger, the table round it
     /// dark; it follows the finger (`loupe(at:)`) and goes when the finger lifts.
     /// `keep`: the loupe tool is on, so when the finger lifts the small lens stays where the finger was.
+    /// The big lens is up: the page shows nothing but the lens on black.
+    private(set) var immersive = false
+
     func immersiveLoupe(at p: CGPoint?, keep: Bool = false) {
         immersiveEnd?.cancel()
+        immersive = p != nil
         if p == nil, keep {
             LightTable.bigLens = false
             lensOnPointer = false
@@ -815,6 +831,7 @@ final class LightTableController {
 
     func loupe(at p: CGPoint?) {
         if let p { loupePoint = p }
+        loupeStand = p
         if p != nil && !loupeOn && loupeA < 0.003 { loupePlace.reset() }
         loupeOn = p != nil
         changed(textures: true)

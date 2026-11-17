@@ -77,8 +77,11 @@ enum LightTableFrames {
         FileManager.default.fileExists(atPath: frame.thumbnail.path) ? .picture(frame.thumbnail) : .none
     }
 
-    /// The thumbnail is all there is: never ask for more.
-    static func keptEdge(of frame: LibraryFrame) -> Int? { Int(LibraryThumbnail.maxPixel) }
+    /// The thumbnail's edge — or none once the large develop is made, so the table reads that (at any size, the
+    /// loupe's included) instead of the 900 px thumbnail (`LightTableSteps.choose`).
+    static func keptEdge(of frame: LibraryFrame) -> Int? {
+        LightTableFullRead.ref(frame) == nil ? Int(LibraryThumbnail.maxPixel) : nil
+    }
 
     static func caption(of frame: LibraryFrame) -> String { frame.caption }
 

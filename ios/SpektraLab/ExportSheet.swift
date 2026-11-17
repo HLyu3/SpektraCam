@@ -25,6 +25,27 @@ struct ExportSheet: View {
                 estimateSection
 
                 Section {
+                    ForEach(ExportPreset.all) { preset in
+                        Button { preset.apply(to: &model.exportOptions) } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.title).foregroundStyle(Color.labCream)
+                                    Text(preset.detail).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if preset.matches(model.exportOptions) {
+                                    Image(systemName: "checkmark").foregroundStyle(Color.labRed)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("推荐设置")
+                } footer: {
+                    Text("不确定选什么，用「日常」就好。下面可以再单独调。")
+                }
+
+                Section {
                     Picker("格式", selection: $model.exportOptions.format) {
                         ForEach(ExportFormat.allCases) { Text($0.title).tag($0) }
                     }
@@ -56,6 +77,8 @@ struct ExportSheet: View {
                         }
                     } header: {
                         Text("质量")
+                    } footer: {
+                        Text("推荐 90：和 100 肉眼看不出差别，文件小一半左右；低于 80 在天空、暗部会出现压缩痕迹。")
                     }
                 }
 
@@ -190,5 +213,72 @@ enum ShareController {
                                         width: 1, height: 1)
         }
         top.present(controller, animated: true)
+    }
+}
+
+
+/// The export settings alone (presets, format, colour space, quality) for the exports made without the editor:
+/// 挑片 and the wall's batch export. The same `exportOptions` the editor's 导出 page sets.
+struct ExportSettingsSheet: View {
+    @ObservedObject var model: ViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    static func summary(_ o: ExportOptions) -> String {
+        "\(o.format.title) · \(o.colorSpace.title)" + (o.format.usesQuality ? " · 质量 \(Int((o.quality * 100).rounded()))" : "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    ForEach(ExportPreset.all) { preset in
+                        Button { preset.apply(to: &model.exportOptions) } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.title).foregroundStyle(Color.labCream)
+                                    Text(preset.detail).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if preset.matches(model.exportOptions) { Image(systemName: "checkmark").foregroundStyle(Color.labRed) }
+                            }
+                        }
+                    }
+                } header: { Text("推荐设置") }
+                Section {
+                    Picker("格式", selection: $model.exportOptions.format) {
+                        ForEach(ExportFormat.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                } header: { Text("格式") } footer: { Text(model.exportOptions.format.detail) }
+                Section {
+                    Picker("色彩空间", selection: $model.exportOptions.colorSpace) {
+                        ForEach(ExportColorSpace.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                } header: { Text("色彩空间") } footer: { Text(model.exportOptions.colorSpace.detail) }
+                if model.exportOptions.format.usesQuality {
+                    Section {
+                        HStack {
+                            Slider(value: $model.exportOptions.quality, in: 0.7...1.0, step: 0.01)
+                            Text("\(Int((model.exportOptions.quality * 100).rounded()))").monospacedDigit().frame(width: 36, alignment: .trailing)
+                        }
+                    } header: { Text("质量") } footer: { Text("推荐 90：和 100 肉眼看不出差别，文件小一半左右。") }
+                }
+                Section {
+                    Toggle("保留相机 EXIF 与定位", isOn: $model.exportOptions.keepMetadata)
+                } footer: {
+                    Text("批量导出都存到“照片”，每张按原图全尺寸、用它自己的配方冲洗。这些设置和编辑页“导出”里的是同一套。")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.labInk.ignoresSafeArea())
+            .navigationTitle("导出设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("好") { dismiss() }.fontWeight(.semibold) } }
+        }
+        .tint(Color.labRed)
+        .presentationDetents([.medium, .large])
+        .presentationBackground(Color.labInk)
+        .preferredColorScheme(.dark)
     }
 }

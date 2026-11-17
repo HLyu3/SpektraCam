@@ -6,6 +6,7 @@ import SwiftUI
 struct CullView: View {
     @ObservedObject var model: ViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var settingsOpen = false
     @State private var keep: Set<UUID> = []
     @State private var looking: LibraryPhoto?
     @State private var confirmingDelete = false
@@ -26,6 +27,11 @@ struct CullView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
+                // Which shots are here: the 挑片 badge counts these, not the day's shots (the owner asked why 13 were 6).
+                Text("这里只列出用 Spektra Cam 相机拍的、还没导出过的照片。已经导出过的（包括拍完自动冲洗的），和从相册导入的，都不在这里。")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12).padding(.top, 6)
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4,
                           pinnedViews: [.sectionHeaders]) {
                     ForEach(days, id: \.0) { day, photos in
@@ -71,6 +77,7 @@ struct CullView: View {
             } message: {
                 Text("这些照片还没导出过，Spektra Cam 里的底片是唯一的一份，删除后找不回来。")
             }
+            .sheet(isPresented: $settingsOpen) { ExportSettingsSheet(model: model) }
             .sheet(item: $looking) { photo in
                 Image(uiImage: photo.thumbnail)
                     .resizable()
@@ -117,6 +124,17 @@ struct CullView: View {
             Text(keep.isEmpty ? "点照片标记要保留的；长按可以放大看" : "保留 \(keep.count) 张 · 其余 \(rest.count) 张")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // What 导出 writes, and where to change it (the editor's 导出 settings, shared).
+            Button { settingsOpen = true } label: {
+                HStack(spacing: 4) {
+                    Text("导出到“照片”：" + ExportSettingsSheet.summary(model.exportOptions))
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.labCream.opacity(0.85))
+            }
+            .buttonStyle(.plain)
+            .disabled(working)
             HStack(spacing: 8) {
                 Button {
                     working = true

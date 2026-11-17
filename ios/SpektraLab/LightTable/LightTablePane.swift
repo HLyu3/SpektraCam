@@ -59,13 +59,18 @@ extension ViewModel {
     func largeDevelopURL(for id: UUID) -> URL { libraryRootURL.appendingPathComponent("\(id.uuidString)-large.jpg") }
 
     /// That develop, made now if missing or older than the thumbnail. Nil while the engine is busy elsewhere.
+    /// The large develop's long edge: past the phone screen's own pixels (2868 on a 17 Pro Max), so a full-screen
+    /// photo in the viewer is not upscaled. It was 2048, which the owner saw as soft.
+    static let largeDevelopEdge = 3072
+
     func largeDevelop(for id: UUID) async -> UIImage? {
         let url = largeDevelopURL(for: id)
         let keys: Set<URLResourceKey> = [.contentModificationDateKey]
         let thumb = (try? thumbnailURL(for: id).resourceValues(forKeys: keys))?.contentModificationDate ?? .distantPast
         if let made = (try? url.resourceValues(forKeys: keys))?.contentModificationDate, made >= thumb,
-           let image = UIImage(contentsOfFile: url.path) { return image }
-        guard let image = await slideImage(for: id) else { return nil }
+           let image = UIImage(contentsOfFile: url.path),
+           max(image.size.width, image.size.height) * image.scale >= CGFloat(Self.largeDevelopEdge) - 8 { return image }
+        guard let image = await slideImage(for: id, longEdge: Self.largeDevelopEdge) else { return nil }
         if let data = image.jpegData(compressionQuality: 0.9) { try? data.write(to: url, options: .atomic) }
         return image
     }
@@ -81,7 +86,12 @@ final class LargeDevelops {
     init(model: ViewModel) { self.model = model }
 
     func want(_ ids: Set<UUID>) {
-        for id in ids.sorted(by: { $0.uuidString < $1.uuidString }) where !queue.contains(id) { queue.append(id) }
+        want(ordered: ids.sorted(by: { $0.uuidString < $1.uuidString }))
+    }
+
+    /// In this order (the table's films first, then the tray's), each once.
+    func want(ordered ids: [UUID]) {
+        for id in ids where !queue.contains(id) { queue.append(id) }
         pump()
     }
 
@@ -89,12 +99,13 @@ final class LargeDevelops {
         guard !running, !queue.isEmpty else { return }
         running = true
         let id = queue.removeFirst()
-        table?.setMaking([id: -1])
+        let onTable = table?.model.order.contains(id) ?? false
+        if onTable { table?.setMaking([id: -1]) }
         Task { @MainActor in
             let made = await model.largeDevelop(for: id) != nil
             running = false
-            table?.setMaking([:])
-            if made { table?.rendersChanged() } else { queue.removeAll() }      // engine busy: asked again later
+            if onTable { table?.setMaking([:]) }
+            if made { if onTable { table?.rendersChanged() } } else { queue.removeAll() }      // engine busy: asked again later
             pump()
         }
     }
@@ -136,11 +147,16 @@ struct LightTablePane: View {
     private var count: Int { table?.model.order.count ?? 0 }
 
     var body: some View {
+        let immersive = table?.immersive ?? false
         VStack(spacing: 0) {
-            topBar
+            topBar.opacity(immersive ? 0 : 1)
             tableArea
-            band
+            band.opacity(immersive ? 0 : 1)
         }
+        .animation(.easeOut(duration: 0.2), value: immersive)
+        // The tab bar is covered by `MainTabs` (black over it), not hidden: hiding it re-laid the page out under the
+        // finger, which dropped the big lens a moment after it opened and left the table stuck until the finger lifted.
+        .onChange(of: immersive) { _, on in model.lightTableImmersive = on }
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .onAppear(perform: open)
@@ -168,7 +184,7 @@ struct LightTablePane: View {
     }
 
     private func open() {
-        if let table { table.reopen(model.lightTableFrames); return }
+        if let table { table.reopen(model.lightTableFrames); sharpen(table); return }
         let c = LightTableController(frames: model.lightTableFrames, bodySeed: 0,
                                      store: LightTableStore(url: model.lightTableStoreURL))
         c.select(nil)
@@ -183,6 +199,7 @@ struct LightTablePane: View {
         c.prints = true      // films cover what is under them (the owner: overlapping films occlude), at any size
         LightTable.mag = loupeMag
         table = c
+        sharpen(c)
         if !laying.isEmpty {
             // A moment after, so the view has its size and the free spots are its.
             Task { @MainActor in
@@ -190,6 +207,15 @@ struct LightTablePane: View {
                 layDown(laying)
             }
         }
+    }
+
+    /// Every film gets its large develop (3072 px), made one at a time in the background and kept on disk: the
+    /// table's films first, then the tray's, so a film dragged on is sharp as it lands (it was soft, then sharpened
+    /// a moment later). The table and its loupe read it rather than the 900 px thumbnail.
+    private func sharpen(_ c: LightTableController) {
+        let onTable = c.model.order
+        let rest = model.lightTableFrames.map(\.id).filter { !onTable.contains($0) }
+        largeDevelops?.want(ordered: onTable + rest)
     }
 
     // MARK: top bar
@@ -283,12 +309,18 @@ struct LightTablePane: View {
                 LightTableView(controller: table, inset: .init(top: 10, left: 10, bottom: 10, right: 10)) { view in
                     view.ringColor = LightTableMetalView.ringWhite
                     LightTableGestures.attach(to: view, loupeMode: { loupeMode })
-                    // This app: a long press anywhere on the table is the immersive loupe (upstream has no long press).
-                    LongPressOpen.attach(to: view) { p in
+                    // This app: with the loupe tool on, a long press is the immersive loupe (upstream has no long press).
+                    // Off, a long press does nothing of its own (the owner: it magnified without the loupe chosen).
+                    LongPressOpen.attach(to: view, enabled: { loupeMode }) { p in
                         if let p {
-                            if !LightTable.bigLens { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
+                            let opening = !LightTable.bigLens
+                            if opening { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
                             table.immersiveLoupe(at: p)
+                            // The big lens leans in to 8× (the owner: the hold is for a close look). The table's own
+                            // lean timer never fired here: this press cancels its gesture as it begins.
+                            if opening { table.loupeLean(true, fromPress: true) }
                         } else {
+                            table.loupeLean(false, fromPress: true)       // back to the loupe's own power on lifting
                             // With the loupe tool on, its lens stays where the finger lifted (it jumped to the middle).
                             table.immersiveLoupe(at: nil, keep: loupeMode)
                         }
@@ -318,6 +350,18 @@ struct LightTablePane: View {
                     .foregroundStyle(Color.labCream)
                     .frame(maxHeight: .infinity)
                 }
+                // A loupe standing on the film where the finger is, as on a real light table; the magnified view
+                // is the lens held above it.
+                if let p = table.loupeStand, !table.immersive {
+                    let r = table.loupeFootRadius(power: loupeMag)
+                    GeometryReader { _ in
+                        LoupeModel(radius: r)
+                            .frame(width: r * 2 + 24, height: r * 2 + 24)
+                            .position(p)                             // standing on the film where the finger is
+                            .allowsHitTesting(false)
+                    }
+                    .transition(.opacity)
+                }
                 if let angle = table.turningAngle {
                     Text(angle)
                         .font(.system(size: 13, weight: .semibold)).monospacedDigit()
@@ -330,7 +374,7 @@ struct LightTablePane: View {
             // The tray floats over the table's foot rather than taking room from it: resizing the Metal view on every
             // frame of the slide-in made opening it stutter.
             .overlay(alignment: .bottom) {
-                if trayOpen && table.selected == nil {
+                if trayOpen && table.selected == nil && !table.immersive {
                     tray
                         .padding(.vertical, 6)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -589,12 +633,14 @@ struct LightTableAddSheet: View {
 /// lifts, and the press reports where the finger is (nil when it lifts).
 final class LongPressOpen: NSObject, UIGestureRecognizerDelegate {
     private let track: (CGPoint?) -> Void
+    /// Whether a press may begin at all (the loupe tool on): off, it never begins, so it cancels no carry.
+    private let enabled: () -> Bool
     private static var kept: [LongPressOpen] = []
 
-    private init(_ track: @escaping (CGPoint?) -> Void) { self.track = track }
+    private init(_ track: @escaping (CGPoint?) -> Void, enabled: @escaping () -> Bool) { self.track = track; self.enabled = enabled }
 
-    @MainActor static func attach(to view: UIView, track: @escaping (CGPoint?) -> Void) {
-        let target = LongPressOpen(track)
+    @MainActor static func attach(to view: UIView, enabled: @escaping () -> Bool = { true }, track: @escaping (CGPoint?) -> Void) {
+        let target = LongPressOpen(track, enabled: enabled)
         kept.append(target)
         let press = UILongPressGestureRecognizer(target: target, action: #selector(pressed(_:)))
         press.minimumPressDuration = 0.45
@@ -619,4 +665,48 @@ final class LongPressOpen: NSObject, UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizer(_ a: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith b: UIGestureRecognizer) -> Bool { true }
+
+    func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool { MainActor.assumeIsolated { enabled() } }
+}
+
+
+/// A light-table loupe seen from above, as the eye sees one standing on the film: the clear foot's rim round exactly
+/// what the lens shows (`radius`, the 3× view's own footprint), a dark eyepiece ring over it with clear glass in
+/// it, and a soft shadow — rings only, so the film under it stays in view.
+struct LoupeModel: View {
+    let radius: CGFloat
+
+    var body: some View {
+        Canvas { ctx, size in
+            let c = CGPoint(x: size.width / 2, y: size.height / 2), r = radius
+            func ring(_ rr: CGFloat) -> CGRect { CGRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2) }
+            // Its shadow on the table, a little down and right of the foot (the light from above left).
+            var shadow = ctx
+            shadow.addFilter(.blur(radius: 5))
+            shadow.stroke(Path(ellipseIn: ring(r + 2).offsetBy(dx: 3, dy: 4)), with: .color(.black.opacity(0.45)), lineWidth: 5)
+            // The clear acrylic wall, seen from above as a band between the foot and the eyepiece: brighter where it
+            // faces the light.
+            let wall = Path(ellipseIn: ring(r)).subtracting(Path(ellipseIn: ring(r - 7)))
+            ctx.fill(wall, with: .linearGradient(Gradient(colors: [.white.opacity(0.34), .white.opacity(0.06)]),
+                                                 startPoint: CGPoint(x: c.x - r, y: c.y - r), endPoint: CGPoint(x: c.x + r, y: c.y + r)))
+            ctx.stroke(Path(ellipseIn: ring(r)), with: .color(.white.opacity(0.7)), lineWidth: 1.2)
+            ctx.stroke(Path(ellipseIn: ring(r - 7)), with: .color(.white.opacity(0.25)), lineWidth: 0.8)
+            // The eyepiece rim: a thin dark knurled ring just inside the wall.
+            let eye = Path(ellipseIn: ring(r - 7)).subtracting(Path(ellipseIn: ring(r - 11)))
+            ctx.fill(eye, with: .color(Color(white: 0.08).opacity(0.85)))
+            for i in 0..<48 {
+                let a = CGFloat(i) / 48 * 2 * .pi
+                var tick = Path()
+                tick.move(to: CGPoint(x: c.x + (r - 10.5) * cos(a), y: c.y + (r - 10.5) * sin(a)))
+                tick.addLine(to: CGPoint(x: c.x + (r - 7.5) * cos(a), y: c.y + (r - 7.5) * sin(a)))
+                ctx.stroke(tick, with: .color(.white.opacity(0.14)), lineWidth: 0.7)
+            }
+            // The glass: clear, a faint cool tint and one reflection at the top left.
+            ctx.fill(Path(ellipseIn: ring(r - 11)), with: .color(Color(red: 0.6, green: 0.75, blue: 0.9).opacity(0.06)))
+            var glint = Path()
+            glint.addArc(center: c, radius: r - 15, startAngle: .degrees(200), endAngle: .degrees(240), clockwise: false)
+            ctx.stroke(glint, with: .color(.white.opacity(0.6)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+        }
+        .accessibilityHidden(true)
+    }
 }

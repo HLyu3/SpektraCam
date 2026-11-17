@@ -7,6 +7,10 @@ import SwiftUI
 
 /// Holds the newest frame and the cube; the video queue writes, the display link reads.
 final class FilmViewfinderRenderer: NSObject, MTKViewDelegate, @unchecked Sendable {
+    /// One for the app's life: its Core Image context and the cube's GPU program are made once, not on every visit
+    /// to the camera (that, with the black view below, was the pause on opening it).
+    static let shared = FilmViewfinderRenderer()
+
     private let lock = NSLock()
     private var frame: CIImage?
     private var cube: CIFilter?
@@ -61,6 +65,11 @@ struct FilmViewfinder: UIViewRepresentable {
         view.preferredFramesPerSecond = 30
         view.delegate = renderer
         view.isUserInteractionEnabled = false
+        // See-through until it has drawn: the live preview under it shows (plain colours) instead of black while the
+        // film's cube is made.
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        view.layer.isOpaque = false
         (view.layer as? CAMetalLayer)?.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         return view
     }

@@ -694,9 +694,12 @@ final class ViewModel: ObservableObject {
         originalData = data
         originalTexture = nil
         originalTypeHint = typeHint
-        let decoded = try ImageDecoder.decode(data: data,
-                                              maxLongEdge: ImageDecoder.previewLongEdge,
-                                              typeHint: typeHint).applying(crop).balanced(recipe.sceneBalance)
+        // Off the main thread: decoding a 48 MP original here froze the page (the viewer's 编辑 spinner came late).
+        let crop = self.crop, gains = recipe.sceneBalance
+        let decoded = try await Task.detached(priority: .userInitiated) {
+            try ImageDecoder.decode(data: data, maxLongEdge: ImageDecoder.previewLongEdge,
+                                    typeHint: typeHint).applying(crop).balanced(gains)
+        }.value
         naturalAspect = CGFloat(decoded.width) / CGFloat(max(decoded.height, 1))
         recipe = normalized(recipe)
         let framed = filmBorderEnabled
@@ -759,6 +762,18 @@ final class ViewModel: ObservableObject {
     }
 
     /// The original's bytes: the file in the library folder, or the system Photos asset it reads in place.
+    /// The photo's original as the camera made it (Apple's default develop for a RAW), through its crop and turns,
+    /// ≤ `longEdge`: the viewer's 按住看原图.
+    func originalPreview(for id: UUID, longEdge: CGFloat = 2048) async -> UIImage? {
+        guard let photo = library.first(where: { $0.id == id }), let data = try? await originalData(for: photo) else { return nil }
+        let crop = photo.crop
+        return await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            guard let (image, _, _) = LibraryThumbnail.from(data: data, maxPixel: longEdge), let cg = image.cgImage else { return nil }
+            guard let crop, !crop.isIdentity else { return image }
+            return crop.render(cg, space: cg.colorSpace ?? CGColorSpace(name: CGColorSpace.displayP3)!).map { UIImage(cgImage: $0) } ?? image
+        }.value
+    }
+
     private func originalData(for photo: LibraryPhoto) async throws -> Data {
         if let assetID = photo.assetID {
             guard let asset = PhotoAssets.asset(assetID) else {
@@ -899,6 +914,8 @@ final class ViewModel: ObservableObject {
     }
 
     @Published private(set) var batchExporting = false
+    /// The light table's big lens is up: `MainTabs` covers the tab bar in black.
+    @Published var lightTableImmersive = false
 
     // MARK: - developing shots as they are taken
 
@@ -933,7 +950,8 @@ final class ViewModel: ObservableObject {
 
     /// Develop and export these photos to Photos one by one, each with its own look, without showing
     /// the editor. Returns how many made it.
-    func exportPhotos(_ ids: [UUID]) async -> Int {
+    /// `replacingOld`: a photo's print already in Photos goes to Recently Deleted once its new one is saved.
+    func exportPhotos(_ ids: [UUID], replacingOld: Bool = false) async -> Int {
         guard !batchExporting, editingPhotoID == nil else { return 0 }
         batchExporting = true
         defer { batchExporting = false; libraryBusy = nil }
@@ -944,7 +962,7 @@ final class ViewModel: ObservableObject {
             await openLibraryPhoto(id)
             guard editingPhotoID == id else { continue }
             libraryBusy = "正在导出 \(i + 1)/\(ids.count)"
-            await export(toPhotos: true)
+            await export(toPhotos: true, replacing: replacingOld ? previousPrint()?.assetID : nil)
             if library.first(where: { $0.id == id })?.exportedAt != nil { done += 1; exported.append(id) }
             closeEditor()
         }
@@ -1213,7 +1231,11 @@ final class ViewModel: ObservableObject {
     /// never appears as an empty "add a photo" screen.
     func openLibraryPhoto(_ id: UUID) async {
         guard libraryBusy == nil,
-              let photo = library.first(where: { $0.id == id }) else { return }
+              let photo = library.first(where: { $0.id == id }) else {
+            NSLog("SpektraLab open: refused (busy: %@)", libraryBusy ?? "no")
+            if let busy = libraryBusy { libraryMessage = "稍等，\(busy)" }
+            return
+        }
         guard engine != nil else {
             libraryMessage = "引擎还在准备，请稍后再试"
             return
@@ -2590,6 +2612,18 @@ final class ViewModel: ObservableObject {
 
     /// The editor's photo already has a print in Photos: whether its look changed since. Nil when there is none
     /// (never exported, or deleted from Photos — read access permitting; without it the print is assumed there).
+    /// The batch export's question: of these photos, which already have a print in Photos (`previousPrint`'s test),
+    /// and how many of those were changed since.
+    func previousPrints(of ids: [UUID]) -> (count: Int, changed: Int) {
+        let photos = library.filter { ids.contains($0.id) && $0.exportedAssetID != nil }
+        let full = PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized
+        let alive = photos.filter { p in
+            !full || PHAsset.fetchAssets(withLocalIdentifiers: [p.exportedAssetID!], options: nil).count > 0
+        }
+        let changed = alive.filter { $0.exportedLook != exportLookKey(recipe: $0.recipe, crop: $0.crop) }.count
+        return (alive.count, changed)
+    }
+
     func previousPrint() -> (assetID: String, changed: Bool)? {
         guard let photo = editingPhoto, let asset = photo.exportedAssetID else { return nil }
         if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized,

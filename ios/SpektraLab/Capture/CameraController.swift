@@ -109,6 +109,28 @@ final class CameraController: NSObject, @unchecked Sendable {
 
     // MARK: session
 
+    /// One camera for the app's life: the session stays configured between visits, so reopening the camera only
+    /// starts it running (configuring a 48 MP ProRAW pipeline from nothing is what made opening pause on black).
+    static let shared = CameraController()
+
+    /// Discover the lenses and configure the main camera ahead of the first visit, without starting it (nothing
+    /// is captured and the camera light stays off). Only with access already granted.
+    func prepare(format f: Format, mp: Int) {
+        guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        preferredMP = mp
+        queue.async {
+            self.format = f
+            guard self.input == nil else { return }
+            let t0 = CACurrentMediaTime()
+            self.lenses = Self.lenses(position: .back)
+            self.frontLens = Self.lenses(position: .front).first
+            guard let main = self.lenses.first(where: { $0.device.deviceType == .builtInWideAngleCamera }) ?? self.lenses.first
+            else { return }
+            _ = self.configure(main.device)
+            NSLog("SpektraLab capture: prepared in %.0f ms", (CACurrentMediaTime() - t0) * 1000)
+        }
+    }
+
     /// Ask for access, configure on `lens` (or the main camera), start. Returns an error text, or nil.
     func start() async -> String? {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -128,7 +150,9 @@ final class CameraController: NSObject, @unchecked Sendable {
                     }
                     if let problem = self.configure(main.device) { done.resume(returning: problem); return }
                 }
+                let t0 = CACurrentMediaTime()
                 if !self.session.isRunning { self.session.startRunning() }
+                NSLog("SpektraLab capture: running in %.0f ms", (CACurrentMediaTime() - t0) * 1000)
                 done.resume(returning: nil)
             }
         }

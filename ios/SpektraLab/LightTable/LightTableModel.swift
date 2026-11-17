@@ -871,8 +871,10 @@ struct LightTableViewport: Equatable, Sendable {
 
     /// The loupe's lens radius and glass rim, points: the website's for a narrow window.
     var lensRadius: Double {
-        LightTable.bigLens ? max(72, min(size.width, size.height) * 0.40) : (size.width < 600 ? 72 : 102)
+        LightTable.bigLens ? max(72, min(size.width, size.height) * 0.40) : smallLensRadius
     }
+    /// The small lens's radius, whatever the big lens is doing.
+    var smallLensRadius: Double { size.width < 600 ? 72 : 102 }
     var lensRim: Double { size.width < 600 ? 5 : 7 }
 }
 
