@@ -17,10 +17,29 @@ extension ViewModel {
     static let favoriteFilmsKey = "SpektraLab.favoriteFilms"
 
     func loadSavedRecipes() {
-        guard let data = try? Data(contentsOf: recipesURL),
-              let list = try? JSONDecoder().decode([SavedRecipe].self, from: data) else { return }
-        savedRecipes = list
         favoriteFilms = UserDefaults.standard.stringArray(forKey: Self.favoriteFilmsKey) ?? []
+        if let data = try? Data(contentsOf: recipesURL),
+           let list = try? JSONDecoder().decode([SavedRecipe].self, from: data) { savedRecipes = list }
+        seedBuiltInCombinations()
+    }
+
+    private static let builtInSeededKey = "SpektraLab.builtInCombinations.v1"
+
+    /// The combinations the app comes with, so a new shelf shows that a film and a paper can be kept together
+    /// (the owner's first one: Portra 400 on Portra Endura, the engine's calibrated minilab pair, metered as the camera
+    /// does). Added once — a deleted one stays deleted — and not twice when the shelf already holds that pair.
+    private func seedBuiltInCombinations() {
+        guard !UserDefaults.standard.bool(forKey: Self.builtInSeededKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.builtInSeededKey)
+        var look = PhotoRecipe.standard
+        look.noFilm = nil
+        look.filmStock = "kodak_portra_400"
+        look.printStock = "kodak_portra_endura"
+        look.exposureMethod = nil          // a combination with no meter shoots as the camera metered (`rollRecipe`)
+        guard !savedRecipes.contains(where: { $0.recipe.filmStock == look.filmStock && $0.recipe.printStock == look.printStock })
+        else { return }
+        savedRecipes.append(SavedRecipe(name: "Portra 400 · Professional Portra", recipe: look))
+        storeSavedRecipes()
     }
 
     private func storeSavedRecipes() {

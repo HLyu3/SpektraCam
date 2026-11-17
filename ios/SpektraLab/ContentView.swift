@@ -396,6 +396,28 @@ struct EditorView: View {
                         // what tells SwiftUI the picture changed.
                         .id(model.renderIdentity)
                         .overlay {
+                            // 白平衡's eyedropper: the tap's place on the picture (aspect-fit, unzoomed while picking).
+                            if model.pickingNeutral, let t = model.renderedTexture {
+                                Color.white.opacity(0.001)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture(coordinateSpace: .local) { p in
+                                        let area = proxy.size
+                                        let k = min(area.width / CGFloat(t.width), area.height / CGFloat(t.height))
+                                        let w = CGFloat(t.width) * k, h = CGFloat(t.height) * k
+                                        model.pickNeutral(at: CGPoint(x: (p.x - (area.width - w) / 2) / w,
+                                                                      y: (p.y - (area.height - h) / 2) / h))
+                                    }
+                                    .overlay(alignment: .top) {
+                                        Label("点一块应该是灰色或白色的地方", systemImage: "eyedropper")
+                                            .font(.footnote.weight(.semibold))
+                                            .padding(.horizontal, 12).frame(height: 32)
+                                            .background(.ultraThinMaterial, in: Capsule())
+                                            .padding(.top, 10)
+                                            .allowsHitTesting(false)
+                                    }
+                            }
+                        }
+                        .overlay {
                             if let marks = model.recipe.watermarks, zoom <= 1, !model.showingOriginal,
                                let t = model.renderedTexture {
                                 WatermarkOverlay(placements: marks, shelf: model.watermarkShelf,
@@ -408,6 +430,9 @@ struct EditorView: View {
                         .onChange(of: comparing) { _, on in
                             if !on { compareEndedAt = Date() }
                             model.setShowingOriginal(on)
+                        }
+                        .onChange(of: model.pickingNeutral) { _, on in
+                            if on { zoom = 1; savedZoom = 1; pan = .zero; savedPan = .zero }
                         }
                 }
             } else {

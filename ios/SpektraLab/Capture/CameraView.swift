@@ -13,7 +13,7 @@ struct CameraView: View {
     /// Held, not observed: the meter publishes 30 times a second, and redrawing the whole page that often
     /// lost taps on its menus. Only `LevelOverlay` watches it.
     @State private var level = LevelMeter()
-    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.proRAW.rawValue
+    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.heif.rawValue
     @AppStorage("SpektraLab.cameraRoll") private var roll = StockCatalog.defaultFilm
     /// A paper picked in the 冲印 menu for this visit, and the roll it was picked for: another roll is on its
     /// recommended paper. Kept with its roll rather than cleared on a roll change — clearing it was a second update
@@ -21,7 +21,7 @@ struct CameraView: View {
     @State private var paperPick: (roll: String, paper: String)?
     private var rollPaper: String? { paperPick?.roll == roll ? paperPick?.paper : nil }
     /// The size to shoot, in MP; 0 = the lens's largest.
-    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 0
+    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 48   // HEIF 48 MP by default; a lens without it takes its largest
     @AppStorage("SpektraLab.cameraFlash") private var flash = CameraController.Flash.off.rawValue
     @AppStorage("SpektraLab.cameraGrid") private var showGrid = true
     @AppStorage("SpektraLab.cameraLevel") private var showLevel = true
@@ -67,6 +67,9 @@ struct CameraView: View {
     @State private var pro = false
     @State private var proControl: ProControl = .exposure
     @State private var focusPoint: CGPoint?
+    /// Camera's box: it lands from a little larger, then dims and waits, then goes.
+    @State private var focusPop = false
+    @State private var focusDim = false
     @State private var focusShown = 0
     @State private var dragFrom: Float?
     @State private var aeLocked = false
@@ -75,7 +78,7 @@ struct CameraView: View {
     enum ProControl: String, CaseIterable { case exposure = "±EV", shutter = "快门", iso = "ISO", white = "色温" }
 
     private var chosen: CameraController.Format {
-        let f = CameraController.Format(rawValue: format) ?? .proRAW
+        let f = CameraController.Format(rawValue: format) ?? .heif
         if ready && f == .proRAW && !status.proRAW { return .heif }
         if ready && f == .raw && !status.bayer { return .heif }
         return f
@@ -104,7 +107,7 @@ struct CameraView: View {
         .onChange(of: "\(format)|\(sizeMP)") { _, _ in
             // ProRAW comes at 12 or 48 MP; an older 24 MP choice under ProRAW becomes 48.
             if format == CameraController.Format.proRAW.rawValue, sizeMP == 24 { sizeMP = 48; return }
-            camera.setMode(CameraController.Format(rawValue: format) ?? .proRAW, mp: sizeMP)
+            camera.setMode(CameraController.Format(rawValue: format) ?? .heif, mp: sizeMP)
             if ready && !front { lens = nil; aim(focal) }      // RAW snaps to a lens; the others may zoom
         }
         .background(Color.black.ignoresSafeArea())
@@ -112,7 +115,7 @@ struct CameraView: View {
         .statusBarHidden()
         .task {
             camera.preferredMP = sizeMP
-            camera.setFormat(CameraController.Format(rawValue: format) ?? .proRAW)
+            camera.setFormat(CameraController.Format(rawValue: format) ?? .heif)
             let feed = histogram
             camera.onHistogram = { bins in Task { @MainActor in feed.bins = bins } }
             let finder = finder
@@ -280,16 +283,24 @@ struct CameraView: View {
 
     // MARK: the picture
 
+    /// The focus box at a new point: drawn larger at once, then settling to size (Camera's landing).
+    private func showFocus(at p: CGPoint) {
+        var still = Transaction(); still.disablesAnimations = true
+        withTransaction(still) { focusPoint = p; focusPop = true; focusDim = false }
+        focusShown += 1
+        DispatchQueue.main.async { withAnimation(.spring(duration: 0.3, bounce: 0.2)) { focusPop = false } }
+    }
+
     private var viewfinder: some View {
         CameraPreview(session: camera.session, tap: { layerPoint, devicePoint in
             camera.focus(at: devicePoint)          // also back to no exposure bias, as Camera does
             status.bias = 0
             aeLocked = false
-            focusPoint = layerPoint
-            focusShown += 1
+            showFocus(at: layerPoint)
         }, drag: { points in
             // Up brighter, down darker: 1 EV every 90 points, within ±3 EV (the device's own limits apply too).
             guard let points else { dragFrom = nil; focusShown += 1; return }
+            if focusDim { withAnimation(.easeOut(duration: 0.15)) { focusDim = false } }
             let from = dragFrom ?? status.bias
             dragFrom = from
             let ev = Float(min(max(Double(from) + Double(points) / 90, -3), 3))
@@ -299,14 +310,18 @@ struct CameraView: View {
         }, hold: { layerPoint, devicePoint in
             camera.lock(at: devicePoint)
             aeLocked = true
-            focusPoint = layerPoint
-            focusShown += 1
+            showFocus(at: layerPoint)
         })
         .onGeometryChange(for: CGSize.self) { $0.size } action: { viewfinderSize = $0 }
-        // The focus box goes after a while, unless a drag holds it or AE/AF is locked.
+        // As Camera: the box dims after a moment, and goes a while later unless a drag holds it or AE/AF is locked
+        // (it vanished at once after 1.6 s, which read as a flash).
         .task(id: focusShown) {
-            try? await Task.sleep(nanoseconds: 1_600_000_000)
-            if dragFrom == nil, !aeLocked { focusPoint = nil }
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled, dragFrom == nil else { return }
+            withAnimation(.easeOut(duration: 0.4)) { focusDim = true }
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled, dragFrom == nil, !aeLocked else { return }
+            withAnimation(.easeOut(duration: 0.4)) { focusPoint = nil }
         }
         .overlay { if filmLook && !noFilm { FilmViewfinder(renderer: finder).allowsHitTesting(false) } }
         .aspectRatio(3.0 / 4.0, contentMode: .fit)
@@ -351,6 +366,7 @@ struct CameraView: View {
                     RoundedRectangle(cornerRadius: 4)
                         .stroke(aeLocked ? Color.labRed : Color.labCream, lineWidth: 1.5)
                         .frame(width: 70, height: 70)
+                        .scaleEffect(focusPop ? 1.4 : 1)
                     // Camera's exposure track: a line beside the box, the sun on it at the exposure (±3 EV over its
                     // length), the line broken where the sun sits.
                     let track: CGFloat = 110
@@ -375,7 +391,9 @@ struct CameraView: View {
                     .foregroundStyle(aeLocked ? Color.labRed : Color.labCream)
                 }
                 .offset(x: 14)
+                .opacity(focusDim ? 0.45 : 1)
                 .position(focusPoint)
+                .transition(.opacity)
                 .allowsHitTesting(false)
             }
         }

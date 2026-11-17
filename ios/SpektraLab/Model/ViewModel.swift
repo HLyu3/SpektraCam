@@ -86,7 +86,7 @@ final class ViewModel: ObservableObject {
 
     /// The cheapest work that brings the canvas to the new look.
     private func respond(from a: PhotoRecipe, to b: PhotoRecipe) {
-        if a.noFilm != b.noFilm {
+        if a.noFilm != b.noFilm || a.sceneBalance != b.sceneBalance {
             reloadPreviewForFilmEffect()     // the film edge may have gone with it: decode the frame again
             return
         }
@@ -159,6 +159,7 @@ final class ViewModel: ObservableObject {
         if (r.leakEdge ?? 0) <= 0 { r.leakEdge = nil }
         if r.leakSeed == 0 { r.leakSeed = nil }
         if r.watermarks?.isEmpty == true { r.watermarks = nil }
+        if let g = r.sceneBalance, g.count != 3 || g.allSatisfy({ abs($0 - 1) < 1e-6 }) { r.sceneBalance = nil }
         if r.diffusionFamily?.isEmpty == true { r.diffusionFamily = nil }
         if r.diffusionStrength == 0.5 { r.diffusionStrength = nil }
         if r.lensCharacter?.isEmpty == true { r.lensCharacter = nil }
@@ -695,7 +696,7 @@ final class ViewModel: ObservableObject {
         originalTypeHint = typeHint
         let decoded = try ImageDecoder.decode(data: data,
                                               maxLongEdge: ImageDecoder.previewLongEdge,
-                                              typeHint: typeHint).applying(crop)
+                                              typeHint: typeHint).applying(crop).balanced(recipe.sceneBalance)
         naturalAspect = CGFloat(decoded.width) / CGFloat(max(decoded.height, 1))
         recipe = normalized(recipe)
         let framed = filmBorderEnabled
@@ -1282,6 +1283,33 @@ final class ViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 白平衡 eyedropper (曝光 › 白平衡)
+
+    /// The eyedropper is out: the next tap on the picture is a grey to balance on.
+    @Published var pickingNeutral = false
+    /// What the last pick did, or why it could not.
+    @Published var neutralNote: String?
+
+    /// Why the eyedropper cannot be used on this photo now, or nil.
+    var neutralRefusal: String? {
+        if recipe.noFilm == true { return "无胶片时不能用：先选一款胶片。" }
+        if filmBorderEnabled { return "开着片边时不能用：先关掉片边，校正后再打开。" }
+        if frame == nil { return "照片还在载入。" }
+        return nil
+    }
+
+    /// A tap at `n` (normalised, top-left) of the picture shown: the frame there, already through the current
+    /// balance, made grey on top of it.
+    func pickNeutral(at n: CGPoint) {
+        pickingNeutral = false
+        if let why = neutralRefusal { neutralNote = why; return }
+        guard let c = frame?.sample(at: n) else { neutralNote = "请点在照片上。"; return }
+        guard let g = SceneBalance.gains(neutralizing: c) else { neutralNote = "这里太暗，看不出颜色：换一块亮一点的灰色或白色。"; return }
+        let next = SceneBalance.combined(recipe.sceneBalance, g)
+        edit { $0.sceneBalance = next }
+        neutralNote = "已校正：" + SceneBalance.describe(next)
+    }
+
     /// Forget the copied look (the wall's banner ✕ and the photo menus' 清除).
     func clearClipboard() {
         clipboardRecipe = nil
@@ -1405,6 +1433,7 @@ final class ViewModel: ObservableObject {
         let data = try await originalData(for: photo)
         let hintID = photo.typeIdentifier
         let photoCrop = photo.crop
+        let sceneGains = recipe.sceneBalance
         if recipe.noFilm == true {
             var image = try await Task.detached(priority: .userInitiated) {
                 try Self.plainPicture(data, maxLongEdge: longEdge, crop: photoCrop, space: Layer2Renderer.previewSpace,
@@ -1419,7 +1448,7 @@ final class ViewModel: ObservableObject {
         let decoded = try await Task.detached(priority: .userInitiated) {
             try ImageDecoder.decode(data: data,
                                     maxLongEdge: max(1400, longEdge * 5 / 4),
-                                    typeHint: hintID.flatMap(UTType.init)).applying(photoCrop)
+                                    typeHint: hintID.flatMap(UTType.init)).applying(photoCrop).balanced(sceneGains)
         }.value
         let sourceAspect = photoCrop == nil ? CGFloat(photo.sourceAspect)
             : CGFloat(decoded.width) / CGFloat(max(decoded.height, 1))
@@ -1588,10 +1617,11 @@ final class ViewModel: ObservableObject {
                     let sourceGeneration = self.sourceGeneration
                     let hint = self.originalTypeHint
                     let crop = self.crop
+                    let gains = self.recipe.sceneBalance
                     let decoded = try await Task.detached(priority: .userInitiated) {
                         try ImageDecoder.decode(data: data,
                                                 maxLongEdge: ImageDecoder.previewLongEdge,
-                                                typeHint: hint).applying(crop)
+                                                typeHint: hint).applying(crop).balanced(gains)
                     }.value
                     guard sourceGeneration == self.sourceGeneration else { continue }
                     self.naturalAspect = CGFloat(decoded.width) / CGFloat(max(decoded.height, 1))
@@ -1712,11 +1742,90 @@ final class ViewModel: ObservableObject {
         edit { $0.printStock = stock }
     }
 
+    // MARK: - film grid (胶片 › 对比)
+
+    /// The photo developed through each film on its own paper, small, as they arrive; keyed by film id.
+    @Published private(set) var filmGrid: [String: UIImage] = [:]
+    @Published private(set) var filmGridRunning = false
+    private var filmGridTask: Task<Void, Never>?
+    /// The look the grid was made for (photo + recipe + crop): reopened unchanged, the cards are shown at once.
+    private var filmGridKey: String?
+    /// The engine's one session is the grid's while it runs: the editor's renders wait (`scheduleRender`).
+    private var engineLent = false
+
+    /// Develops the open photo's frame (≈ 480 px) through every film, one open after another on the engine's
+    /// session, then gives the session back to the editor. Upstream's film cards (2.4.1 `StockPreviews`), as a sheet:
+    /// the frame's own look, without the film edge, the date and 后期.
+    func startFilmGrid() {
+        guard filmGridTask == nil, !exporting, recipe.noFilm != true, let frame, let engine else { return }
+        // Which film and paper the photo has now does not change any card (each has its own): not in the key.
+        var keyed = currentRecipe; keyed.filmStock = ""; keyed.printStock = ""
+        let key = "\(editingPhotoID?.uuidString ?? "")|\(exportLookKey(recipe: keyed, crop: crop.isIdentity ? nil : crop))"
+        if key != filmGridKey { filmGrid = [:]; filmGridKey = key }
+        // The film on the photo first, then the shelf in order; cards already made are kept.
+        let ids = ([filmStock] + films.map(\.id)).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+            .filter { filmGrid[$0] == nil }
+        guard !ids.isEmpty else { return }
+        filmGridRunning = true
+        engineLent = true
+        // Small and colour-only: a card is for comparing colour and tone, so grain, halation, glare, the lens's
+        // blur, leaks and diffusion are off (they cost most of a develop and do not show at this size).
+        let small = frame.downsampled(longEdge: 320)
+        filmGridTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            for id in ids {
+                if Task.isCancelled { break }
+                var r = self.currentRecipe
+                r.noFilm = nil
+                r.filmStock = id
+                r.printStock = self.paper(for: id)
+                r = self.normalized(r)
+                r.filmBorderEnabled = false
+                r.dateBackEnabled = false
+                var delta = r.engineDelta(filmName: self.filmName(for: id), frameNumber: 12,
+                                          imageAspect: CGFloat(small.width) / CGFloat(max(small.height, 1)),
+                                          stamp: self.dateStampDate, shootingData: self.shootingDataText,
+                                          cameraEV: self.editingPhoto?.cameraEV)
+                delta[ParamDefaults.productDefaultsKey] = .bool(true)
+                delta["preview_long_edge"] = .number(800)        // the engine's least (800…8192; 480 was refused)
+                for (k, v) in [("grain_active", ParamValue.bool(false)), ("halation_active", .bool(false)),
+                               ("glare_active", .bool(false)), ("lens_blur_um", .number(0)), ("leak_kind", .string("off")),
+                               ("leak_edge", .number(0)), ("diffusion_filter_active", .bool(false)),
+                               ("lens_aberrations_active", .bool(false))] { delta[k] = v }
+                let open = delta
+                let started = Date()
+                do {
+                    let image = try await engine.perform { () -> CGImage in
+                        try small.pixels.withUnsafeBufferPointer { buffer in
+                            guard let base = buffer.baseAddress else { throw EngineError.failed(status: -1, message: "空") }
+                            _ = try engine.open(pixels: EnginePixels(data: base, width: small.width, height: small.height),
+                                                params: open)
+                        }
+                        try engine.solve(target: "both")
+                        return try engine.renderBitmap(tier: "live", reprint: false).cgImage
+                    }
+                    self.filmGrid[id] = UIImage(cgImage: image)
+                    NSLog("SpektraLab film grid: %@ %.0f ms", id, Date().timeIntervalSince(started) * 1000)
+                } catch {
+                    NSLog("SpektraLab film grid: %@ FAILED %@", id, error.localizedDescription)
+                }
+            }
+            // The editor's session back, as it was.
+            self.engineLent = false
+            self.filmGridRunning = false
+            self.filmGridTask = nil
+            self.reopenAndRender()
+        }
+    }
+
+    /// The sheet closed: stop after the card being made (the session is handed back then).
+    func stopFilmGrid() { filmGridTask?.cancel() }
+
     /// Reopen the session with the current stocks and parameters.
     private func reopenAndRender() {
         // The export's bitmap still borrows the engine's buffers; reopening now
         // frees them under it (a crash). Export reopens itself when it is done.
-        guard !exporting else { return }
+        guard !exporting, !engineLent else { return }
         guard let frame, let engine else { return }
         let openDelta = currentOpenDelta()
         Task { @MainActor [weak self] in
@@ -1754,6 +1863,7 @@ final class ViewModel: ObservableObject {
     func scheduleRender() {
         guard !exporting else { return }
         needsRender = true
+        guard !engineLent else { return }       // the film grid has the session; its hand-back reopens and renders
         guard !renderInFlight else { return }
         // `@MainActor` on the closure: `Task { ... }` is `@Sendable` by
         // default, and a closure that captures a `MainActor`-isolated
@@ -1777,6 +1887,7 @@ final class ViewModel: ObservableObject {
         }
         guard let engine, let renderer else { return }
         guard frame != nil else { return }
+        guard !engineLent else { needsRender = true; return }
         NSLog("SpektraLab render: start (dirty %d)", paramsDirty ? 1 : 0)
 
         // This render is consuming the request that is currently pending.
@@ -2515,6 +2626,7 @@ final class ViewModel: ObservableObject {
             let hint = originalTypeHint
             let cropAspect = filmBorderEnabled ? filmCropAspect : nil
             let frameCrop = crop
+            let gains = recipe.sceneBalance
             let memoryCap = Self.exportLongEdgeCap(for: data)
             if let memoryCap { NSLog("SpektraLab export: memory caps the long edge at %d px", memoryCap) }
             let noFilm = recipe.noFilm == true
@@ -2523,11 +2635,11 @@ final class ViewModel: ObservableObject {
                     return try ImageDecoder.decode(data: data,
                                                    maxLongEdge: memoryCap ?? ImageDecoder.exportLongEdge,
                                                    typeHint: hint,
-                                                   targetAspect: cropAspect)
+                                                   targetAspect: cropAspect).balanced(gains)
                 }
                 // The user's crop first, then the gate's: two full-size frames live for a moment.
                 let cut = try ImageDecoder.decode(data: data, maxLongEdge: memoryCap ?? ImageDecoder.exportLongEdge,
-                                                  typeHint: hint).applying(frameCrop)
+                                                  typeHint: hint).applying(frameCrop).balanced(gains)
                 return cropAspect.map { cut.centerCropped(toTargetAspect: $0) } ?? cut
             }.value
             if let decoded { stage("全尺寸渲染 \(decoded.width)×\(decoded.height)") }

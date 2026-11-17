@@ -6,8 +6,8 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var model: ViewModel
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.proRAW.rawValue
-    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 0
+    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.heif.rawValue
+    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 48   // HEIF 48 MP by default; a lens without it takes its largest
     @AppStorage("SpektraLab.cameraLensLabel") private var lensLabel = "x"
     @AppStorage(ViewModel.reopenKey) private var reopenTo = UserDefaults.standard.bool(forKey: "SpektraLab.openToCamera") ? "camera" : "last"
     @AppStorage("SpektraLab.cameraToPhotos") private var toPhotos = false

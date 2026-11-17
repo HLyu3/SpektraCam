@@ -303,13 +303,20 @@ final class CameraController: NSObject, @unchecked Sendable {
     /// (`subjectAreaDidChange`), as Camera does. A hold (AE/AF lock) is never taken back.
     private var subjectObserver: NSObjectProtocol?
     private var aeafLocked = false
+    /// When the last tap focused: the lens's own travel can read as a "subject change", which pulled focus back to
+    /// the centre right after the tap (a second, jerky focus). Changes this soon after a tap are ignored.
+    private var tappedAt = Date.distantPast
 
     private func watchSubject(_ d: AVCaptureDevice) {
         d.isSubjectAreaChangeMonitoringEnabled = true
         guard subjectObserver == nil else { return }
         subjectObserver = NotificationCenter.default.addObserver(forName: AVCaptureDevice.subjectAreaDidChangeNotification,
                                                                  object: nil, queue: nil) { [weak self] _ in
-            self?.backToAuto()
+            guard let self else { return }
+            self.queue.async {
+                guard Date().timeIntervalSince(self.tappedAt) > 2 else { return }
+                self.backToAuto()
+            }
         }
     }
 
@@ -334,12 +341,21 @@ final class CameraController: NSObject, @unchecked Sendable {
             self.aeafLocked = false
             d.setExposureTargetBias(0)
             self.watchSubject(d)
+            // One focus at the point (`.autoFocus`), as Camera and Apple's AVCam do: re-setting continuous autofocus
+            // with a new point did not move the lens — only the exposure followed the tap. The subject-area change
+            // (`watchSubject`) hands focus back to the continuous centre later.
+            self.tappedAt = Date()
+            // A slower, steadier pull to the new distance, as Camera's (meant for video; on stills it only eases the move).
+            if d.isSmoothAutoFocusSupported { d.isSmoothAutoFocusEnabled = true }
             if d.isFocusPointOfInterestSupported { d.focusPointOfInterest = point }
-            if d.isFocusModeSupported(.continuousAutoFocus) { d.focusMode = .continuousAutoFocus }
+            if d.isFocusModeSupported(.autoFocus) { d.focusMode = .autoFocus }
+            else if d.isFocusModeSupported(.continuousAutoFocus) { d.focusMode = .continuousAutoFocus }
             if d.isExposurePointOfInterestSupported { d.exposurePointOfInterest = point }
             if d.exposureMode != .custom, d.isExposureModeSupported(.continuousAutoExposure) {
                 d.exposureMode = .continuousAutoExposure
             }
+            NSLog("SpektraLab camera: focus at %.2f,%.2f (focus point %@, mode %d)", point.x, point.y,
+                  d.isFocusPointOfInterestSupported ? "yes" : "NO", d.focusMode.rawValue)
         }
     }
 

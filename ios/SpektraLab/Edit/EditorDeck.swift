@@ -144,6 +144,22 @@ extension EditTool {
                              selected: m.exposureMethod) { m.setExposureMethod($0) }
                      sliders([.exposureCompensation], m)
                  }) }),
+        EditTool(id: "whitebalance", title: "白平衡", stage: .develop,
+                 modified: { $0.recipe.sceneBalance != nil },
+                 reset: { m in m.edit { $0.sceneBalance = nil }; m.neutralNote = nil },
+                 panel: { m, _ in AnyView(ToolScroll {
+                     Button { m.neutralNote = m.neutralRefusal; if m.neutralRefusal == nil { m.pickingNeutral.toggle() } } label: {
+                         Label(m.pickingNeutral ? "点画面里应该是灰色或白色的地方…" : "吸管：点一块灰色或白色",
+                               systemImage: "eyedropper")
+                             .font(.subheadline.weight(.semibold))
+                             .frame(maxWidth: .infinity, minHeight: 44)
+                             .background(m.pickingNeutral ? Color.labRed.opacity(0.35) : Color.white.opacity(0.08), in: Capsule())
+                     }
+                     .buttonStyle(.plain)
+                     .foregroundStyle(Color.labCream)
+                     Note(m.neutralNote ?? (m.recipe.sceneBalance.map { "当前：" + SceneBalance.describe($0) }
+                          ?? "在胶片曝光之前校正白平衡，像冲洗前给底片加色温滤镜。点白墙、灰卡、白纸这类本该无色的地方；可以多点几次叠加。"))
+                 }) }),
         EditTool(id: "decode", title: "解码曲线", stage: .develop,
                  modified: { !$0.sceneCurve.isIdentity },
                  reset: { $0.setSceneCurve(CurveSet()) },
@@ -478,6 +494,7 @@ struct StockPanel: View {
     @ObservedObject var model: ViewModel
     let papers: Bool
     let browse: () -> Void
+    @State private var comparing = false
 
     var body: some View {
         if papers && model.recipe.noFilm == true {
@@ -506,6 +523,26 @@ struct StockPanel: View {
                         .foregroundStyle(Color.labCream)
                         .lineLimit(1)
                     Spacer()
+                }
+                if !papers && model.recipe.noFilm != true {
+                    Button { comparing = true } label: {
+                        HStack(spacing: 2) {
+                            Text("对比")
+                            Image(systemName: "square.grid.3x3.square")
+                        }
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(Color.labCream.opacity(0.8))
+                        .padding(.horizontal, 8)
+                        .frame(height: 24)
+                        .background(Color.white.opacity(0.08), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("用这张照片对比全部胶片")
+                    .sheet(isPresented: $comparing, onDismiss: { model.stopFilmGrid() }) {
+                        FilmGridSheet(model: model) { comparing = false }
+                            .presentationDetents([.large])
+                            .presentationBackground(Color.labInk)
+                    }
                 }
                 Button(action: browse) {
                     HStack(spacing: 2) {
@@ -577,5 +614,77 @@ struct DecodeCurvePanel: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+}
+
+
+/// 胶片 › 对比: this photo through every film, on each film's own paper, in a grid by maker; a tap takes the film.
+struct FilmGridSheet: View {
+    @ObservedObject var model: ViewModel
+    let close: () -> Void
+
+    var body: some View {
+        let groups = Stock.byBrand(model.films)
+        NavigationStack {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {
+                    ForEach(groups, id: \.0) { group in
+                        Section {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 10) {
+                                ForEach(group.1) { card($0) }
+                            }
+                            .padding(.horizontal, 12)
+                        } header: {
+                            Text(group.0).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                .padding(.horizontal, 14).padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.labInk.opacity(0.95))
+                        }
+                    }
+                }
+                .padding(.bottom, 20)
+            }
+            .navigationTitle("对比胶片")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if model.filmGridRunning {
+                        Text("冲洗中 \(model.filmGrid.count)/\(model.films.count)")
+                            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) { Button("完成", action: close) }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear { model.startFilmGrid() }
+    }
+
+    private func card(_ stock: Stock) -> some View {
+        let on = stock.id == model.filmStock && model.recipe.noFilm != true
+        return Button {
+            model.filmChanged(stock.id)
+            close()
+        } label: {
+            VStack(spacing: 4) {
+                ZStack {
+                    Color.labPanel
+                    if let image = model.filmGrid[stock.id] {
+                        Image(uiImage: image).resizable().scaledToFill()
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+                .aspectRatio(1, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(on ? Color.labRed : Color.clear, lineWidth: 2))
+                Text(stock.name.replacingOccurrences(of: stock.brand + " ", with: ""))
+                    .font(.caption2)
+                    .foregroundStyle(on ? Color.labCream : Color.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }

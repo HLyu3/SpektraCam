@@ -61,6 +61,8 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
     var hdr: Bool? = nil
     /// 水印 over the finished picture (`Edit/Watermark.swift`); never on the wire. nil = none.
     var watermarks: [WatermarkPlacement]? = nil
+    /// 白平衡 at the decode (`Edit/SceneBalance.swift`): r, g, b gains on the linear frame before the engine. nil = as shot.
+    var sceneBalance: [Double]? = nil
     /// 无胶片: the original as the system renders it (plus 后期), no engine. nil is off.
     var noFilm: Bool? = nil
 
