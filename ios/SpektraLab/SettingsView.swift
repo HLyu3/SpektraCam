@@ -6,7 +6,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var model: ViewModel
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.heif.rawValue
+    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.proRAW.rawValue
     @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 48   // HEIF 48 MP by default; a lens without it takes its largest
     @AppStorage("SpektraLab.cameraLensLabel") private var lensLabel = "x"
     @AppStorage(ViewModel.reopenKey) private var reopenTo = UserDefaults.standard.bool(forKey: "SpektraLab.openToCamera") ? "camera" : "last"
@@ -22,7 +22,7 @@ struct SettingsView: View {
     @State private var storage = ""
     @AppStorage(ViewModel.negativeKeepDaysKey) private var keepDays = 7
     @AppStorage(ViewModel.unexportedDeleteDaysKey) private var unexportedDays = 0
-    @AppStorage(ViewModel.autoDevelopKey) private var autoDevelop = true
+    @AppStorage(ViewModel.autoDevelopKey) private var autoDevelop = false   // off unless chosen (the owner, 2026-11-17)
     @State private var confirmingCleanup = false
     @State private var cleanable: (count: Int, bytes: Int64) = (0, 0)
 

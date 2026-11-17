@@ -28,45 +28,55 @@ extension Color {
 }
 
 extension View {
-    /// Native Liquid Glass on Xcode 27. Older CI images do not expose the
-    /// symbol, so they compile the same layout with a material fallback.
+    /// Liquid Glass on iOS 26 and later; the same layout in a material on iOS 18–25 (the app's minimum is 18).
     @ViewBuilder
     nonisolated func labGlass<S: Shape>(_ active: Bool = true, in shape: S) -> some View {
-#if compiler(>=6.2)
-        glassEffect(active ? .regular : .clear, in: shape)
-#else
-        if active {
+        if #available(iOS 26.0, *) {
+            glassEffect(active ? .regular : .clear, in: shape)
+        } else if active {
             background(.ultraThinMaterial, in: shape)
                 .overlay(shape.stroke(Color.white.opacity(0.10), lineWidth: 1))
         } else {
             self
         }
-#endif
     }
 
+    @ViewBuilder
     nonisolated func labGlassInteractive<S: Shape>(_ active: Bool = true, in shape: S) -> some View {
-#if compiler(>=6.2)
-        glassEffect(active ? .regular.interactive() : .clear, in: shape)
-#else
-        if active {
+        if #available(iOS 26.0, *) {
+            glassEffect(active ? .regular.interactive() : .clear, in: shape)
+        } else if active {
             background(.ultraThinMaterial, in: shape)
                 .overlay(shape.stroke(Color.white.opacity(0.10), lineWidth: 1))
         } else {
             self
         }
-#endif
     }
 
     /// A tinted glass surface. Used for the one primary action on a screen
     /// (add photos, paste a recipe), so the rest of the chrome stays neutral.
+    @ViewBuilder
     nonisolated func labGlassTint<S: Shape>(_ tint: Color, in shape: S) -> some View {
-#if compiler(>=6.2)
-        glassEffect(.regular.tint(tint).interactive(), in: shape)
-#else
-        background(tint.opacity(0.42), in: shape)
-            .background(.ultraThinMaterial, in: shape)
-            .overlay(shape.stroke(Color.white.opacity(0.12), lineWidth: 1))
-#endif
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular.tint(tint).interactive(), in: shape)
+        } else {
+            background(tint.opacity(0.42), in: shape)
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.stroke(Color.white.opacity(0.12), lineWidth: 1))
+        }
+    }
+}
+
+/// Glass buttons that blend into each other on iOS 26; a plain group before it.
+struct LabGlassGroup<Content: View>: View {
+    var spacing: CGFloat
+    @ViewBuilder var content: Content
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) { content }
+        } else {
+            content
+        }
     }
 }
 

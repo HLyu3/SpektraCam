@@ -57,7 +57,7 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>MinimumOSVersion</key>
-	<string>27.0</string>
+	<string>18.0</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Spektra Cam 用相机拍照，拍下的照片会放进你的图库，按装好的胶卷冲洗。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

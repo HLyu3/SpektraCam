@@ -287,7 +287,7 @@ struct PhotoLibraryView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            GlassEffectContainer(spacing: 8) {
+            LabGlassGroup(spacing: 8) {
                 HStack(spacing: 8) {
                     if !model.library.isEmpty {
                         headerButton(selecting ? "xmark" : "checkmark.circle", selecting ? "结束选择" : "选择照片") {

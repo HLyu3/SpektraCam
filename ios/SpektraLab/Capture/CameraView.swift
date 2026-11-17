@@ -13,7 +13,8 @@ struct CameraView: View {
     /// Held, not observed: the meter publishes 30 times a second, and redrawing the whole page that often
     /// lost taps on its menus. Only `LevelOverlay` watches it.
     @State private var level = LevelMeter()
-    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.heif.rawValue
+    /// RAW by default, film or no film (the owner, 2026-11-17): ProRAW, or single-frame RAW without it (`chosen`).
+    @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.proRAW.rawValue
     @AppStorage("SpektraLab.cameraRoll") private var roll = StockCatalog.defaultFilm
     /// A paper picked in the 冲印 menu for this visit, and the roll it was picked for: another roll is on its
     /// recommended paper. Kept with its roll rather than cleared on a roll change — clearing it was a second update
@@ -28,7 +29,7 @@ struct CameraView: View {
     @AppStorage("SpektraLab.cameraToPhotos") private var toPhotos = false
     @AppStorage("SpektraLab.haptics") private var haptics = true
     /// Develop every shot with the roll's look and put the print in Photos.
-    @AppStorage(ViewModel.autoDevelopKey) private var autoDevelop = true
+    @AppStorage(ViewModel.autoDevelopKey) private var autoDevelop = false   // off unless chosen (the owner, 2026-11-17)
     /// The viewfinder in the roll's colours (a cube baked through the engine), or plain.
     @AppStorage("SpektraLab.cameraFilmLook") private var filmLook = true
     /// The lens row's labels: "x" zoom factors as the Camera app shows them (0.5, 1×, 2, 4), or "mm" focal lengths.
@@ -77,15 +78,23 @@ struct CameraView: View {
 
     enum ProControl: String, CaseIterable { case exposure = "±EV", shutter = "快门", iso = "ISO", white = "色温" }
 
+    /// The format a shot is taken in: the one picked, film or no film (the owner, 2026-11-17: some want HEIF on a roll;
+    /// the format sheet warns that a HEIF's tone, colour and sharpening are doubled by the film). A phone without
+    /// ProRAW (not a Pro) shoots single-frame RAW for it where it has that.
     private var chosen: CameraController.Format {
         let f = CameraController.Format(rawValue: format) ?? .heif
-        if ready && f == .proRAW && !status.proRAW { return .heif }
+        // No ProRAW on this phone (not a Pro): single-frame RAW where it has it, HEIF only where it has neither.
+        if ready && f == .proRAW && !status.proRAW { return status.bayer ? .raw : .heif }
         if ready && f == .raw && !status.bayer { return .heif }
         return f
     }
 
     /// The roll "" is no film: plain viewfinder, the camera's own file straight into Photos.
     private var noFilm: Bool { roll.isEmpty }
+
+    /// The size for `chosen`: ProRAW comes at 12 or 48 MP, so a 24 MP HEIF choice shoots ProRAW at 48.
+    private var chosenMP: Int { chosen == .proRAW && sizeMP == 24 ? 48 : sizeMP }
+
 
     /// What the roll prints on, under the strip.
     private var rollSubtitle: String {
@@ -104,18 +113,24 @@ struct CameraView: View {
             shutterRow
         }
         // Format and size go to the camera together (one pipeline rebuild, `setMode`).
-        .onChange(of: "\(format)|\(sizeMP)") { _, _ in
+        // The probe's answer (ProRAW, RAW) changes `chosen` on a phone without ProRAW: the camera follows it.
+        .onChange(of: "\(format)|\(sizeMP)|\(noFilm)|\(status.proRAW)|\(status.bayer)") { _, _ in
             // ProRAW comes at 12 or 48 MP; an older 24 MP choice under ProRAW becomes 48.
             if format == CameraController.Format.proRAW.rawValue, sizeMP == 24 { sizeMP = 48; return }
-            camera.setMode(CameraController.Format(rawValue: format) ?? .heif, mp: sizeMP)
+            camera.setMode(chosen, mp: chosenMP)
             if ready && !front { lens = nil; aim(focal) }      // RAW snaps to a lens; the others may zoom
         }
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .statusBarHidden()
         .task {
-            camera.preferredMP = sizeMP
-            camera.setFormat(CameraController.Format(rawValue: format) ?? .heif)
+            // HEIF was the default for a few hours of 2026-11-17: a phone that kept it gets RAW, once.
+            if !UserDefaults.standard.bool(forKey: "SpektraLab.cameraFormatRawDefault") {
+                UserDefaults.standard.set(true, forKey: "SpektraLab.cameraFormatRawDefault")
+                if format == CameraController.Format.heif.rawValue { format = CameraController.Format.proRAW.rawValue }
+            }
+            camera.preferredMP = chosenMP
+            camera.setFormat(chosen)
             let feed = histogram
             camera.onHistogram = { bins in Task { @MainActor in feed.bins = bins } }
             let finder = finder
@@ -270,6 +285,7 @@ struct CameraView: View {
         .accessibilityLabel("拍摄格式 \(chosen.title)，\(status.megapixels) MP，点按更改")
         .sheet(isPresented: $choosingFormat) {
             FormatSheet(modes: CaptureMode.available(sizes: status.sizes, proRAW: status.proRAW, bayer: status.bayer),
+                        heifOnFilm: !noFilm && chosen == .heif,
                         isOn: { $0.format == chosen && ($0.format == .raw || $0.megapixels == status.megapixels) },
                         pick: { mode in
                             format = mode.format.rawValue
@@ -1072,18 +1088,28 @@ struct PaperMenu: View, @MainActor Equatable {
 /// 拍摄格式: every size this lens offers, each with what it is for, grouped by format.
 struct FormatSheet: View {
     let modes: [CaptureMode]
+    /// A film is loaded and HEIF is the format: the sheet says what that costs.
+    var heifOnFilm = false
     let isOn: (CaptureMode) -> Bool
     let pick: (CaptureMode) -> Void
 
     private static let order: [(CameraController.Format, String, String)] = [
-        (.heif, "HEIF · 日常推荐", "和原相机一样把几帧合成一张、降噪，最干净，文件小。随手拍、室内、夜景都用它。"),
-        (.proRAW, "ProRAW · 认真拍时用", "也是多帧合成，但存成 RAW，亮处和暗处留得更多：逆光、天空很亮、反差大的场景，冲洗出的高光过渡更像胶片。文件很大。"),
-        (.raw, "RAW · 单帧原始", "只读传感器的一帧，不合成、不降噪、不锐化。白天光线足时颗粒最原始；暗光和长焦下噪点很多，不推荐日常用。"),
+        (.proRAW, "ProRAW · 推荐", "多帧合成、降噪，和原相机一样干净，但留下的是原始光线：胶片按它曝光、显影，颜色和影调才对；不装胶卷时，存进「照片」后也能大幅调整、拉回高光。缺点是文件大（1200 万约 20 MB，4800 万约 75 MB）；装胶卷时成片导出后，底片按「底片保留」天数清理。"),
+        (.raw, "RAW · 没有 ProRAW 的机型用", "只读传感器的一帧，不合成、不降噪、不锐化，1200 万像素，约 10 MB。颜色和影调和 ProRAW 一样对，白天光线足时很好；暗光和长焦下噪点很多。没有 ProRAW 的机型选 ProRAW 时会用它。"),
+        (.heif, "HEIF · 不推荐", "苹果已经处理好的成品照片：对比、饱和度、锐化和暗部提亮都已经做进去了，撤不回来。缺点：① 装胶卷冲洗时这些处理会再叠加一遍，颜色太艳、锐化太重、暗部发黑；② 不装胶卷时，后期调整空间小，过曝的高光拉不回来，大幅调色容易出现色带；③ 苹果的处理每代手机、每个系统版本都不一样，同一卷胶片的效果不稳定。唯一的优点是文件小（约 2–10 MB），手机空间紧张时才用。"),
     ]
 
     var body: some View {
         NavigationStack {
             List {
+                if heifOnFilm {
+                    Section {
+                        Label("装着胶卷在用 HEIF 拍：苹果的对比、饱和度和锐化会被胶片再叠加一遍，成片会偏艳、偏锐。想要胶片原本的颜色，选 ProRAW 或 RAW。",
+                              systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
+                            .foregroundStyle(Color.labRed)
+                    }
+                }
                 ForEach(Self.order, id: \.0) { item in
                     let (format, title, note) = item
                     let rows = modes.filter { $0.format == format }

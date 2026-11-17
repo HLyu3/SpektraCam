@@ -39,7 +39,7 @@ app="$root/ios/SpektraLab"
 # The iOS deployment target. It must match the Xcode project's
 # IPHONEOS_DEPLOYMENT_TARGET, or the metallib and the app disagree about what
 # the GPU supports.
-IOS_MIN="27.0"
+IOS_MIN="18.0"
 
 # The engine's own safety flags. Do not remove `-fmetal-math-mode=safe`: the
 # engine's `check_math_mode` probe rejects a fast-math metallib outright, and
@@ -147,6 +147,11 @@ build_resources() {
   # The product's own extras: the paper grades and the neutral filters.
   if [ -f "$product/paper_grades.json" ]; then
     cp "$product/paper_grades.json" "$staging/"
+  fi
+  # Engine 2.4.1: the product's colour films' filters (Portra 160/400 NC/VC), read from the bundle root by
+  # `engine.cpp`. Without it those films print far too cyan on Endura (and orange on Crystal Archive).
+  if [ -f "$product/neutral_print_filters_colour.json" ]; then
+    cp "$product/neutral_print_filters_colour.json" "$staging/"
   fi
   if [ -f "$product/neutral_print_filters.json" ]; then
     cp "$product/neutral_print_filters.json" "$staging/product_neutral_print_filters.json"

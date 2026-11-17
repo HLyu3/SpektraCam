@@ -18,17 +18,24 @@
 
 ## 下载与安装
 
-到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.1.2-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
+到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.1.3-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
 
 | 工具 | 做法 |
 |---|---|
 | SideStore / AltStore / Sideloadly | 选这个 IPA，用自己的 Apple ID 签名安装 |
 | Xcode | 按下面“本地构建”编译，在 Signing 里选自己的 Personal Team |
 
-- 最低系统 **iOS 27.0**，只支持 iPhone。
-- **目前只在 iPhone 17 Pro Max（iOS 27）上测试过。** 其他机型能装，但镜头焦段、拍摄尺寸、导出内存上限和 HDR 亮度没有验证过，可能有问题。
+- 最低系统 **iOS 18.0**（iPhone XS / XR 及以后），只支持 iPhone。iOS 26 以前的界面用磨砂背景代替玻璃质感。
+- **目前只在 iPhone 17 Pro Max（iOS 27）和 iPhone 14 Pro（iOS 26.5）上测试过。** 其他机型和 iOS 18–25 能装，但镜头焦段、拍摄尺寸、导出内存上限和 HDR 亮度没有验证过，可能有问题。
 - 免费 Apple ID 的签名 7 天后过期，要重新安装。
 - IPA 里带了全部引擎资源，第一次打开不需要联网下载。
+
+## 2.1.3 的变化（相对 2.1.2）
+
+- 支持 iOS 18 起。
+- 修正 2.1.1 / 2.1.2 安装包误带旧引擎资源的问题：Portra 160 / 400 NC、VC 不再偏蓝青。
+- 默认用 RAW 拍（Pro 机型 ProRAW，标准版单帧 RAW）；HEIF 的缺点写进了格式页，装着胶卷选 HEIF 时会提醒。
+- 拍完自动冲洗默认关闭。
 
 ## 2.1.2 的变化（相对 2.1.1）
 

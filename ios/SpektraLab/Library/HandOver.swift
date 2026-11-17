@@ -28,7 +28,7 @@ extension ViewModel {
         // Lock Screen shots (from the set-aside Lock Screen camera; none are written now): developed with the roll
         // loaded in the camera, like a shot taken in the app.
         let roll = UserDefaults.standard.string(forKey: "SpektraLab.cameraRoll") ?? StockCatalog.defaultFilm
-        let develop = UserDefaults.standard.object(forKey: Self.autoDevelopKey) as? Bool ?? true
+        let develop = UserDefaults.standard.object(forKey: Self.autoDevelopKey) as? Bool ?? false
         for folder in LockedCameraCaptureManager.shared.sessionContentURLs {
             let shots = ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
                 .filter { ["heic", "jpg", "jpeg", "dng"].contains($0.pathExtension.lowercased()) }
