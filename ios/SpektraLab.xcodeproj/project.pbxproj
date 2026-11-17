@@ -155,6 +155,7 @@
 		};
 		4C25A2A11A9B022A9630D937 /* ExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExportOptions.swift"; sourceTree = "<group>"; };
 		98BA85BA0900B8D0A9F272E6 /* FilmEffects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FilmEffects.swift"; sourceTree = "<group>"; };
+		0E3CC8CA30A687F2AB16F676 /* FrameCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FrameCache.swift"; sourceTree = "<group>"; };
 		43640C977325C2A4780BCB22 /* Params.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Params.swift"; sourceTree = "<group>"; };
 		7C720500C0B7033ECA5EA3A1 /* PhotoLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PhotoLibrary.swift"; sourceTree = "<group>"; };
 		8319D85CEA62FD3B59A0AD0D /* RecipeLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecipeLibrary.swift"; sourceTree = "<group>"; };
@@ -165,6 +166,7 @@
 			children = (
 				4C25A2A11A9B022A9630D937 /* ExportOptions.swift */,
 				98BA85BA0900B8D0A9F272E6 /* FilmEffects.swift */,
+				0E3CC8CA30A687F2AB16F676 /* FrameCache.swift */,
 				43640C977325C2A4780BCB22 /* Params.swift */,
 				7C720500C0B7033ECA5EA3A1 /* PhotoLibrary.swift */,
 				8319D85CEA62FD3B59A0AD0D /* RecipeLibrary.swift */,
@@ -576,6 +578,7 @@
 		CBACCDA77622C07D9A140EE0 /* LightTableView.swift */ = {isa = PBXBuildFile; fileRef = D9B42429F05CDF808AF5CB96; };
 		718E3192DA17A496331767B8 /* ExportOptions.swift */ = {isa = PBXBuildFile; fileRef = 4C25A2A11A9B022A9630D937; };
 		A3C2DA798B33ED4314BD260E /* FilmEffects.swift */ = {isa = PBXBuildFile; fileRef = 98BA85BA0900B8D0A9F272E6; };
+		E9672D32D2F8C726CB0FD9C8 /* FrameCache.swift */ = {isa = PBXBuildFile; fileRef = 0E3CC8CA30A687F2AB16F676; };
 		430B96D64212D930E62FE531 /* Params.swift */ = {isa = PBXBuildFile; fileRef = 43640C977325C2A4780BCB22; };
 		DFA11D3FCF18012C210B07AD /* PhotoLibrary.swift */ = {isa = PBXBuildFile; fileRef = 7C720500C0B7033ECA5EA3A1; };
 		17C8E9B68DC82511A5BB2AFD /* RecipeLibrary.swift */ = {isa = PBXBuildFile; fileRef = 8319D85CEA62FD3B59A0AD0D; };
@@ -756,6 +759,7 @@
 				CBACCDA77622C07D9A140EE0 /* LightTableView.swift */,
 				718E3192DA17A496331767B8 /* ExportOptions.swift */,
 				A3C2DA798B33ED4314BD260E /* FilmEffects.swift */,
+				E9672D32D2F8C726CB0FD9C8 /* FrameCache.swift */,
 				430B96D64212D930E62FE531 /* Params.swift */,
 				DFA11D3FCF18012C210B07AD /* PhotoLibrary.swift */,
 				17C8E9B68DC82511A5BB2AFD /* RecipeLibrary.swift */,
@@ -967,7 +971,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_DEBUG_DYLIB = NO;
@@ -977,7 +981,7 @@
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.4;
+				MARKETING_VERSION = 2.1.5;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
@@ -1001,14 +1005,14 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.4;
+				MARKETING_VERSION = 2.1.5;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
 				PRODUCT_NAME = ShareExtension;
@@ -1097,7 +1101,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1123,7 +1127,7 @@
 				INFOPLIST_FILE = SpektraLab/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 2.1.4;
+				MARKETING_VERSION = 2.1.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1156,7 +1160,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1179,7 +1183,7 @@
 				INFOPLIST_FILE = SpektraLab/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 2.1.4;
+				MARKETING_VERSION = 2.1.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = NO;

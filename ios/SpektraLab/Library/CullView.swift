@@ -28,7 +28,7 @@ struct CullView: View {
         NavigationStack {
             ScrollView {
                 // Which shots are here: the 挑片 badge counts these, not the day's shots (the owner asked why 13 were 6).
-                Text("这里只列出用 Spektra Cam 相机拍的、还没导出过的照片。已经导出过的（包括拍完自动冲洗的），和从相册导入的，都不在这里。")
+                Text("这里列出用 Spektra Cam 相机拍的、还没导出到“照片”的照片（拍完只在 App 里冲洗，不会自动导出）。挑出要留的导出到“照片”，其余可以删掉省空间。从相册导入的照片不在这里。")
                     .font(.footnote).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12).padding(.top, 6)

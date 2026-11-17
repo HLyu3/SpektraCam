@@ -413,6 +413,7 @@ final class ViewModel: ObservableObject {
     /// The recipe the editor opened with. `closeEditor` compares against it so
     /// merely viewing a photo does not mark it as edited.
     private var editingBaseRecipe: PhotoRecipe?
+    private var editingBaseCrop = FrameCrop()
 
     // MARK: - life cycle
 
@@ -431,6 +432,10 @@ final class ViewModel: ObservableObject {
         let resources = SpektraEngine.defaultResources()
         catalog = StockCatalog.load(resources: resources)
         loadLibrary()
+        forgetCameraEVsOnce()
+        // Develops unused for a while go (Settings › 冲洗缓存); they are made again when needed.
+        let root = libraryRootURL, days = DevelopCache.keepDays
+        if days > 0 { Task.detached(priority: .background) { DevelopCache.prune(in: root, olderThanDays: days) } }
         loadClipboardRecipe()
         loadSavedRecipes()
 
@@ -688,7 +693,19 @@ final class ViewModel: ObservableObject {
     /// Decode and open one photograph in the editor's engine session. This is
     /// the old import path minus the library write: the photo already exists
     /// on the wall.
-    private func loadPhoto(data: Data, typeHint: UTType?, name: String) async throws {
+    /// `<id>-preview.f16`: the photo's decoded preview frame (`FrameCache`).
+    func previewFrameURL(for id: UUID) -> URL { libraryRootURL.appendingPathComponent("\(id.uuidString)-preview.f16") }
+
+    /// The photo's uncropped decode at the preview size: from the cache, else decoded (and kept). Off the main thread.
+    nonisolated static func previewFrame(data: Data, typeHint: UTType?, cache: URL?) throws -> DecodedFrame {
+        let edge = ImageDecoder.previewLongEdge
+        if let cache, let kept = FrameCache.read(cache, edge: edge) { return kept }
+        let decoded = try ImageDecoder.decode(data: data, maxLongEdge: edge, typeHint: typeHint)
+        if let cache { FrameCache.write(decoded, edge: edge, to: cache) }
+        return decoded
+    }
+
+    private func loadPhoto(data: Data, typeHint: UTType?, name: String, cacheID: UUID? = nil) async throws {
         sourceGeneration &+= 1
         effectReloadNeeded = false
         originalData = data
@@ -696,10 +713,12 @@ final class ViewModel: ObservableObject {
         originalTypeHint = typeHint
         // Off the main thread: decoding a 48 MP original here froze the page (the viewer's 编辑 spinner came late).
         let crop = self.crop, gains = recipe.sceneBalance
+        let t0 = CACurrentMediaTime()
+        let cache = cacheID.map(previewFrameURL)
         let decoded = try await Task.detached(priority: .userInitiated) {
-            try ImageDecoder.decode(data: data, maxLongEdge: ImageDecoder.previewLongEdge,
-                                    typeHint: typeHint).applying(crop).balanced(gains)
+            try Self.previewFrame(data: data, typeHint: typeHint, cache: cache).applying(crop).balanced(gains)
         }.value
+        NSLog("SpektraLab timing: decode %dx%d in %.0f ms", decoded.width, decoded.height, (CACurrentMediaTime() - t0) * 1000)
         naturalAspect = CGFloat(decoded.width) / CGFloat(max(decoded.height, 1))
         recipe = normalized(recipe)
         let framed = filmBorderEnabled
@@ -833,6 +852,7 @@ final class ViewModel: ObservableObject {
         for id in gone {
             try? FileManager.default.removeItem(at: thumbnailURL(for: id))
             try? FileManager.default.removeItem(at: largeDevelopURL(for: id))
+            try? FileManager.default.removeItem(at: previewFrameURL(for: id))
         }
         if let source = recipeSourcePhotoID, gone.contains(source) {
             recipeSourcePhotoID = nil
@@ -887,7 +907,7 @@ final class ViewModel: ObservableObject {
     static var unexportedDeleteDays: Int { UserDefaults.standard.integer(forKey: unexportedDeleteDaysKey) }
     static let cullSnoozeKey = "SpektraLab.cullSnoozeUntil"
     /// A shot is "waiting" once it is this many days old without an export.
-    static let cullReminderDays = 3
+    static let cullReminderDays = 7
 
     /// Shots from SpektraLab's camera never exported, newest first; `olderThanDays` 0 means all.
     func unexportedShots(olderThanDays days: Int = 0) -> [LibraryPhoto] {
@@ -901,11 +921,15 @@ final class ViewModel: ObservableObject {
     /// The wall's reminder: waiting shots and their size, nil when there are none or it is snoozed.
     var cullReminder: (count: Int, bytes: Int64, soon: Int)? {
         if let until = UserDefaults.standard.object(forKey: Self.cullSnoozeKey) as? Date, until > Date() { return nil }
+        // Shots are no longer exported as they are taken (they develop in the app), so "not exported" is every shot:
+        // the banner speaks only when a week's shots take real room (1 GB), or some are about to be deleted.
         let waiting = unexportedShots(olderThanDays: Self.cullReminderDays)
         guard !waiting.isEmpty else { return nil }
         let days = Self.unexportedDeleteDays
         let soon = days > 0 ? unexportedShots(olderThanDays: days - 1).count : 0
-        return (waiting.count, negativeBytes(waiting), soon)
+        let bytes = negativeBytes(waiting)
+        guard bytes >= 1_073_741_824 || soon > 0 else { return nil }
+        return (waiting.count, bytes, soon)
     }
 
     func snoozeCullReminder() {
@@ -925,27 +949,55 @@ final class ViewModel: ObservableObject {
     private var developRunning = false
     static let autoDevelopKey = "SpektraLab.autoDevelop"
 
-    /// Develop this shot with its look and put the print in Photos, after the ones before it.
+    /// The shots queued or being developed, for the wall's tiles (a progress mark on each).
+    @Published private(set) var developingIDs: Set<UUID> = []
+
+    /// Develop this shot with its look, in the app, after the ones before it: its wall thumbnail and the 3072 px
+    /// develop the viewer, the light table and the editor's first picture read. Nothing goes to Photos (the owner,
+    /// 2026-11-17: exporting every shot was slow; 导出 is a choice).
     func queueDevelop(_ id: UUID) {
         developQueue.append(id)
+        developingIDs.insert(id)
         developPending = developQueue.count + (developRunning ? 1 : 0)
         guard !developRunning else { return }
         developRunning = true
         Task { @MainActor [weak self] in
             guard let self else { return }
             while !self.developQueue.isEmpty {
-                // One engine: wait for the editor, an export or a batch to be done with it.
-                while self.editingPhotoID != nil || self.batchExporting || self.exporting {
-                    try? await Task.sleep(nanoseconds: 500_000_000)
+                // One engine: wait for the editor, a photo opening, an export or a batch to be done with it.
+                while self.editingPhotoID != nil || self.batchExporting || self.exporting || self.libraryBusy != nil {
+                    try? await Task.sleep(nanoseconds: 400_000_000)
                 }
                 let id = self.developQueue.removeFirst()
                 self.developPending = self.developQueue.count + 1
                 NSLog("SpektraLab develop: %@ (%d waiting)", id.uuidString, self.developQueue.count)
-                _ = await self.exportPhotos([id])
+                await self.developForViewing(id)
+                self.developingIDs.remove(id)
             }
             self.developRunning = false
             self.developPending = 0
+            self.developingIDs = []
         }
+    }
+
+    /// One develop at the large size (3072 px): kept as the large develop and, scaled, as the wall's thumbnail.
+    private func developForViewing(_ id: UUID) async {
+        guard let photo = library.first(where: { $0.id == id }) else { return }
+        let started = Date()
+        guard let large = try? await renderThumbnail(for: photo, recipe: photo.recipe, longEdge: Self.largeDevelopEdge, timed: true),
+              let cg = large.cgImage, let i = library.firstIndex(where: { $0.id == id }) else { return }
+        let thumb = LibraryThumbnail.downscale(cg)
+        library[i].thumbnail = thumb
+        try? LibraryThumbnail.saveJPEG(thumb, to: thumbnailURL(for: id))
+        saveLibraryManifest()
+        // After the thumbnail, so the large develop is the newer file (`largeDevelop`'s freshness test).
+        if let data = large.jpegData(compressionQuality: 0.9) { try? data.write(to: largeDevelopURL(for: id), options: .atomic) }
+        // The editor's frame too, so opening this shot skips its RAW decode.
+        if let photo = library.first(where: { $0.id == id }), let data = try? await originalData(for: photo) {
+            let hint = photo.typeIdentifier.flatMap(UTType.init), cache = previewFrameURL(for: id)
+            _ = try? await Task.detached(priority: .utility) { try Self.previewFrame(data: data, typeHint: hint, cache: cache) }.value
+        }
+        NSLog("SpektraLab develop: %@ done in %.1f s", id.uuidString, Date().timeIntervalSince(started))
     }
 
     /// Develop and export these photos to Photos one by one, each with its own look, without showing
@@ -1136,6 +1188,18 @@ final class ViewModel: ObservableObject {
             saveLibraryManifest()
             UserDefaults.standard.set(true, forKey: importsMeterKey)
         }
+        // 2026-11-17 (later): camera shots meter as the Mac does too; untouched ones that took 相机测光 go back to the
+        // engine's meter, once (their thumbnails follow when they are next developed).
+        // And then 保高光 for camera shots (the owner's choice): untouched shots on 相机 or the default go to it, once.
+        let shotsMeterKey = "SpektraLab.shotsProtectHighlights"
+        if editingPhotoID == nil, !UserDefaults.standard.bool(forKey: shotsMeterKey) {
+            for i in library.indices where library[i].captured && !library[i].isEdited
+                && [nil, PhotoRecipe.newPhotoMeter].contains(library[i].recipe.exposureMethod) {
+                library[i].recipe.exposureMethod = PhotoRecipe.shotMeter
+            }
+            saveLibraryManifest()
+            UserDefaults.standard.set(true, forKey: shotsMeterKey)
+        }
         let missing = library.filter { $0.capturedAt == nil }
         guard !missing.isEmpty else { return }
         var found: [UUID: Date] = [:]
@@ -1229,6 +1293,10 @@ final class ViewModel: ObservableObject {
     /// Open a wall photo in the editor. The wall stays on screen with a small
     /// progress label until the engine has the first preview, so the editor
     /// never appears as an empty "add a photo" screen.
+    /// A photo opening in the editor, with its kept develop shown at once while the engine loads it (the owner:
+    /// the editor should open at once once a photo is developed). nil when none is opening or none is kept.
+    @Published private(set) var openingPreview: UIImage?
+
     func openLibraryPhoto(_ id: UUID) async {
         guard libraryBusy == nil,
               let photo = library.first(where: { $0.id == id }) else {
@@ -1241,17 +1309,25 @@ final class ViewModel: ObservableObject {
             return
         }
         libraryBusy = "正在打开 \(photo.name)…"
+        let openStarted = CACurrentMediaTime()
+        func lap(_ what: String) { NSLog("SpektraLab timing open: %@ at %.0f ms", what, (CACurrentMediaTime() - openStarted) * 1000) }
+        if !batchExporting { openingPreview = keptLargeDevelop(for: id) }
+        defer { openingPreview = nil }
         await ensureCameraEV(id)
         apply(photo.recipe)
         crop = photo.crop ?? FrameCrop()
         dateStampDate = photo.createdAt
         shootingDataText = "1/125  F2.8  ISO 400  50mm"
         do {
+            lap("camera EV")
             let data = try await originalData(for: photo)
+            lap("read \(data.count / 1_048_576) MB")
             let hint = photo.typeIdentifier.flatMap(UTType.init)
-            try await loadPhoto(data: data, typeHint: hint, name: photo.name)
+            try await loadPhoto(data: data, typeHint: hint, name: photo.name, cacheID: id)
+            lap("loaded and rendered")
             // As normalised against this photo, so opening and closing it untouched is no edit.
             editingBaseRecipe = recipe
+            editingBaseCrop = crop
             editingPhotoID = id
             resetHistory()
             libraryBusy = nil
@@ -1269,7 +1345,7 @@ final class ViewModel: ObservableObject {
     func closeEditor() {
         guard let id = editingPhotoID else { return }
         let recipe = currentRecipe
-        let changed = recipe != editingBaseRecipe
+        let changed = recipe != editingBaseRecipe || crop != editingBaseCrop
         if let data = try? JSONEncoder().encode(recipe) { UserDefaults.standard.set(data, forKey: Self.lastRecipeKey) }
         if let index = library.firstIndex(where: { $0.id == id }) {
             library[index].recipe = recipe
@@ -1283,12 +1359,10 @@ final class ViewModel: ObservableObject {
         redoStack = []
         editingBaseRecipe = nil
         libraryMessage = nil
-        // A batch export refreshes its thumbnails after the batch (see `exportPhotos`).
-        if !batchExporting {
-            Task { @MainActor [weak self] in
-                await self?.refreshThumbnail(for: id, recipe: recipe)
-            }
-        }
+        // Only a changed photo is developed again (the owner: closing an untouched photo redid its thumbnail, and that
+        // also made its large develop stale). Its thumbnail and large develop together, in the background, through the
+        // develop queue — nothing blocks the wall. A batch export refreshes its own after the batch (`exportPhotos`).
+        if changed && !batchExporting { queueDevelop(id) }
     }
 
     /// Copy one photo's look for the paste action. The recipe is also written
@@ -1363,10 +1437,16 @@ final class ViewModel: ObservableObject {
         for (offset, target) in targets.enumerated() {
             libraryBusy = "正在粘贴配方 \(offset + 1)/\(targets.count)"
             guard let index = library.firstIndex(where: { $0.id == target.id }) else { continue }
-            library[index].recipe = recipe
+            var look = recipe
+            // A camera shot keeps its own exposure compensation (the viewfinder drag): it belongs to the shot, not the look.
+            if target.captured {
+                let key = FilmParam.exposureCompensation.key
+                look.params[key] = target.recipe.params[key]
+            }
+            library[index].recipe = look
             library[index].isEdited = true
             do {
-                let image = try await renderThumbnail(for: library[index], recipe: recipe)
+                let image = try await renderThumbnail(for: library[index], recipe: look)
                 library[index].thumbnail = image
                 try LibraryThumbnail.saveJPEG(image, to: thumbnailURL(for: target.id))
             } catch {
@@ -1393,6 +1473,7 @@ final class ViewModel: ObservableObject {
             }
             try? FileManager.default.removeItem(at: thumbnailURL(for: id))
             try? FileManager.default.removeItem(at: largeDevelopURL(for: id))
+            try? FileManager.default.removeItem(at: previewFrameURL(for: id))
         }
         if let editing = editingPhotoID, ids.contains(editing) {
             editingPhotoID = nil
@@ -1445,12 +1526,16 @@ final class ViewModel: ObservableObject {
     /// One photo developed at `longEdge` px through the engine with its look, crop and 后期: the light table's
     /// slide show. Nil while the editor or an export holds the engine.
     func slideImage(for id: UUID, longEdge: Int = 2048) async -> UIImage? {
-        guard editingPhotoID == nil, !exporting, !batchExporting, developPending == 0,
+        // Background develops give way the moment a photo starts opening (`libraryBusy`): the editor waited behind
+        // a queue of 3072 px develops (the light table's) and spun for a long time.
+        guard editingPhotoID == nil, !exporting, !batchExporting, developPending == 0, libraryBusy == nil,
               let photo = library.first(where: { $0.id == id }) else { return nil }
         return try? await renderThumbnail(for: photo, recipe: photo.recipe, longEdge: longEdge)
     }
 
-    private func renderThumbnail(for photo: LibraryPhoto, recipe: PhotoRecipe, longEdge: Int = 900) async throws -> UIImage {
+    private func renderThumbnail(for photo: LibraryPhoto, recipe: PhotoRecipe, longEdge: Int = 900, timed: Bool = false) async throws -> UIImage {
+        let t0 = CACurrentMediaTime()
+        func lap(_ what: String) { if timed { NSLog("SpektraLab timing develop: %@ at %.0f ms", what, (CACurrentMediaTime() - t0) * 1000) } }
         guard let engine else { throw EngineError.failed(status: -1, message: "引擎没有启动") }
         let data = try await originalData(for: photo)
         let hintID = photo.typeIdentifier
@@ -1472,6 +1557,7 @@ final class ViewModel: ObservableObject {
                                     maxLongEdge: max(1400, longEdge * 5 / 4),
                                     typeHint: hintID.flatMap(UTType.init)).applying(photoCrop).balanced(sceneGains)
         }.value
+        lap("decoded \(decoded.width)x\(decoded.height)")
         let sourceAspect = photoCrop == nil ? CGFloat(photo.sourceAspect)
             : CGFloat(decoded.width) / CGFloat(max(decoded.height, 1))
         let gate = FilmGateCatalog.resolve(selection: recipe.overscanFormat,
@@ -1500,6 +1586,7 @@ final class ViewModel: ObservableObject {
         delta[ParamDefaults.productDefaultsKey] = .bool(true)
         delta["preview_long_edge"] = .number(Double(longEdge))
         let openDelta = delta
+        let place = recipe.placesAutomatically
         let bitmap = try await engine.perform {
             try framed.pixels.withUnsafeBufferPointer { buffer in
                 guard let base = buffer.baseAddress else {
@@ -1510,9 +1597,10 @@ final class ViewModel: ObservableObject {
                                                          height: framed.height),
                                     params: openDelta)
             }
-            try engine.solve(target: "both")
+            try engine.solve(placement: place)
             return try engine.renderBitmap(tier: "live", reprint: false)
         }
+        lap("engine rendered")
         var picture = bitmap.cgImage
         if let a = recipe.adjustments, a.isActive, let layer2 = Layer2Renderer.shared {
             picture = try layer2.image(try layer2.source(bitmap.cgImage), a, space: Layer2Renderer.previewSpace)
@@ -1538,6 +1626,8 @@ final class ViewModel: ObservableObject {
         // Taking the address inside a closure and using it outside would
         // leave it dangling -- which reads as a frame of noise rather than
         // as a crash, and is much harder to find.
+        let tOpen = CACurrentMediaTime()
+        defer { NSLog("SpektraLab timing: engine open+solve+render %.0f ms", (CACurrentMediaTime() - tOpen) * 1000) }
         let reply = try await engine.perform {
             try decoded.pixels.withUnsafeBufferPointer { buffer in
                 guard let base = buffer.baseAddress else {
@@ -1557,7 +1647,8 @@ final class ViewModel: ObservableObject {
         // The solve must happen before the first render, or the print uses
         // default exposure and the highlights blow out — which looks like a
         // rendering bug and is not one.
-        try await engine.perform { try engine.solve(target: "both") }
+        let place = currentRecipe.placesAutomatically
+        try await engine.perform { try engine.solve(placement: place) }
 
         await renderNow()
     }
@@ -1640,10 +1731,9 @@ final class ViewModel: ObservableObject {
                     let hint = self.originalTypeHint
                     let crop = self.crop
                     let gains = self.recipe.sceneBalance
+                    let cache = self.editingPhotoID.map(self.previewFrameURL)       // a crop or turn: no new decode
                     let decoded = try await Task.detached(priority: .userInitiated) {
-                        try ImageDecoder.decode(data: data,
-                                                maxLongEdge: ImageDecoder.previewLongEdge,
-                                                typeHint: hint).applying(crop).balanced(gains)
+                        try Self.previewFrame(data: data, typeHint: hint, cache: cache).applying(crop).balanced(gains)
                     }.value
                     guard sourceGeneration == self.sourceGeneration else { continue }
                     self.naturalAspect = CGFloat(decoded.width) / CGFloat(max(decoded.height, 1))
@@ -1673,8 +1763,21 @@ final class ViewModel: ObservableObject {
     }
 
     /// 相机测光's measure for a photo, once: how far its linear decode sits under the camera's own develop of it.
+    /// The RAW decode changed (2026-11-17: upstream's +1 EV and no shadow bias): every 相机 measure taken against the
+    /// old decode is forgotten once and taken again (`ensureCameraEV`), or those shots would print a stop over.
+    func forgetCameraEVsOnce() {
+        let key = "SpektraLab.cameraEV.decodeV2"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        var changed = false
+        for i in library.indices where library[i].cameraEV != nil { library[i].cameraEV = nil; changed = true }
+        if changed { saveLibraryManifest() }
+    }
+
     func ensureCameraEV(_ id: UUID) async {
+        // Only for a photo on 相机测光: it decodes the file twice (0.9 s of every open, measured, for nothing).
         guard let photo = library.first(where: { $0.id == id }), photo.cameraEV == nil,
+              photo.recipe.exposureMethod == PhotoRecipe.newPhotoMeter,
               let data = try? await originalData(for: photo) else { return }
         let hint = photo.typeIdentifier.flatMap(UTType.init)
         let ev = await Task.detached(priority: .userInitiated) { ImageDecoder.cameraExposureEV(data: data, typeHint: hint) }.value
@@ -1850,6 +1953,7 @@ final class ViewModel: ObservableObject {
         guard !exporting, !engineLent else { return }
         guard let frame, let engine else { return }
         let openDelta = currentOpenDelta()
+        let place = currentRecipe.placesAutomatically
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
@@ -1866,7 +1970,7 @@ final class ViewModel: ObservableObject {
                             width: frame.width,
                             height: frame.height), params: openDelta)
                     }
-                    try engine.solve(target: "both")
+                    try engine.solve(placement: place)
                 }
                 NSLog("SpektraLab reopen: session ready")
                 self.paramsDirty = false
@@ -1929,6 +2033,7 @@ final class ViewModel: ObservableObject {
         do {
             let dirty = paramsDirty
             let changed = currentEngineDelta()
+            let place = currentRecipe.placesAutomatically
             let layer2 = adjustments.isActive ? Layer2Renderer.shared : nil
             let look = previewAdjustments
             let plain: CGImage?
@@ -1947,8 +2052,9 @@ final class ViewModel: ObservableObject {
                 if dirty {
                     _ = try engine.setParams(changed)
                     // The exposure has to be recomputed when the
-                    // compensation changed, or the print keeps the old EV.
-                    try engine.solve(target: "both")
+                    // compensation changed, or the print keeps the old EV; the placement with it (the delta just
+                    // sent turned the scene latitude off again).
+                    try engine.solve(placement: place)
                 }
 
                 // `live` is the interactive tier: the engine renders at the
@@ -2276,6 +2382,8 @@ final class ViewModel: ObservableObject {
     static let reopenKey = "SpektraLab.reopenTo"
     /// Set when the app should show the camera; the wall presents it and clears this.
     @Published var cameraRequested = false
+    /// The library's 观片台 button: `MainTabs` pushes the light table in.
+    @Published var lightTableRequested = false
     /// `collectHandedOver` running.
     var handingOver = false
     private var backgroundedAt: Date?
@@ -2713,8 +2821,9 @@ final class ViewModel: ObservableObject {
             }
             decoded = nil
             if !noFilm { stage("引擎已载入原图") }
+            let place = recipe.placesAutomatically
             var rendered: RenderedBitmap? = noFilm ? nil : try await engine.perform {
-                try engine.solve(target: "both")
+                try engine.solve(placement: place)
                 let bitmap = try engine.renderBitmap(tier: "full", reprint: false,
                                                      colorSpace: space.cgColorSpace)
                 // The striped render's working buffers stay pooled; let them go before the copy below.

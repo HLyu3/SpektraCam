@@ -98,16 +98,16 @@ extension ViewModel {
         if roll.isEmpty { return nil }
         if roll.hasPrefix("recipe:"), let id = UUID(uuidString: String(roll.dropFirst(7))),
            let saved = savedRecipes.first(where: { $0.id == id }) {
-            // A combination saved before 相机测光 never chose a meter: its shots meter as a new photo does (a
-            // 均衡 shot on such a roll blew a room out). A meter chosen for it is kept.
+            // A combination's own meter, if one was chosen; none meters as a camera shot does (保高光).
             var look = saved.recipe
-            if look.exposureMethod == nil { look.exposureMethod = PhotoRecipe.newPhotoMeter }
+            if look.exposureMethod == nil { look.exposureMethod = PhotoRecipe.shotMeter }
             return look
         }
         var look = newPhotoRecipe
         look.noFilm = nil          // a film roll: the new-photo look is 无胶片 by default, the roll is not
-        // A camera shot develops at the camera's own exposure (相机测光), whatever the new-photo look's meter.
-        look.exposureMethod = PhotoRecipe.newPhotoMeter
+        // A camera shot meters 保高光 (the owner, 2026-11-17, as the official app's shots look: the sky held); imports
+        // keep the Mac's 均衡. 相机 and 均衡 stay choices in 曝光.
+        look.exposureMethod = PhotoRecipe.shotMeter
         look.filmStock = films.contains { $0.id == roll } ? roll : StockCatalog.defaultFilm
         look.printStock = chosen.flatMap { catalog.canPrint(film: look.filmStock, on: $0) ? $0 : nil }
             ?? paper(for: look.filmStock)     // as the editor picks it for this film

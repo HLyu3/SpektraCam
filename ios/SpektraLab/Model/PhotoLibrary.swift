@@ -63,6 +63,12 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
     var watermarks: [WatermarkPlacement]? = nil
     /// 白平衡 at the decode (`Edit/SceneBalance.swift`): r, g, b gains on the linear frame before the engine. nil = as shot.
     var sceneBalance: [Double]? = nil
+    /// 自动置位 (the engine's Scene Latitude fit, solved per photo): nil = off, as the Mac app's default (the owner:
+    /// the same look as the Mac, sky and all); true = on. Ignored while the manual 场景置位 is on. Not a wire key: a
+    /// solve step (`SpektraEngine.solve(placement:)`).
+    var autoPlacement: Bool? = nil
+    /// Whether the engine places this photo's scene itself.
+    var placesAutomatically: Bool { autoPlacement == true && (params["scene_latitude_active"] ?? 0) < 0.5 && noFilm != true }
     /// 无胶片: the original as the system renders it (plus 后期), no engine. nil is off.
     var noFilm: Bool? = nil
 
@@ -81,7 +87,9 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
     /// 保高光. "Balanced" lifted a dark room with white cabinets about 2 EV
     /// and blew them out (a 4× kitchen shot, 2026-11-16); protect-highlights fixed it and left an ordinary scene
     /// exactly as balanced develops it (measured through the engine). Older photos keep their meter.
-    static let newPhotoMeter = "camera"     // for shots from this app's camera only (`ViewModel.rollRecipe`)
+    static let newPhotoMeter = "camera"     // 相机测光 (a choice; was camera shots' default until 2026-11-17)
+    /// A camera shot's meter (`ViewModel.rollRecipe`): 保高光, the sky held.
+    static let shotMeter = "protect_highlights"
 
     /// The look a newly imported photograph starts with.
     static var standard: PhotoRecipe {

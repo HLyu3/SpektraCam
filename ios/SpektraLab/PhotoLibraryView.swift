@@ -15,7 +15,7 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if model.editingPhotoID != nil && !model.batchExporting {
+            if (model.editingPhotoID != nil || model.openingPreview != nil) && !model.batchExporting {
                 EditorView()
                     .transition(.opacity.combined(with: .scale(scale: 1.015)))
             } else {
@@ -123,7 +123,7 @@ struct PhotoLibraryView: View {
     @State private var narrowBar = false
 
     private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: dense ? 1 : 3, alignment: .top), count: min(max(columnCount, 1), 14))
+        Array(repeating: GridItem(.flexible(), spacing: dense ? 1 : 2, alignment: .top), count: min(max(columnCount, 1), 14))
     }
 
     private var selectablePhotoIDs: Set<UUID> {
@@ -153,12 +153,13 @@ struct PhotoLibraryView: View {
                         emptyState
                     } else {
                         sectionHeader
-                        wall
+                        // The wall runs nearly edge to edge (2 pt) so three tiles a row are as large as they can be.
+                        wall.padding(.horizontal, -12)
                     }
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
-                .padding(.bottom, selecting ? 148 : 24)
+                .padding(.bottom, selecting ? 148 : 100)   // clear of the camera button
             }
             .scrollIndicators(.hidden)
             // Photos scrolling under the status bar fade out instead of showing through it.
@@ -187,12 +188,18 @@ struct PhotoLibraryView: View {
                 Group { if showingSystemPhotos { photosSelectionBar } else { selectionBar } }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(2)
+            } else {
+                cameraButton
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 6)
+                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+                    .zIndex(2)
             }
 
             if let message = model.libraryMessage {
                 toast(message)
                     .padding(.horizontal, 20)
-                    .padding(.bottom, selecting ? 128 : 18)
+                    .padding(.bottom, selecting ? 128 : 96)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(3)
@@ -310,6 +317,7 @@ struct PhotoLibraryView: View {
     // MARK: - header
 
     private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
         HStack(alignment: .bottom, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("SPEKTRA CAM · 暗房")
@@ -320,10 +328,6 @@ struct PhotoLibraryView: View {
                     .font(.system(size: 36, weight: .bold))
                     .tracking(-0.6)
                     .foregroundStyle(Color.labCream)
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color.labCream.opacity(0.5))
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
@@ -349,10 +353,18 @@ struct PhotoLibraryView: View {
                                 .labGlassInteractive(in: Circle())
                         }
                         .accessibilityLabel("导入照片")
+                        headerButton("light.panel", "观片台") { model.lightTableRequested = true }
                         headerButton("gearshape", "设置") { showingSettings = true }
                     }
                 }
             }
+        }
+        // The stats on a line of their own, the full width: beside four buttons they were cut short.
+        Text(subtitle)
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundStyle(Color.labCream.opacity(0.5))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
         }
         .padding(.top, 2)
         .photosPicker(isPresented: $showingPicker, selection: $pickerItems, maxSelectionCount: 100,
@@ -364,6 +376,23 @@ struct PhotoLibraryView: View {
                 pickerItems = []
             }
         }
+    }
+
+    /// The way to the camera: a shutter at the bottom of the wall (no tab bar since 2026-11-17).
+    private var cameraButton: some View {
+        Button { model.cameraRequested = true } label: {
+            ZStack {
+                Circle().strokeBorder(Color.labCream.opacity(0.9), lineWidth: 3)
+                Circle().fill(Color.labRed).padding(7)
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Color.labInk)
+            }
+            .frame(width: 68, height: 68)
+            .shadow(color: .black.opacity(0.45), radius: 10, y: 3)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("拍摄")
     }
 
     private func headerButton(_ symbol: String, _ label: String, _ run: @escaping () -> Void) -> some View {
@@ -675,7 +704,7 @@ struct PhotoLibraryView: View {
     }
 
     private var wall: some View {
-        LazyVGrid(columns: columns, spacing: 3, pinnedViews: [.sectionHeaders]) {
+        LazyVGrid(columns: columns, spacing: dense ? 1 : 2, pinnedViews: [.sectionHeaders]) {
             ForEach(sections, id: \.key) { section in
                 Section {
                     ForEach(section.photos) { photo in
@@ -697,6 +726,7 @@ struct PhotoLibraryView: View {
                         Spacer()
                     }
                     .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
                 }
             }
         }
@@ -745,6 +775,7 @@ struct PhotoLibraryView: View {
         let isRecipeSource = model.recipeSourcePhotoID == photo.id
         let shape = RoundedRectangle(cornerRadius: dense ? 1 : 4, style: .continuous)
 
+        // Square cells filled edge to edge, as Photos' default grid.
         return Color.labPanel
             .aspectRatio(1, contentMode: .fit)
             // The picture in a layer of its own: filling the square, a wide photo is wider than the tile, and the
@@ -795,6 +826,17 @@ struct PhotoLibraryView: View {
                 }
             }
             .clipShape(shape)
+            // Being developed in the background (a camera shot): a soft mark, the wall stays usable.
+            .overlay {
+                if model.developingIDs.contains(photo.id) {
+                    ZStack {
+                        Color.black.opacity(0.3)
+                        ProgressView().controlSize(.small).tint(Color.labCream)
+                    }
+                    .clipShape(shape)
+                    .allowsHitTesting(false)
+                }
+            }
             .overlay {
                 shape.strokeBorder(isSelected ? Color.labRed : Color.white.opacity(0.055),
                                    lineWidth: isSelected ? 2 : 1)
@@ -825,29 +867,6 @@ struct PhotoLibraryView: View {
                     .frame(width: 22, height: 22)
                     .shadow(color: .black.opacity(0.28), radius: 3, y: 1)
                     .padding(6)
-                } else if photo.isEdited && columnCount <= 4 {
-                    Menu {
-                        Button {
-                            Task { @MainActor in await model.openLibraryPhoto(photo.id) }
-                        } label: {
-                            Label("编辑", systemImage: "slider.horizontal.3")
-                        }
-                        recipeButtons(photo)
-                        Button(role: .destructive) {
-                            deleteIDs = [photo.id]
-                            showingDelete = true
-                        } label: {
-                            Label("删除", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 26, height: 26)
-                            .labGlassInteractive(in: Circle())
-                            .padding(6)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
             .overlay(alignment: .topLeading) {

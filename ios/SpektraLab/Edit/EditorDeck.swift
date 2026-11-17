@@ -137,7 +137,7 @@ extension EditTool {
                      || !["balanced", "protect_highlights", PhotoRecipe.newPhotoMeter].contains($0.exposureMethod) },
                  // Reset: a camera shot back to 相机, anything imported back to the engine's meter.
                  reset: { m in resetParams([.exposureCompensation], m) {
-                     $0.exposureMethod = m.editingPhoto?.captured == true ? PhotoRecipe.newPhotoMeter : nil } },
+                     $0.exposureMethod = m.editingPhoto?.captured == true ? PhotoRecipe.shotMeter : nil } },
                  panel: { m, _ in AnyView(ToolScroll {
                      ChipRow(title: "测光", options: [("camera", "相机"), ("balanced", "均衡"), ("center", "中央"), ("protect_highlights", "保高光"),
                                                      ("protect_shadows", "保阴影"), ("manual", "手动")],
@@ -165,9 +165,16 @@ extension EditTool {
                  reset: { $0.setSceneCurve(CurveSet()) },
                  panel: { m, _ in AnyView(DecodeCurvePanel(model: m)) }),
         EditTool(id: "placement", title: "置位", stage: .develop,
-                 modified: { paramsMoved([.sceneLatitudeActive, .highlightRoom, .shadowRoom], $0) },
-                 reset: { resetParams([.sceneLatitudeActive, .highlightRoom, .shadowRoom], $0) },
+                 modified: { paramsMoved([.sceneLatitudeActive, .highlightRoom, .shadowRoom], $0) || $0.recipe.autoPlacement == true },
+                 reset: { resetParams([.sceneLatitudeActive, .highlightRoom, .shadowRoom], $0) { $0.autoPlacement = nil } },
                  panel: { m, _ in AnyView(ToolScroll {
+                     // 自动置位, off by default as on the Mac: the engine fits this photo's scene into the film's latitude.
+                     Toggle("自动置位", isOn: Binding(get: { m.recipe.autoPlacement == true },
+                                                  set: { on in m.edit { $0.autoPlacement = on ? true : nil } }))
+                         .font(.footnote)
+                         .tint(Color.labRed)
+                         .disabled((m.params[FilmParam.sceneLatitudeActive.key] ?? 0) >= 0.5)
+                     Note("默认关闭，和 Mac 版一样。打开后，自动把太亮的天空和窗外收进胶片能记录的范围，主体亮度基本不变。下面的「场景置位」打开后改为手动。")
                      sliders([.sceneLatitudeActive], m)
                      if (m.params[FilmParam.sceneLatitudeActive.key] ?? 0) >= 0.5 { sliders([.highlightRoom, .shadowRoom], m) }
                  }) }),

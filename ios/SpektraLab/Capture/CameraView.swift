@@ -11,6 +11,8 @@ struct CameraView: View {
     @Environment(\.dismiss) private var dismiss
     /// How the camera closes when it is laid over the tabs (`MainTabs`, faded in and out) rather than presented.
     var close: (() -> Void)? = nil
+    /// False while the page waits off screen (`MainTabs` keeps it built): camera stopped, shutter buttons not ours.
+    var active = true
     private func leave() { if let close { close() } else { dismiss() } }
     @State private var camera = CameraController.shared
     /// Held, not observed: the meter publishes 30 times a second, and redrawing the whole page that often
@@ -25,14 +27,13 @@ struct CameraView: View {
     @State private var paperPick: (roll: String, paper: String)?
     private var rollPaper: String? { paperPick?.roll == roll ? paperPick?.paper : nil }
     /// The size to shoot, in MP; 0 = the lens's largest.
-    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 48   // HEIF 48 MP by default; a lens without it takes its largest
+    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 12   // ProRAW 12 MP by default (48 MP files are ~75 MB and slow to develop)
     @AppStorage("SpektraLab.cameraFlash") private var flash = CameraController.Flash.off.rawValue
     @AppStorage("SpektraLab.cameraGrid") private var showGrid = true
     @AppStorage("SpektraLab.cameraLevel") private var showLevel = true
     @AppStorage("SpektraLab.cameraToPhotos") private var toPhotos = false
     @AppStorage("SpektraLab.haptics") private var haptics = true
     /// Develop every shot with the roll's look and put the print in Photos.
-    @AppStorage(ViewModel.autoDevelopKey) private var autoDevelop = false   // off unless chosen (the owner, 2026-11-17)
     /// The viewfinder in the roll's colours (a cube baked through the engine), or plain.
     @AppStorage("SpektraLab.cameraFilmLook") private var filmLook = true
     /// The lens row's labels: "x" zoom factors as the Camera app shows them (0.5, 1×, 2, 4), or "mm" focal lengths.
@@ -142,12 +143,19 @@ struct CameraView: View {
         .onGeometryChange(for: Bool.self) { $0.size.width < 420 } action: { narrow = $0 }   // 17 Pro 402, 14 Pro 393, SE 375; Pro Max 440
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
-        .statusBarHidden()
-        .task {
+        .statusBarHidden(active)   // not while waiting off screen
+        // Built once and kept (`MainTabs`): the camera runs only while the page is up.
+        .task(id: active) {
+            guard active else { camera.stop(); level.stop(); irisOpen = false; return }
             // HEIF was the default for a few hours of 2026-11-17: a phone that kept it gets RAW, once.
             if !UserDefaults.standard.bool(forKey: "SpektraLab.cameraFormatRawDefault") {
                 UserDefaults.standard.set(true, forKey: "SpektraLab.cameraFormatRawDefault")
                 if format == CameraController.Format.heif.rawValue { format = CameraController.Format.proRAW.rawValue }
+            }
+            // 12 MP by default (2026-11-17, the owner: 48 MP is too big and slow); a phone left at 48 comes down, once.
+            if !UserDefaults.standard.bool(forKey: "SpektraLab.cameraSize12Default") {
+                UserDefaults.standard.set(true, forKey: "SpektraLab.cameraSize12Default")
+                if sizeMP == 48 { sizeMP = 12 }
             }
             camera.preferredMP = chosenMP
             camera.setFormat(chosen)
@@ -171,7 +179,7 @@ struct CameraView: View {
         }
         .onDisappear { camera.stop(); level.stop(); irisOpen = false }
         // The Camera Control button (and the volume buttons) is the shutter while this page is up.
-        .onCameraCaptureEvent { event in
+        .onCameraCaptureEvent(isEnabled: active) { event in
             if event.phase == .ended { shoot() }
         }
         .sheet(isPresented: $showingSettings) { SettingsView(model: model) }
@@ -251,7 +259,6 @@ struct CameraView: View {
             .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
             .accessibilityElement(children: .combine)
             Menu {
-                Toggle("拍完自动冲洗", isOn: $autoDevelop)
                 Toggle("同时存入“照片”", isOn: $toPhotos)
                 Divider()
                 Picker("镜头显示", selection: $lensLabel) {
@@ -362,7 +369,7 @@ struct CameraView: View {
             guard !Task.isCancelled, dragFrom == nil, !aeLocked else { return }
             withAnimation(.easeOut(duration: 0.4)) { focusPoint = nil }
         }
-        .overlay { if filmLook && !noFilm { FilmViewfinder(renderer: finder).allowsHitTesting(false) } }
+        .overlay { if filmLook && !noFilm { FilmViewfinder(renderer: finder, active: active).allowsHitTesting(false) } }
         .aspectRatio(3.0 / 4.0, contentMode: .fit)
         // No pinch zoom (the owner, 2026-11-16): the lens stops (0.5 · 1 · 2 · 4 · 8, native or in-sensor) are where
         // the picture is best; finer framing is the editor's crop.
@@ -906,7 +913,7 @@ struct CameraView: View {
         if !status.manual, abs(status.bias) >= 0.05 {
             shotLook?.params[FilmParam.exposureCompensation.key] = (Double(status.bias) * 10).rounded() / 10
         }
-        let format = chosen, film = roll, look = shotLook, develop = autoDevelop, flashMode = CameraController.Flash(rawValue: flash) ?? .off, save = toPhotos
+        let format = chosen, film = roll, look = shotLook, develop = true, flashMode = CameraController.Flash(rawValue: flash) ?? .off, save = toPhotos
         Task {
             defer { pending -= 1 }
             do {

@@ -57,6 +57,9 @@ final class FilmViewfinderRenderer: NSObject, MTKViewDelegate, @unchecked Sendab
 
 struct FilmViewfinder: UIViewRepresentable {
     let renderer: FilmViewfinderRenderer
+    /// Off screen (the camera page kept a moment after it is left) it must not draw: an unseen Metal layer never
+    /// gives its drawables back, and every draw then waited on the main thread for one — the app froze for seconds.
+    var active = true
 
     func makeUIView(context: Context) -> MTKView {
         let view = MTKView(frame: .zero, device: renderer.device)
@@ -74,5 +77,5 @@ struct FilmViewfinder: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: MTKView, context: Context) {}
+    func updateUIView(_ view: MTKView, context: Context) { view.isPaused = !active }
 }

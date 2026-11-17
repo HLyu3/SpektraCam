@@ -433,6 +433,36 @@ final class SpektraEngine: @unchecked Sendable {
         return try decode(out, as: SolveReply.self)
     }
 
+    /// 自动置位: the engine's own Scene Latitude fit for this session (`spk_scene_latitude`, RFC-023) — its suggested
+    /// highlight and shadow pull-backs, solved — as the delta that commits it; nil where it has no valid fit.
+    func sceneLatitudeDelta() throws -> [String: ParamValue]? {
+        guard let session else { throw EngineError.failed(status: -1, message: "no session is open") }
+        var out: UnsafeMutablePointer<CChar>?
+        guard spk_scene_latitude(session, nil, &out) == EngineStatus.ok, let out else { return nil }
+        defer { spk_string_free(out) }
+        guard let obj = try? JSONSerialization.jsonObject(with: Data(bytes: out, count: strlen(out))) as? [String: Any],
+              let raw = (obj["params_delta"] ?? (obj["fit"] as? [String: Any])?["params_delta"]) as? [String: Any]
+        else { return nil }
+        var delta: [String: ParamValue] = [:]
+        for (key, value) in raw {
+            // A JSON number bridges `as? Bool` too (0 → false): only a real boolean is a bool, or the engine refused
+            // "'scene_latitude_shadow_room' expects float".
+            if let n = value as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() { delta[key] = .bool(n.boolValue) }
+            else if let n = value as? NSNumber { delta[key] = .number(n.doubleValue) }
+            else if let v = value as? String { delta[key] = .string(v) }
+        }
+        return delta.isEmpty ? nil : delta
+    }
+
+    /// The print solved, then — with `placement` — the scene placed into the film's latitude and solved again
+    /// (what the Mac's Latitude card commits by hand, done for every photo: a window's sky kept, the room as it was).
+    func solve(placement: Bool) throws {
+        try solve(target: "both")
+        guard placement, let delta = try sceneLatitudeDelta() else { return }
+        _ = try setParams(delta)
+        try solve(target: "both")
+    }
+
     /// Enable HDR's gain curve for this session (`spk_session_hdr_curve`, API-SPEC §19.2): the reply's
     /// JSON, parsed by `HDRSessionCurve.parse`. Throws where the engine refuses (no curve for this medium).
     func hdrCurve(headroom: Double = HDRSessionCurve.headroom) throws -> String {

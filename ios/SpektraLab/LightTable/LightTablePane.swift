@@ -63,13 +63,21 @@ extension ViewModel {
     /// photo in the viewer is not upscaled. It was 2048, which the owner saw as soft.
     static let largeDevelopEdge = 3072
 
-    func largeDevelop(for id: UUID) async -> UIImage? {
+    /// The kept large develop, if it is current (no newer thumbnail, i.e. the look has not changed since) — never made.
+    func keptLargeDevelop(for id: UUID) -> UIImage? {
         let url = largeDevelopURL(for: id)
         let keys: Set<URLResourceKey> = [.contentModificationDateKey]
         let thumb = (try? thumbnailURL(for: id).resourceValues(forKeys: keys))?.contentModificationDate ?? .distantPast
-        if let made = (try? url.resourceValues(forKeys: keys))?.contentModificationDate, made >= thumb,
-           let image = UIImage(contentsOfFile: url.path),
-           max(image.size.width, image.size.height) * image.scale >= CGFloat(Self.largeDevelopEdge) - 8 { return image }
+        guard let made = (try? url.resourceValues(forKeys: keys))?.contentModificationDate, made >= thumb,
+              let image = UIImage(contentsOfFile: url.path),
+              max(image.size.width, image.size.height) * image.scale >= CGFloat(Self.largeDevelopEdge) - 8 else { return nil }
+        DevelopCache.touch(url)
+        return image
+    }
+
+    func largeDevelop(for id: UUID) async -> UIImage? {
+        let url = largeDevelopURL(for: id)
+        if let kept = keptLargeDevelop(for: id) { return kept }
         guard let image = await slideImage(for: id, longEdge: Self.largeDevelopEdge) else { return nil }
         if let data = image.jpegData(compressionQuality: 0.9) { try? data.write(to: url, options: .atomic) }
         return image
@@ -90,6 +98,9 @@ final class LargeDevelops {
     }
 
     /// In this order (the table's films first, then the tray's), each once.
+    /// Leaving the light table: nothing more is made in the background.
+    func stop() { queue.removeAll() }
+
     func want(ordered ids: [UUID]) {
         for id in ids where !queue.contains(id) { queue.append(id) }
         pump()
@@ -117,9 +128,14 @@ struct LightTablePane: View {
     var laying: [UUID] = []
     /// A tab of its own (`MainTabs`): no back button.
     var embedded = false
+    /// Back, when the page is not presented (pushed by `MainTabs`); nil = dismiss.
+    var close: (() -> Void)? = nil
+    /// False while the page waits off screen (`MainTabs` keeps it built).
+    var active = true
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var table: LightTableController?
+    @State private var tableClosed = false
     @State private var loupeMode = false
     @State private var adding = false
     @State private var undo: Undo?
@@ -159,8 +175,15 @@ struct LightTablePane: View {
         .onChange(of: immersive) { _, on in model.lightTableImmersive = on }
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
-        .onAppear(perform: open)
-        .onDisappear { table?.close() }
+        // Open while shown; off screen the background develops stop at once (the engine is the editor's), the table
+        // itself closes after 30 s (its textures) — coming back sooner finds it as it was.
+        .task(id: active) {
+            if active { open(); return }
+            largeDevelops?.stop()
+            try? await Task.sleep(for: .seconds(30))
+            if !Task.isCancelled, !tableClosed { table?.close(); tableClosed = true }
+        }
+        .onDisappear { if !tableClosed { table?.close(); tableClosed = true }; largeDevelops?.stop() }
         .onChange(of: glow) { _, _ in applyGlow() }
         .onChange(of: printSize) { _, on in
             guard let table else { return }
@@ -184,7 +207,12 @@ struct LightTablePane: View {
     }
 
     private func open() {
-        if let table { table.reopen(model.lightTableFrames); sharpen(table); return }
+        if let table {
+            // Still open (back within 30 s): only the develops restart. Closed: reopen (it watches memory again).
+            if tableClosed { table.reopen(model.lightTableFrames); tableClosed = false }
+            sharpen(table)
+            return
+        }
         let c = LightTableController(frames: model.lightTableFrames, bodySeed: 0,
                                      store: LightTableStore(url: model.lightTableStoreURL))
         c.select(nil)
@@ -226,10 +254,21 @@ struct LightTablePane: View {
                 Text("观片台").font(.system(size: 28, weight: .bold)).padding(.leading, 8)
                 Spacer()
             } else {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44)
+                // A glass capsule naming where it goes (a bare chevron was small and hard to hit; no edge swipe — the
+                // owner preferred a button that is easy to press).
+                Button { if let close { close() } else { dismiss() } } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
+                        Text("底片").font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.labCream)
+                    .padding(.leading, 12).padding(.trailing, 16)
+                    .frame(height: 44)
+                    .labGlassInteractive(in: Capsule())
+                    .contentShape(Capsule())
                 }
-                .accessibilityLabel("返回")
+                .buttonStyle(.plain)
+                .accessibilityLabel("返回底片")
                 Spacer()
                 Text("观片台").font(.headline)
                 Spacer()

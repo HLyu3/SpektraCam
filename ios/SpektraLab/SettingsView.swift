@@ -7,7 +7,7 @@ struct SettingsView: View {
     @ObservedObject var model: ViewModel
     @Environment(\.dismiss) private var dismiss
     @AppStorage("SpektraLab.cameraFormat") private var format = CameraController.Format.proRAW.rawValue
-    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 48   // HEIF 48 MP by default; a lens without it takes its largest
+    @AppStorage("SpektraLab.cameraSizeMP") private var sizeMP = 12   // ProRAW 12 MP by default (48 MP files are ~75 MB and slow to develop)
     @AppStorage("SpektraLab.cameraLensLabel") private var lensLabel = "x"
     @AppStorage(ViewModel.reopenKey) private var reopenTo = UserDefaults.standard.bool(forKey: "SpektraLab.openToCamera") ? "camera" : "last"
     @AppStorage("SpektraLab.cameraToPhotos") private var toPhotos = false
@@ -20,9 +20,10 @@ struct SettingsView: View {
     @State private var body_ = CameraBody.number
     @State private var nextFrame = CameraBody.nextFrame
     @State private var storage = ""
+    @State private var cacheBytes: Int64 = 0
+    @AppStorage(DevelopCache.keepDaysKey) private var cacheDays = 14
     @AppStorage(ViewModel.negativeKeepDaysKey) private var keepDays = 7
     @AppStorage(ViewModel.unexportedDeleteDaysKey) private var unexportedDays = 0
-    @AppStorage(ViewModel.autoDevelopKey) private var autoDevelop = false   // off unless chosen (the owner, 2026-11-17)
     @State private var confirmingCleanup = false
     @State private var cleanable: (count: Int, bytes: Int64) = (0, 0)
 
@@ -75,7 +76,6 @@ struct SettingsView: View {
                         Text("回到照片库").tag("library")
                         Text("总是打开相机").tag("camera")
                     }
-                    Toggle("拍完自动冲洗", isOn: $autoDevelop)
                     Toggle("拍摄的照片也存入“照片”", isOn: $toPhotos)
                     Picker("底片保留", selection: $keepDays) {
                         ForEach([1, 3, 7, 14, 30, 60, 90], id: \.self) { Text("\($0) 天").tag($0) }
@@ -118,6 +118,17 @@ struct SettingsView: View {
                     .onChange(of: source) { _, new in filter = new == "photos" ? "photos" : "all" }
                     PhotoAccessRow()
                     LabeledContent("储存空间", value: storage)
+                    // 冲洗缓存: what makes viewing and editing fast; it can always be made again.
+                    LabeledContent("冲洗缓存", value: String(format: "%.0f MB", Double(cacheBytes) / 1_048_576))
+                    Picker("缓存保留", selection: $cacheDays) {
+                        ForEach([3, 7, 14, 30, 90], id: \.self) { Text("\($0) 天没看就删").tag($0) }
+                        Text("一直保留").tag(0)
+                    }
+                    Button("清除冲洗缓存") {
+                        DevelopCache.prune(in: model.libraryRootURL, olderThanDays: nil)
+                        refreshStorage()
+                    }
+                    .disabled(cacheBytes == 0)
                     Button(cleanable.count == 0 ? "没有可清理的底片"
                            : String(format: "清理已导出的底片 · %d 张 · %.0f MB", cleanable.count, Double(cleanable.bytes) / 1_048_576)) {
                         confirmingCleanup = true
@@ -134,7 +145,7 @@ struct SettingsView: View {
                 } header: {
                     Text("照片库")
                 } footer: {
-                    Text("从相册添加照片时，只关联不复制，原图留在相册里。\n相册权限选了“部分照片”时，只能冲洗你选过的那些；改成“完全访问”要到系统设置 › Spektra Cam › 照片。\n“系统相册”：照片库里多一个“系统相册”视图，直接冲洗相册里的照片——原图留在相册里不动，Spektra Cam 只记下配方和冲洗后的缩略图；RAW + JPEG 的照片按 RAW 冲洗。")
+                    Text("从相册添加照片时，只关联不复制，原图留在相册里。\n相册权限选了“部分照片”时，只能冲洗你选过的那些；改成“完全访问”要到系统设置 › Spektra Cam › 照片。\n“系统相册”：照片库里多一个“系统相册”视图，直接冲洗相册里的照片——原图留在相册里不动，Spektra Cam 只记下配方和冲洗后的缩略图；RAW + JPEG 的照片按 RAW 冲洗。\n冲洗缓存：每张冲过的照片会留一份清晰版和编辑用的画面（每张约 30–50 MB），让查看和编辑能马上打开；超过设定天数没看过的会自动删除，需要时会重新冲洗，删掉不会丢照片。")
                 }
 
                 Section("关于") {
@@ -161,6 +172,7 @@ struct SettingsView: View {
 
     private func refreshStorage() {
         let bytes = model.libraryBytes()
+        cacheBytes = DevelopCache.bytes(in: model.libraryRootURL)
         storage = String(format: "%.1f GB · %d 张", Double(bytes) / 1_073_741_824, model.library.count)
         let negatives = model.expendableNegatives(olderThanDays: nil)
         cleanable = (negatives.count, model.negativeBytes(negatives))

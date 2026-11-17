@@ -30,6 +30,14 @@ CIImage *SPKDecodeRAWImage(NSData *data, NSString *identifierHint) {
         SPKTrySetter(@"draft mode", ^{
             raw.draftModeEnabled = NO;
         });
+        // Upstream 2.4.1's decode (`RawExposure.recipe`, source-reference.2): the file's own exposure reference kept,
+        // one stop added, and NO shadow bias. Core Image's default bias (3 on most cameras, 5 on an iPhone DNG) crushed
+        // an iPhone RAW's shadows to black (27 % of a dark room against the Mac's 5 %, ΔE 12.8 after the film).
+        SPKTrySetter(@"exposure reference", ^{
+            raw.baselineExposure = raw.baselineExposure;
+            raw.exposure = 1;
+            raw.shadowBias = 0;
+        });
         SPKTrySetter(@"boost", ^{
             raw.boostAmount = 0;
         });

@@ -151,7 +151,7 @@ struct EditorView: View {
             VStack(spacing: 0) {
                 if !immersive {
                     topBar
-                        .disabled(model.exporting)
+                        .disabled(model.exporting || model.openingPreview != nil)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 picture
@@ -181,6 +181,7 @@ struct EditorView: View {
                         .disabled(model.exporting)
                         .opacity(model.exporting ? 0.45 : 1)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .disabled(model.openingPreview != nil)      // until the engine has the photo
                 }
             }
 
@@ -412,6 +413,15 @@ struct EditorView: View {
 
     private var picture: some View {
         ZStack {
+            // Opening: the photo's kept develop at once, until the engine has it (then the canvas, the same picture).
+            if let opening = model.openingPreview {
+                Color.black
+                Image(uiImage: opening).resizable().scaledToFit()
+                    .overlay(alignment: .bottom) {
+                        ProgressView().controlSize(.small).tint(Color.labCream).padding(.bottom, 14)
+                    }
+                    .zIndex(2)
+            }
             if model.renderedTexture != nil {
                 GeometryReader { proxy in
                     MetalCanvas(renderer: model.renderer,
