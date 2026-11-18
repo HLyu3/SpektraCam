@@ -210,7 +210,7 @@ final class SpektraEngine: @unchecked Sendable {
         // network connection to recover from an engine startup error.
         let bundled = defaultResources()
         guard FileManager.default.fileExists(atPath: bundled.appendingPathComponent("spektralab_constants.bin").path) else {
-            throw EngineError.noResources("安装包缺少内置资源，请重新安装完整版本")
+            throw EngineError.noResources(String(localized: "安装包缺少内置资源，请重新安装完整版本"))
         }
         return bundled
     }
@@ -556,7 +556,7 @@ final class SpektraEngine: @unchecked Sendable {
         }
         guard let cgImage = Self.makeCGImage(from: &result, colorSpace: colorSpace) else {
             spk_result_free(&result)
-            throw EngineError.failed(status: -1, message: "引擎没有返回可导出的图像")
+            throw EngineError.failed(status: -1, message: String(localized: "引擎没有返回可导出的图像"))
         }
         return RenderedBitmap(cgImage: cgImage,
                               width: Int(result.width),

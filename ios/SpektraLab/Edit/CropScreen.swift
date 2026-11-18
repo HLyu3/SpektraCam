@@ -38,11 +38,11 @@ struct CropScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Button("取消", action: onCancel)
+                Button(String(localized: "取消"), action: onCancel)
                 Spacer()
-                Text("裁剪").font(.headline)
+                Text(String(localized: "裁剪")).font(.headline)
                 Spacer()
-                Button("完成") { onDone(crop) }.fontWeight(.semibold)
+                Button(String(localized: "完成")) { onDone(crop) }.fontWeight(.semibold)
             }
             .foregroundStyle(Color.labCream)
             .padding(.horizontal, 18)
@@ -280,7 +280,7 @@ struct CropScreen: View {
     private var controls: some View {
         VStack(spacing: 14) {
             HStack {
-                Text("拉直").font(.footnote)
+                Text(String(localized: "拉直")).font(.footnote)
                 Spacer()
                 Text(String(format: "%.1f°", shownAngle))
                     .font(.caption.monospacedDigit())
@@ -299,7 +299,7 @@ struct CropScreen: View {
                         chip(a.title, on: crop.aspect == a) { setAspect(a, portrait: crop.portrait) }
                     }
                     // 横 / 竖 as seen: a quarter turn swaps them.
-                    chip(crop.portrait != sideways ? "竖" : "横", symbol: "rectangle.portrait.rotate", on: false) {
+                    chip(crop.portrait != sideways ? String(localized: "竖") : String(localized: "横"), symbol: "rectangle.portrait.rotate", on: false) {
                         setAspect(crop.aspect, portrait: !crop.portrait)
                     }
                     .disabled(crop.aspect == .free || crop.aspect == .square)
@@ -307,7 +307,7 @@ struct CropScreen: View {
                 }
             }
 
-            Button("重置") {
+            Button(String(localized: "重置")) {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     crop = FrameCrop()
                     spin = (spin / 360).rounded() * 360; flip = false

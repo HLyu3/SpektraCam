@@ -139,9 +139,9 @@ final class CameraController: NSObject, @unchecked Sendable {
     func start() async -> String? {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .notDetermined:
-            guard await AVCaptureDevice.requestAccess(for: .video) else { return "没有相机权限" }
+            guard await AVCaptureDevice.requestAccess(for: .video) else { return String(localized: "没有相机权限") }
         case .authorized: break
-        default: return "没有相机权限，请在“设置 > Spektra Cam”里打开相机"
+        default: return String(localized: "没有相机权限，请在“设置 > Spektra Cam”里打开相机")
         }
         return await withCheckedContinuation { done in
             queue.async {
@@ -150,7 +150,7 @@ final class CameraController: NSObject, @unchecked Sendable {
                     self.frontLens = Self.lenses(position: .front).first
                     guard let main = self.lenses.first(where: { $0.device.deviceType == .builtInWideAngleCamera })
                             ?? self.lenses.first else {
-                        done.resume(returning: "找不到后置相机"); return
+                        done.resume(returning: String(localized: "找不到后置相机")); return
                     }
                     if let problem = self.configure(main.device) { done.resume(returning: problem); return }
                 }
@@ -223,17 +223,17 @@ final class CameraController: NSObject, @unchecked Sendable {
     }
 
     private func configure(_ device: AVCaptureDevice) -> String? {
-        guard let newInput = try? AVCaptureDeviceInput(device: device) else { return "相机无法启动" }
+        guard let newInput = try? AVCaptureDeviceInput(device: device) else { return String(localized: "相机无法启动") }
         session.beginConfiguration()
         defer { session.commitConfiguration() }
         session.sessionPreset = .photo
         if let input { session.removeInput(input) }
-        guard session.canAddInput(newInput) else { return "相机无法启动" }
+        guard session.canAddInput(newInput) else { return String(localized: "相机无法启动") }
         session.addInput(newInput)
         input = newInput
         if device.position == .front { useSquareSensor(device) }
         if !session.outputs.contains(output) {
-            guard session.canAddOutput(output) else { return "相机无法启动" }
+            guard session.canAddOutput(output) else { return String(localized: "相机无法启动") }
             session.addOutput(output)
             output.maxPhotoQualityPrioritization = .quality
         }
@@ -642,7 +642,7 @@ private final class PhotoDelegate: NSObject, AVCapturePhotoCaptureDelegate, @unc
         if let data {
             finish(.success(CameraController.Shot(data: data, isRAW: isRAW, zoom: zoom, askedLongEdge: asked)))
         } else {
-            finish(.failure(error ?? DecodeError.unreadable("相机没有返回照片")))
+            finish(.failure(error ?? DecodeError.unreadable(String(localized: "相机没有返回照片"))))
         }
     }
 }
@@ -687,13 +687,13 @@ struct CaptureMode: Identifiable, Hashable {
     /// the only place most people meet these (ProRAW ~1.6 MB a MP, HEIF ~0.2, single-frame RAW ~0.85, measured).
     var detail: String {
         let mb = Double(megapixels) * (format == .heif ? 0.2 : format == .raw ? 0.85 : 1.6)
-        let size = mb >= 10 ? String(format: "约 %.0f MB", mb) : String(format: "约 %.1f MB", mb)
+        let size = mb >= 10 ? String(format: String(localized: "约 %.0f MB"), mb) : String(format: String(localized: "约 %.1f MB"), mb)
         switch (format, megapixels) {
-        case (.heif, 40...): return size + " · 细节最多"
-        case (.heif, 20...): return size + " · 细节和体积平衡"
-        case (.heif, _): return size + " · 最省空间"
-        case (.proRAW, 40...): return size + " · 后期空间最大"
-        case (.proRAW, _): return size + " · 原始数据，文件小一些"
+        case (.heif, 40...): return size + String(localized: " · 细节最多")
+        case (.heif, 20...): return size + String(localized: " · 细节和体积平衡")
+        case (.heif, _): return size + String(localized: " · 最省空间")
+        case (.proRAW, 40...): return size + String(localized: " · 后期空间最大")
+        case (.proRAW, _): return size + String(localized: " · 原始数据，文件小一些")
         case (.raw, _): return size
         }
     }

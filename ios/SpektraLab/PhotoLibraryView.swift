@@ -236,51 +236,53 @@ struct PhotoLibraryView: View {
             guard case .success(let urls) = result else { return }
             Task { @MainActor in await model.importFiles(from: urls) }
         }
-        .alert(model.importFailures.map { "\($0.lines.count) 张没能导入" } ?? "",
+        .alert(model.importFailures.map { String(localized: "\($0.lines.count) 张没能导入") } ?? "",
                isPresented: Binding(get: { model.importFailures != nil }, set: { if !$0 { model.importFailures = nil } }),
                presenting: model.importFailures) { _ in
-            Button("好") {}
+            Button(String(localized: "好")) {}
         } message: { f in
             Text(f.summary + "\n\n" + f.lines.joined(separator: "\n"))
         }
-        .confirmationDialog("这 \(model.reimportOffer?.count ?? 0) 张都导入过了",
+        .confirmationDialog(String(localized: "这 \(model.reimportOffer?.count ?? 0) 张都导入过了"),
                             isPresented: Binding(get: { model.reimportOffer != nil }, set: { if !$0 { model.reimportOffer = nil } }),
                             titleVisibility: .visible, presenting: model.reimportOffer) { offer in
-            Button("再导入一次") { Task { @MainActor in await model.importFiles(from: offer.urls, again: true) } }
-            Button("取消", role: .cancel) {}
+            Button(String(localized: "再导入一次")) { Task { @MainActor in await model.importFiles(from: offer.urls, again: true) } }
+            Button(String(localized: "取消"), role: .cancel) {}
         } message: { _ in
-            Text("会作为新照片再加进底片，已有的不受影响。")
+            Text(String(localized: "会作为新照片再加进底片，已有的不受影响。"))
         }
-        .confirmationDialog("导出选中的 \(exportQuestion?.count ?? 0) 张？",
+        .confirmationDialog(String(localized: "导出选中的 \(exportQuestion?.count ?? 0) 张？"),
                             isPresented: Binding(get: { exportQuestion != nil }, set: { if !$0 { exportQuestion = nil } }),
                             titleVisibility: .visible) {
             let ids = exportQuestion ?? []
             let before = model.previousPrints(of: ids)
             if before.count > 0 {
                 // As the editor's export asks for one photo: replace the old prints, or keep both.
-                Button("导出，替换旧的 \(before.count) 张成片") { batchExport(ids, replacingOld: true); exportQuestion = nil }
-                Button("导出，旧成片也保留") { batchExport(ids); exportQuestion = nil }
+                Button(String(localized: "导出，替换旧的 \(before.count) 张成片")) { batchExport(ids, replacingOld: true); exportQuestion = nil }
+                Button(String(localized: "导出，旧成片也保留")) { batchExport(ids); exportQuestion = nil }
             } else {
-                Button("导出 \(ids.count) 张") { batchExport(ids); exportQuestion = nil }
+                Button(String(localized: "导出 \(ids.count) 张")) { batchExport(ids); exportQuestion = nil }
             }
-            Button("更改导出格式…") { exportQuestion = nil; exportSettingsOpen = true }
-            Button("取消", role: .cancel) { exportQuestion = nil }
+            Button(String(localized: "更改导出格式…")) { exportQuestion = nil; exportSettingsOpen = true }
+            Button(String(localized: "取消"), role: .cancel) { exportQuestion = nil }
         } message: {
             let ids = exportQuestion ?? []
             let before = model.previousPrints(of: ids)
-            let format = "格式：\(model.exportOptions.format.title) · \(model.exportOptions.colorSpace.title)\(model.exportOptions.format.usesQuality ? " · 质量 \(Int((model.exportOptions.quality * 100).rounded()))" : "")（在编辑页的“导出”里改）。"
-            let old: String = before.count == 0 ? "这几张都还没导出过。"
-                : "其中 \(before.count) 张已经导出过，“照片”里有它们的成片" + (before.changed > 0
-                    ? "；\(before.changed) 张在导出后又改过，新成片会和旧的不一样。"
-                    : "，导出后都没改过，新成片和旧的一样。") + "替换会把旧的移到“最近删除”。"
-            Text("每张按自己的配方冲洗，存到“照片”。" + old + "\n" + format)
+            let quality = model.exportOptions.format.usesQuality
+                ? String(localized: " · 质量 \(Int((model.exportOptions.quality * 100).rounded()))") : ""
+            let format = String(localized: "格式：\(model.exportOptions.format.title) · \(model.exportOptions.colorSpace.title)\(quality)（在编辑页的“导出”里改）。")
+            let old: String = before.count == 0 ? String(localized: "这几张都还没导出过。")
+                : String(localized: "其中 \(before.count) 张已经导出过，“照片”里有它们的成片") + (before.changed > 0
+                    ? String(localized: "；\(before.changed) 张在导出后又改过，新成片会和旧的不一样。")
+                    : String(localized: "，导出后都没改过，新成片和旧的一样。")) + String(localized: "替换会把旧的移到“最近删除”。")
+            Text(String(localized: "每张按自己的配方冲洗，存到“照片”。") + old + "\n" + format)
         }
         .sheet(isPresented: $exportSettingsOpen) { ExportSettingsSheet(model: model) }
-        .confirmationDialog("删除这些照片？",
+        .confirmationDialog(String(localized: "删除这些照片？"),
                             isPresented: $showingDelete,
                             titleVisibility: .visible) {
             let inPhotos = model.photosAssets(of: deleteIDs)
-            Button("只从底片删除 \(deleteIDs.count) 张", role: .destructive) {
+            Button(String(localized: "只从底片删除 \(deleteIDs.count) 张"), role: .destructive) {
                 model.deletePhotos(deleteIDs)
                 selected.subtract(deleteIDs)
                 deleteIDs = []
@@ -288,7 +290,7 @@ struct PhotoLibraryView: View {
             }
             if !inPhotos.isEmpty {
                 // Also the originals / prints these have in Photos (iOS asks once more).
-                Button("同时从“照片”删除（\(inPhotos.count) 张）", role: .destructive) {
+                Button(String(localized: "同时从“照片”删除（\(inPhotos.count) 张）"), role: .destructive) {
                     let ids = deleteIDs
                     deleteIDs = []
                     Task { @MainActor in
@@ -300,11 +302,11 @@ struct PhotoLibraryView: View {
                     }
                 }
             }
-            Button("取消", role: .cancel) { deleteIDs = [] }
+            Button(String(localized: "取消"), role: .cancel) { deleteIDs = [] }
         } message: {
             Text(model.photosAssets(of: deleteIDs).isEmpty
-                 ? "原图和缩略图会从 Spektra Cam 的底片库移除，不影响系统相册。"
-                 : "这些照片在“照片”里还有原片或冲洗好的成片。“只从底片删除”不动“照片”；“同时删除”会把它们移到“最近删除”（iOS 会再确认一次，30 天内可恢复）。")
+                 ? String(localized: "原图和缩略图会从 Spektra Cam 的底片库移除，不影响系统相册。")
+                 : String(localized: "这些照片在“照片”里还有原片或冲洗好的成片。“只从底片删除”不动“照片”；“同时删除”会把它们移到“最近删除”（iOS 会再确认一次，30 天内可恢复）。"))
         }
         .task(id: model.libraryMessage) {
             guard model.libraryMessage != nil else { return }
@@ -319,11 +321,11 @@ struct PhotoLibraryView: View {
         VStack(alignment: .leading, spacing: 6) {
         HStack(alignment: .bottom, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("SPEKTRA CAM · 暗房")
+                Text(String(localized: "SPEKTRA CAM · 暗房"))
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .tracking(1.6)
                     .foregroundStyle(Color.labRed.opacity(0.9))
-                Text(selecting ? "选择照片" : "底片")
+                Text(selecting ? String(localized: "选择照片") : String(localized: "底片"))
                     .font(.system(size: 36, weight: .bold))
                     .tracking(-0.6)
                     .foregroundStyle(Color.labCream)
@@ -333,7 +335,7 @@ struct PhotoLibraryView: View {
             LabGlassGroup(spacing: 8) {
                 HStack(spacing: 8) {
                     if !model.library.isEmpty {
-                        headerButton(selecting ? "xmark" : "checkmark.circle", selecting ? "结束选择" : "选择照片") {
+                        headerButton(selecting ? "xmark" : "checkmark.circle", selecting ? String(localized: "结束选择") : String(localized: "选择照片")) {
                             withAnimation(.snappy(duration: 0.2)) {
                                 selecting.toggle()
                                 if !selecting { selected.removeAll(); selectedAssets.removeAll() }
@@ -342,8 +344,8 @@ struct PhotoLibraryView: View {
                     }
                     if !selecting {
                         Menu {
-                            Button { showingPicker = true } label: { Label("从“照片”选…", systemImage: "photo.on.rectangle") }
-                            Button { showingFileImporter = true } label: { Label("从文件 / 存储卡导入…", systemImage: "sdcard") }
+                            Button { showingPicker = true } label: { Label(String(localized: "从“照片”选…"), systemImage: "photo.on.rectangle") }
+                            Button { showingFileImporter = true } label: { Label(String(localized: "从文件 / 存储卡导入…"), systemImage: "sdcard") }
                         } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 16, weight: .semibold))
@@ -351,9 +353,9 @@ struct PhotoLibraryView: View {
                                 .frame(width: 44, height: 44)
                                 .labGlassInteractive(in: Circle())
                         }
-                        .accessibilityLabel("导入照片")
-                        headerButton("light.panel", "观片台") { model.lightTableRequested = true }
-                        headerButton("gearshape", "设置") { showingSettings = true }
+                        .accessibilityLabel(String(localized: "导入照片"))
+                        headerButton("light.panel", String(localized: "观片台")) { model.lightTableRequested = true }
+                        headerButton("gearshape", String(localized: "设置")) { showingSettings = true }
                     }
                 }
             }
@@ -391,7 +393,7 @@ struct PhotoLibraryView: View {
             .shadow(color: .black.opacity(0.45), radius: 10, y: 3)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("拍摄")
+        .accessibilityLabel(String(localized: "拍摄"))
     }
 
     private func headerButton(_ symbol: String, _ label: String, _ run: @escaping () -> Void) -> some View {
@@ -408,12 +410,12 @@ struct PhotoLibraryView: View {
 
     private var subtitle: String {
         let edited = model.library.filter(\.isEdited).count
-        if model.library.isEmpty { return "导入一组照片，统一调色" }
+        if model.library.isEmpty { return String(localized: "导入一组照片，统一调色") }
         if selecting {
-            return selected.isEmpty ? "轻点照片进行多选" : "已选 \(selected.count) 张 · 共 \(model.library.count) 张"
+            return selected.isEmpty ? String(localized: "轻点照片进行多选") : String(localized: "已选 \(selected.count) 张 · 共 \(model.library.count) 张")
         }
         let today = model.library.filter { $0.captured && Calendar.current.isDateInToday($0.createdAt) }.count
-        return "\(model.library.count) 张" + (today > 0 ? " · 今天拍了 \(today) 张" : "") + " · \(edited) 张已调色"
+        return String(localized: "\(model.library.count) 张") + (today > 0 ? String(localized: " · 今天拍了 \(today) 张") : "") + String(localized: " · \(edited) 张已调色")
     }
 
     /// Shots from the camera that have waited days without an export.
@@ -423,22 +425,22 @@ struct PhotoLibraryView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.labCream.opacity(0.7))
             VStack(alignment: .leading, spacing: 2) {
-                Text(String(format: "%d 张拍了 %d 天以上还没导出 · %.1f GB", r.count, ViewModel.cullReminderDays,
+                Text(String(format: String(localized: "%d 张拍了 %d 天以上还没导出 · %.1f GB"), r.count, ViewModel.cullReminderDays,
                             Double(r.bytes) / 1_073_741_824))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.labCream)
                 if r.soon > 0 {
-                    Text("其中 \(r.soon) 张将在 1 天内自动删除")
+                    Text(String(localized: "其中 \(r.soon) 张将在 1 天内自动删除"))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(Color.labRed)
                 }
             }
             Spacer(minLength: 4)
-            Button("稍后") { model.snoozeCullReminder() }
+            Button(String(localized: "稍后")) { model.snoozeCullReminder() }
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.labCream.opacity(0.5))
             Button { culling = true } label: {
-                Text("去挑片")
+                Text(String(localized: "去挑片"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.black)
                     .padding(.horizontal, 12)
@@ -457,7 +459,7 @@ struct PhotoLibraryView: View {
             Image(systemName: "doc.on.doc.fill")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.labCream.opacity(0.58))
-            Text("剪贴板配方")
+            Text(String(localized: "剪贴板配方"))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.labCream.opacity(0.48))
             Text(model.filmName(for: recipe.filmID))
@@ -466,7 +468,7 @@ struct PhotoLibraryView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
             Spacer(minLength: 0)
-            Text(selecting ? "选好后点下方粘贴" : "长按照片粘贴")
+            Text(selecting ? String(localized: "选好后点下方粘贴") : String(localized: "长按照片粘贴"))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Color.labCream.opacity(0.5))
             Button { model.clearClipboard() } label: {
@@ -477,7 +479,7 @@ struct PhotoLibraryView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("清除复制的配方")
+            .accessibilityLabel(String(localized: "清除复制的配方"))
         }
         .padding(.horizontal, 13)
         .frame(height: 40)
@@ -487,7 +489,7 @@ struct PhotoLibraryView: View {
     private var sectionHeader: some View {
         HStack(alignment: .center, spacing: 8) {
             if selecting {
-                Text(showingSystemPhotos ? "轻点选择" : "轻点选择 · 横向滑动连选")   // 系统相册: taps only
+                Text(showingSystemPhotos ? String(localized: "轻点选择") : String(localized: "轻点选择 · 横向滑动连选"))   // 系统相册: taps only
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.labCream.opacity(0.76))
                 Spacer()
@@ -498,14 +500,14 @@ struct PhotoLibraryView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        if source == "photos" { chip("系统相册", "photos", symbol: "photo.on.rectangle") }
-                        chip("全部 \(model.library.count)", "all")
-                        chip("拍摄", "captured", symbol: "camera")
-                        chip("导入", "imported")
-                        chip("收藏", "favorite", symbol: "heart")
-                        chip("已调色", "edited")
+                        if source == "photos" { chip(String(localized: "系统相册"), "photos", symbol: "photo.on.rectangle") }
+                        chip(String(localized: "全部 \(model.library.count)"), "all")
+                        chip(String(localized: "拍摄"), "captured", symbol: "camera")
+                        chip(String(localized: "导入"), "imported")
+                        chip(String(localized: "收藏"), "favorite", symbol: "heart")
+                        chip(String(localized: "已调色"), "edited")
                         chip("RAW", "raw")
-                        if count("pair") > 0 { chip("双拼", "pair") }
+                        if count("pair") > 0 { chip(String(localized: "双拼"), "pair") }
                         filmChip
                     }
                     .padding(.horizontal, 1)
@@ -541,7 +543,7 @@ struct PhotoLibraryView: View {
         }
         .buttonStyle(.plain)
         .fixedSize()
-        .accessibilityLabel(unexported > 0 ? "挑片，\(unexported) 张没导出" : "挑片")
+        .accessibilityLabel(unexported > 0 ? String(localized: "挑片，\(unexported) 张没导出") : String(localized: "挑片"))
     }
 
     /// One filter, a tap away; the chosen one lit in amber.
@@ -574,7 +576,7 @@ struct PhotoLibraryView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "film").font(.system(size: 10, weight: .semibold))
-                Text(on ? filterTitle : "胶片")
+                Text(on ? filterTitle : String(localized: "胶片"))
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .font(.system(size: 12, weight: .semibold))
@@ -618,14 +620,14 @@ struct PhotoLibraryView: View {
 
     private var sortMenu: some View {
         Menu {
-            Picker("排序", selection: $sort) {
-                Label("拍摄时间", systemImage: "camera").tag("shot")
-                Label("添加时间", systemImage: "plus.square.on.square").tag("added")
-                Label("胶片", systemImage: "film").tag("film")
+            Picker(String(localized: "排序"), selection: $sort) {
+                Label(String(localized: "拍摄时间"), systemImage: "camera").tag("shot")
+                Label(String(localized: "添加时间"), systemImage: "plus.square.on.square").tag("added")
+                Label(String(localized: "胶片"), systemImage: "film").tag("film")
             }
-            Picker("顺序", selection: $oldestFirst) {
-                Text(sort == "film" ? "A → Z" : "新的在前").tag(false)
-                Text(sort == "film" ? "Z → A" : "旧的在前").tag(true)
+            Picker(String(localized: "顺序"), selection: $oldestFirst) {
+                Text(sort == "film" ? "A → Z" : String(localized: "新的在前")).tag(false)
+                Text(sort == "film" ? "Z → A" : String(localized: "旧的在前")).tag(true)
             }
         } label: {
             Image(systemName: "arrow.up.arrow.down")
@@ -634,23 +636,23 @@ struct PhotoLibraryView: View {
                 .frame(width: 32, height: 32)
                 .background(Color.white.opacity(sort == "added" && !oldestFirst ? 0.06 : 0.14), in: Circle())
         }
-        .accessibilityLabel("排序")
+        .accessibilityLabel(String(localized: "排序"))
     }
 
     private func count(_ f: String) -> Int { model.library.filter { matches($0, f) }.count }
 
     private var filterTitle: String {
         switch filter {
-        case "imported": return "导入"
-        case "captured": return "拍摄"
-        case "favorite": return "收藏"
+        case "imported": return String(localized: "导入")
+        case "captured": return String(localized: "拍摄")
+        case "favorite": return String(localized: "收藏")
         case "raw": return "RAW"
-        case "edited": return "已调色"
-        case "pair": return "双拼"
-        case "photos": return "系统相册"
+        case "edited": return String(localized: "已调色")
+        case "pair": return String(localized: "双拼")
+        case "photos": return String(localized: "系统相册")
         default:
             if filter.hasPrefix("film:") { return model.filmName(for: String(filter.dropFirst(5))) }
-            return "全部照片"
+            return String(localized: "全部照片")
         }
     }
 
@@ -675,7 +677,7 @@ struct PhotoLibraryView: View {
                 }
                 let day = calendar.startOfDay(for: date)
                 key = String(day.timeIntervalSince1970)
-                title = calendar.isDateInToday(day) ? "今天" : calendar.isDateInYesterday(day) ? "昨天"
+                title = calendar.isDateInToday(day) ? String(localized: "今天") : calendar.isDateInYesterday(day) ? String(localized: "昨天")
                     // Date only: `.year(.omitted)` on a date style brought the time back ("0:00").
                     : calendar.isDate(day, equalTo: .now, toGranularity: .year)
                         ? day.formatted(.dateTime.month().day().weekday())
@@ -714,7 +716,7 @@ struct PhotoLibraryView: View {
                     HStack {
                         HStack(spacing: 6) {
                             Text(section.title).font(.system(size: 13, weight: .semibold))
-                            Text("\(section.photos.count) 张").font(.system(size: 11, weight: .medium, design: .monospaced))
+                            Text(String(localized: "\(section.photos.count) 张")).font(.system(size: 11, weight: .medium, design: .monospaced))
                                 .foregroundStyle(Color.labCream.opacity(0.55))
                         }
                         .foregroundStyle(Color.labCream)
@@ -742,12 +744,12 @@ struct PhotoLibraryView: View {
                         Button {
                             Task { @MainActor in await model.openLibraryPhoto(photo.id) }
                         } label: {
-                            Label("编辑", systemImage: "slider.horizontal.3")
+                            Label(String(localized: "编辑"), systemImage: "slider.horizontal.3")
                         }
                         Button {
                             model.toggleFavorite(photo.id)
                         } label: {
-                            Label(photo.favorite ? "取消收藏" : "收藏", systemImage: photo.favorite ? "heart.slash" : "heart")
+                            Label(photo.favorite ? String(localized: "取消收藏") : String(localized: "收藏"), systemImage: photo.favorite ? "heart.slash" : "heart")
                         }
                         recipeButtons(photo)
                         Divider()
@@ -755,7 +757,7 @@ struct PhotoLibraryView: View {
                             deleteIDs = [photo.id]
                             showingDelete = true
                         } label: {
-                            Label("删除", systemImage: "trash")
+                            Label(String(localized: "删除"), systemImage: "trash")
                         }
                     }
                 }
@@ -847,7 +849,7 @@ struct PhotoLibraryView: View {
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.5), radius: 2)
                         .padding(7)
-                        .accessibilityLabel("已收藏")
+                        .accessibilityLabel(String(localized: "已收藏"))
                 }
             }
             .overlay(alignment: .topTrailing) {
@@ -873,7 +875,7 @@ struct PhotoLibraryView: View {
                     HStack(spacing: 3) {
                         Image(systemName: "doc.on.doc.fill")
                             .font(.system(size: 7, weight: .bold))
-                        Text("配方来源")
+                        Text(String(localized: "配方来源"))
                             .font(.system(size: 8, weight: .semibold))
                     }
                     .foregroundStyle(Color.white.opacity(0.82))
@@ -889,8 +891,8 @@ struct PhotoLibraryView: View {
             .contentShape(shape)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(photo.name)
-            .accessibilityValue(isRecipeSource ? "配方来源，已锁定"
-                                : (isSelected ? "已选择" : ""))
+            .accessibilityValue(isRecipeSource ? String(localized: "配方来源，已锁定")
+                                : (isSelected ? String(localized: "已选择") : ""))
             .onTapGesture {
                 if selecting {
                     guard !isRecipeSource else { return }
@@ -908,11 +910,11 @@ struct PhotoLibraryView: View {
         VStack(spacing: 11) {
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(selected.isEmpty ? "选择照片" : "已选 \(selected.count) 张")
+                    Text(selected.isEmpty ? String(localized: "选择照片") : String(localized: "已选 \(selected.count) 张"))
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color.labCream)
                         .contentTransition(.numericText())
-                    Text(model.clipboardRecipe.map { "已复制配方 · \(model.filmName(for: $0.filmID))" } ?? "长按照片可复制配方")
+                    Text(model.clipboardRecipe.map { String(localized: "已复制配方 · \(model.filmName(for: $0.filmID))") } ?? String(localized: "长按照片可复制配方"))
                         .lineLimit(1)
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(Color.labCream.opacity(0.40))
@@ -922,7 +924,7 @@ struct PhotoLibraryView: View {
                 Button {
                     selected = all ? [] : selectablePhotoIDs
                 } label: {
-                    Text(all ? "取消全选" : "全选")
+                    Text(all ? String(localized: "取消全选") : String(localized: "全选"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.labCream)
                         .padding(.horizontal, 13)
@@ -939,17 +941,17 @@ struct PhotoLibraryView: View {
                     Button {
                         let ids = model.library.map(\.id).filter { selected.contains($0) }
                         comparing = Comparing(ids: ids)
-                    } label: { BarTile(title: "对比", symbol: "rectangle.split.1x2") }
+                    } label: { BarTile(title: String(localized: "对比"), symbol: "rectangle.split.1x2") }
                     Button {
                         let ids = model.library.map(\.id).filter { selected.contains($0) }
                         // The wall is newest first; a strip reads left to right, oldest first.
                         pairing = PairSpec(left: ids[1], right: ids[0])
-                    } label: { BarTile(title: "双拼", symbol: "rectangle.split.2x1") }
+                    } label: { BarTile(title: String(localized: "双拼"), symbol: "rectangle.split.2x1") }
                 }
                 if selected.count == 1, let id = selected.first {
-                    Button { copyRecipe(from: id) } label: { BarTile(title: "复制配方", symbol: "doc.on.doc") }
+                    Button { copyRecipe(from: id) } label: { BarTile(title: String(localized: "复制配方"), symbol: "doc.on.doc") }
                 }
-                Button { paste() } label: { BarTile(title: "粘贴配方", symbol: "doc.on.clipboard") }
+                Button { paste() } label: { BarTile(title: String(localized: "粘贴配方"), symbol: "doc.on.clipboard") }
                     .disabled(selected.isEmpty || model.clipboardRecipe == nil)
                 if !model.savedRecipes.isEmpty {
                     recipeMenu {
@@ -962,13 +964,13 @@ struct PhotoLibraryView: View {
                 }
                 // 批量导出 (the selection only — an "everything edited" item was misread, the owner, 2026-11-17).
                 Button { exportQuestion = model.library.map(\.id).filter { selected.contains($0) } } label: {
-                    BarTile(title: "导出", symbol: "square.and.arrow.up")
+                    BarTile(title: String(localized: "导出"), symbol: "square.and.arrow.up")
                 }
                 .disabled(selected.isEmpty)
                 Button {
                     deleteIDs = selected
                     showingDelete = true
-                } label: { BarTile(title: "删除", symbol: "trash", destructive: true) }
+                } label: { BarTile(title: String(localized: "删除"), symbol: "trash", destructive: true) }
                 .disabled(selected.isEmpty)
             }
             .buttonStyle(.plain)
@@ -991,7 +993,7 @@ struct PhotoLibraryView: View {
         let count = selectedAssets.count
         return VStack(spacing: 11) {
         HStack(spacing: 9) {
-            Text(count == 0 ? "选择照片" : "已选 \(count) 张")
+            Text(count == 0 ? String(localized: "选择照片") : String(localized: "已选 \(count) 张"))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.labCream)
                 .contentTransition(.numericText())
@@ -1000,7 +1002,7 @@ struct PhotoLibraryView: View {
             let all = photosFeed.assets.map { a in (0..<a.count).map { a.object(at: $0).localIdentifier } } ?? []
             let allOn = !all.isEmpty && count == all.count
             Button { selectedAssets = allOn ? [] : all } label: {
-                Text(allOn ? "取消全选" : "全选")
+                Text(allOn ? String(localized: "取消全选") : String(localized: "全选"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.labCream)
                     .padding(.horizontal, 11)
@@ -1011,13 +1013,13 @@ struct PhotoLibraryView: View {
         }
         HStack(spacing: 6) {
             if count == 2 {
-                barAction("双拼", "rectangle.split.2x1") {
+                barAction(String(localized: "双拼"), "rectangle.split.2x1") {
                     let ids = await model.linkAssets(selectedAssets)
                     if ids.count == 2 { pairing = PairSpec(left: ids[0], right: ids[1]) }
                 }
             }
             if count == 1 {
-                barAction("复制配方", "doc.on.doc") {
+                barAction(String(localized: "复制配方"), "doc.on.doc") {
                     if let id = await model.linkAssets(selectedAssets).first { model.copyRecipe(from: id) }
                     selectedAssets.removeAll()
                 }
@@ -1031,12 +1033,12 @@ struct PhotoLibraryView: View {
                 }
                 .disabled(count == 0)
             }
-            barAction("删除", "trash") {
+            barAction(String(localized: "删除"), "trash") {
                 // Straight from Photos (iOS asks first; Recently Deleted keeps them 30 days).
                 if await model.deleteFromPhotos(selectedAssets) { selectedAssets.removeAll() }
             }
             .disabled(count == 0)
-            barAction("粘贴配方", "doc.on.clipboard") {
+            barAction(String(localized: "粘贴配方"), "doc.on.clipboard") {
                 let ids = await model.linkAssets(selectedAssets)
                 await model.pasteRecipe(to: Set(ids))
                 selectedAssets.removeAll()
@@ -1057,7 +1059,7 @@ struct PhotoLibraryView: View {
     /// Saved looks to put on the selection.
     private func recipeMenu(_ apply: @escaping @MainActor (SavedRecipe) async -> Void) -> some View {
         Menu {
-            Section("套用配方") {
+            Section(String(localized: "套用配方")) {
                 ForEach(model.savedRecipes) { saved in
                     Button { Task { @MainActor in await apply(saved) } } label: {
                         Label { Text(saved.name); Text(model.filmName(for: saved.recipe.filmID)) } icon: {
@@ -1067,7 +1069,7 @@ struct PhotoLibraryView: View {
                 }
             }
         } label: {
-            BarTile(title: "套用配方", symbol: "wand.and.stars")
+            BarTile(title: String(localized: "套用配方"), symbol: "wand.and.stars")
         }
     }
 
@@ -1080,16 +1082,16 @@ struct PhotoLibraryView: View {
 
     /// 复制 / 粘贴 / 清除 for one photo's menus.
     @ViewBuilder private func recipeButtons(_ photo: LibraryPhoto) -> some View {
-        Button { copyRecipe(from: photo.id) } label: { Label("复制配方", systemImage: "doc.on.doc") }
+        Button { copyRecipe(from: photo.id) } label: { Label(String(localized: "复制配方"), systemImage: "doc.on.doc") }
         if let recipe = model.clipboardRecipe {
             if model.recipeSourcePhotoID != photo.id {
                 Button {
                     Task { @MainActor in await model.pasteRecipe(to: [photo.id]) }
                 } label: {
-                    Label("粘贴配方 · \(model.filmName(for: recipe.filmID))", systemImage: "doc.on.clipboard")
+                    Label(String(localized: "粘贴配方 · \(model.filmName(for: recipe.filmID))"), systemImage: "doc.on.clipboard")
                 }
             }
-            Button { model.clearClipboard() } label: { Label("清除复制的配方", systemImage: "xmark.circle") }
+            Button { model.clearClipboard() } label: { Label(String(localized: "清除复制的配方"), systemImage: "xmark.circle") }
         }
     }
 
@@ -1138,11 +1140,11 @@ struct PhotoLibraryView: View {
             .frame(height: 172)
 
             VStack(spacing: 8) {
-                Text("把一组照片带进来")
+                Text(String(localized: "把一组照片带进来"))
                     .font(.title2.weight(.semibold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.labCream)
-                Text("点开一张开始调色，返回后就是照片墙。\n长按照片复制配方，多选后一键粘贴。")
+                Text(String(localized: "点开一张开始调色，返回后就是照片墙。\n长按照片复制配方，多选后一键粘贴。"))
                     .font(.footnote)
                     .foregroundStyle(Color.labCream.opacity(0.44))
                     .multilineTextAlignment(.center)
@@ -1154,7 +1156,7 @@ struct PhotoLibraryView: View {
                              maxSelectionCount: 100,
                              matching: .images,
                              photoLibrary: .shared()) {
-                    Label("从相册添加照片", systemImage: "photo.on.rectangle.angled")
+                    Label(String(localized: "从相册添加照片"), systemImage: "photo.on.rectangle.angled")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
@@ -1166,7 +1168,7 @@ struct PhotoLibraryView: View {
                 Button {
                     showingFileImporter = true
                 } label: {
-                    Label("从文件导入 RAW / JPEG", systemImage: "folder.badge.plus")
+                    Label(String(localized: "从文件导入 RAW / JPEG"), systemImage: "folder.badge.plus")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.labCream.opacity(0.82))
                         .frame(maxWidth: .infinity)
@@ -1178,7 +1180,7 @@ struct PhotoLibraryView: View {
             .frame(maxWidth: 310)
             .padding(.top, 28)
 
-            Text("支持 Sony ARW · DNG · JPEG · HEIC")
+            Text(String(localized: "支持 Sony ARW · DNG · JPEG · HEIC"))
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(Color.labCream.opacity(0.28))
                 .padding(.top, 14)

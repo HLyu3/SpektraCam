@@ -28,7 +28,7 @@ struct CullView: View {
         NavigationStack {
             ScrollView {
                 // Which shots are here: the 挑片 badge counts these, not the day's shots (the owner asked why 13 were 6).
-                Text("这里列出用 Spektra Cam 相机拍的、还没导出到“照片”的照片（拍完只在 App 里冲洗，不会自动导出）。挑出要留的导出到“照片”，其余可以删掉省空间。从相册导入的照片不在这里。")
+                Text(String(localized: "这里列出用 Spektra Cam 相机拍的、还没导出到“照片”的照片（拍完只在 App 里冲洗，不会自动导出）。挑出要留的导出到“照片”，其余可以删掉省空间。从相册导入的照片不在这里。"))
                     .font(.footnote).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12).padding(.top, 6)
@@ -40,9 +40,9 @@ struct CullView: View {
                         } header: {
                             HStack {
                                 Text(day.formatted(.dateTime.month().day().weekday()))
-                                Text("· \(photos.count) 张").foregroundStyle(.secondary)
+                                Text(String(localized: "· \(photos.count) 张")).foregroundStyle(.secondary)
                                 Spacer()
-                                Button(photos.allSatisfy { keep.contains($0.id) } ? "取消全选" : "全选这天") {
+                                Button(photos.allSatisfy { keep.contains($0.id) } ? String(localized: "取消全选") : String(localized: "全选这天")) {
                                     let ids = Set(photos.map(\.id))
                                     if ids.isSubset(of: keep) { keep.subtract(ids) } else { keep.formUnion(ids) }
                                 }
@@ -60,22 +60,22 @@ struct CullView: View {
             }
             .overlay {
                 if shots.isEmpty {
-                    Text("没有待挑的照片").font(.headline).foregroundStyle(.secondary)
+                    Text(String(localized: "没有待挑的照片")).font(.headline).foregroundStyle(.secondary)
                 }
             }
             .overlay(alignment: .bottom) { if !shots.isEmpty { actions } }
             .background(Color.labInk.ignoresSafeArea())
-            .navigationTitle("挑片")
+            .navigationTitle(String(localized: "挑片"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("完成") { dismiss() }.disabled(working) }
+                ToolbarItem(placement: .cancellationAction) { Button(String(localized: "完成")) { dismiss() }.disabled(working) }
             }
-            .confirmationDialog("删除 \(rest.count) 张？", isPresented: $confirmingDelete, titleVisibility: .visible) {
-                Button("删除 \(rest.count) 张", role: .destructive) {
+            .confirmationDialog(String(localized: "删除 \(rest.count) 张？"), isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button(String(localized: "删除 \(rest.count) 张"), role: .destructive) {
                     model.deletePhotos(Set(rest.map(\.id)))
                 }
             } message: {
-                Text("这些照片还没导出过，Spektra Cam 里的底片是唯一的一份，删除后找不回来。")
+                Text(String(localized: "这些照片还没导出过，Spektra Cam 里的底片是唯一的一份，删除后找不回来。"))
             }
             .sheet(isPresented: $settingsOpen) { ExportSettingsSheet(model: model) }
             .sheet(item: $looking) { photo in
@@ -113,21 +113,21 @@ struct CullView: View {
             .contentShape(Rectangle())
             .onTapGesture { if on { keep.remove(photo.id) } else { keep.insert(photo.id) } }
             .contextMenu {
-                Button { looking = photo } label: { Label("放大看", systemImage: "magnifyingglass") }
+                Button { looking = photo } label: { Label(String(localized: "放大看"), systemImage: "magnifyingglass") }
             }
-            .accessibilityLabel(on ? "保留" : "未选")
+            .accessibilityLabel(on ? String(localized: "保留") : String(localized: "未选"))
             .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private var actions: some View {
         VStack(spacing: 8) {
-            Text(keep.isEmpty ? "点照片标记要保留的；长按可以放大看" : "保留 \(keep.count) 张 · 其余 \(rest.count) 张")
+            Text(keep.isEmpty ? String(localized: "点照片标记要保留的；长按可以放大看") : String(localized: "保留 \(keep.count) 张 · 其余 \(rest.count) 张"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             // What 导出 writes, and where to change it (the editor's 导出 settings, shared).
             Button { settingsOpen = true } label: {
                 HStack(spacing: 4) {
-                    Text("导出到“照片”：" + ExportSettingsSheet.summary(model.exportOptions))
+                    Text(String(localized: "导出到“照片”：") + ExportSettingsSheet.summary(model.exportOptions))
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                 }
                 .font(.caption.weight(.medium))
@@ -145,13 +145,13 @@ struct CullView: View {
                         working = false
                     }
                 } label: {
-                    Label(working ? "正在导出…" : "导出保留的 \(keep.count) 张", systemImage: "square.and.arrow.up")
+                    Label(working ? String(localized: "正在导出…") : String(localized: "导出保留的 \(keep.count) 张"), systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity, minHeight: 46)
                         .background(Color.white.opacity(0.1), in: Capsule())
                 }
                 .disabled(keep.isEmpty || working)
                 Button { confirmingDelete = true } label: {
-                    Label(String(format: "删除其余 %d 张 · %.1f GB", rest.count,
+                    Label(String(format: String(localized: "删除其余 %d 张 · %.1f GB"), rest.count,
                                  Double(model.negativeBytes(rest)) / 1_073_741_824), systemImage: "trash")
                         .frame(maxWidth: .infinity, minHeight: 46)
                         .background(Color.labRed.opacity(0.3), in: Capsule())

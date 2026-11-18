@@ -12,16 +12,16 @@ struct RecipesView: View {
     @State private var toast: String?
 
     private var kinds: [(String, [Stock])] {
-        [("彩色负片", model.films.filter { !$0.monochrome && $0.type == .negative }),
-         ("反转片", model.films.filter { $0.type == .positive }),
-         ("黑白负片", model.films.filter(\.monochrome))].filter { !$0.1.isEmpty }
+        [(String(localized: "彩色负片"), model.films.filter { !$0.monochrome && $0.type == .negative }),
+         (String(localized: "反转片"), model.films.filter { $0.type == .positive }),
+         (String(localized: "黑白负片"), model.films.filter(\.monochrome))].filter { !$0.1.isEmpty }
     }
 
     var body: some View {
             List {
                 Section {
                     if model.savedRecipes.isEmpty {
-                        Text("在编辑页的 ⋯ 里“存为配方”，这里就会出现。")
+                        Text(String(localized: "在编辑页的 ⋯ 里“存为配方”，这里就会出现。"))
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     ForEach(model.savedRecipes) { saved in
@@ -29,19 +29,19 @@ struct RecipesView: View {
                             detail: "\(model.filmName(for: saved.recipe.filmID)) · \(model.filmName(for: saved.recipe.printStock))",
                             symbol: "wand.and.stars", loaded: roll == saved.roll) { load(saved.roll, saved.name) }
                         .contextMenu {
-                            Button { load(saved.roll, saved.name) } label: { Label("装进相机", systemImage: "camera") }
-                            Button { newName = saved.name; renaming = saved } label: { Label("重命名", systemImage: "pencil") }
-                            Button(role: .destructive) { model.deleteRecipe(saved.id) } label: { Label("删除", systemImage: "trash") }
+                            Button { load(saved.roll, saved.name) } label: { Label(String(localized: "装进相机"), systemImage: "camera") }
+                            Button { newName = saved.name; renaming = saved } label: { Label(String(localized: "重命名"), systemImage: "pencil") }
+                            Button(role: .destructive) { model.deleteRecipe(saved.id) } label: { Label(String(localized: "删除"), systemImage: "trash") }
                         }
                         .swipeActions {
-                            Button(role: .destructive) { model.deleteRecipe(saved.id) } label: { Label("删除", systemImage: "trash") }
+                            Button(role: .destructive) { model.deleteRecipe(saved.id) } label: { Label(String(localized: "删除"), systemImage: "trash") }
                         }
                     }
-                } header: { Text("我的配方 · \(model.savedRecipes.count)") }
+                } header: { Text(String(localized: "我的配方 · \(model.savedRecipes.count)")) }
 
                 let favourites = model.films.filter { model.favoriteFilms.contains($0.id) }
                 if !favourites.isEmpty {
-                    Section("收藏的胶片") { ForEach(favourites) { film($0) } }
+                    Section(String(localized: "收藏的胶片")) { ForEach(favourites) { film($0) } }
                 }
                 ForEach(kinds, id: \.0) { title, stocks in
                     Section("\(title) · \(stocks.count)") { ForEach(stocks) { film($0) } }
@@ -49,7 +49,7 @@ struct RecipesView: View {
             }
             .scrollContentBackground(.hidden)
             .background(LabBackdrop())
-            .navigationTitle("配方与胶片")
+            .navigationTitle(String(localized: "配方与胶片"))
             .overlay(alignment: .bottom) {
                 if let toast {
                     Text(toast).font(.footnote.weight(.semibold)).padding(.horizontal, 14).frame(height: 36)
@@ -57,10 +57,10 @@ struct RecipesView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .alert("重命名配方", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-                TextField("名字", text: $newName)
-                Button("取消", role: .cancel) { renaming = nil }
-                Button("好") { if let r = renaming { model.renameRecipe(r.id, to: newName) }; renaming = nil }
+            .alert(String(localized: "重命名配方"), isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+                TextField(String(localized: "名字"), text: $newName)
+                Button(String(localized: "取消"), role: .cancel) { renaming = nil }
+                Button(String(localized: "好")) { if let r = renaming { model.renameRecipe(r.id, to: newName) }; renaming = nil }
             }
         .tint(Color.labRed)
     }
@@ -69,12 +69,12 @@ struct RecipesView: View {
         let starred = model.favoriteFilms.contains(stock.id)
         return row(title: stock.name, detail: nil, artwork: stock, loaded: roll == stock.id) { load(stock.id, stock.name) }
             .swipeActions(edge: .leading) {
-                Button { model.toggleFavoriteFilm(stock.id) } label: { Label(starred ? "取消收藏" : "收藏", systemImage: starred ? "star.slash" : "star") }
+                Button { model.toggleFavoriteFilm(stock.id) } label: { Label(starred ? String(localized: "取消收藏") : String(localized: "收藏"), systemImage: starred ? "star.slash" : "star") }
                     .tint(Color.labRed)
             }
             .contextMenu {
-                Button { load(stock.id, stock.name) } label: { Label("装进相机", systemImage: "camera") }
-                Button { model.toggleFavoriteFilm(stock.id) } label: { Label(starred ? "取消收藏" : "收藏", systemImage: starred ? "star.slash" : "star") }
+                Button { load(stock.id, stock.name) } label: { Label(String(localized: "装进相机"), systemImage: "camera") }
+                Button { model.toggleFavoriteFilm(stock.id) } label: { Label(starred ? String(localized: "取消收藏") : String(localized: "收藏"), systemImage: starred ? "star.slash" : "star") }
             }
     }
 
@@ -93,7 +93,7 @@ struct RecipesView: View {
                     Image(systemName: "star.fill").font(.caption2).foregroundStyle(Color.labRed)
                 }
                 if loaded {
-                    Label("在相机里", systemImage: "camera.fill").labelStyle(.iconOnly).foregroundStyle(Color.labRed)
+                    Label(String(localized: "在相机里"), systemImage: "camera.fill").labelStyle(.iconOnly).foregroundStyle(Color.labRed)
                 }
             }
         }
@@ -102,7 +102,7 @@ struct RecipesView: View {
 
     private func load(_ newRoll: String, _ name: String) {
         roll = newRoll
-        withAnimation { toast = "相机装上了 \(name)" }
+        withAnimation { toast = String(localized: "相机装上了 \(name)") }
         Task { try? await Task.sleep(for: .seconds(2)); withAnimation { toast = nil } }
     }
 }

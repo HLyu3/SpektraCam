@@ -43,17 +43,17 @@ enum FilmStripOrientation: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .automatic: "自动"
-        case .horizontal: "横向"
-        case .vertical: "竖向"
+        case .automatic: String(localized: "自动")
+        case .horizontal: String(localized: "横向")
+        case .vertical: String(localized: "竖向")
         }
     }
 
     var detail: String {
         switch self {
-        case .automatic: "跟随照片"
-        case .horizontal: "横向片条"
-        case .vertical: "竖向片条"
+        case .automatic: String(localized: "跟随照片")
+        case .horizontal: String(localized: "横向片条")
+        case .vertical: String(localized: "竖向片条")
         }
     }
 
@@ -77,38 +77,38 @@ enum FilmGateCatalog {
     /// The measured gates shipped by the engine. `135` is first because it is
     /// the one with real sprockets and a DX rebate; the 120 gates follow.
     static let gates: [FilmGate] = [
-        FilmGate(id: "135", title: "35 mm", detail: "135 · 齿孔 / DX / 片边字",
+        FilmGate(id: "135", title: "35 mm", detail: String(localized: "135 · 齿孔 / DX / 片边字"),
                  longEdgeMM: 36.25, shortEdgeMM: 24.3, supportsDateBack: true),
-        FilmGate(id: "135_half", title: "半格", detail: "135 半格 · 竖构图",
+        FilmGate(id: "135_half", title: String(localized: "半格"), detail: String(localized: "135 半格 · 竖构图"),
                  longEdgeMM: 24.0, shortEdgeMM: 18.0, supportsDateBack: true),
-        FilmGate(id: "120_645", title: "120 / 645", detail: "6×4.5 · 片边字 / 日期",
+        FilmGate(id: "120_645", title: "120 / 645", detail: String(localized: "6×4.5 · 片边字 / 日期"),
                  longEdgeMM: 56.0, shortEdgeMM: 41.5, supportsDateBack: true, filmWidthMM: 61),
-        FilmGate(id: "120_6x6", title: "120 / 6×6", detail: "6×6 · 片边字 / 日期",
+        FilmGate(id: "120_6x6", title: "120 / 6×6", detail: String(localized: "6×6 · 片边字 / 日期"),
                  longEdgeMM: 56.0, shortEdgeMM: 56.0, supportsDateBack: true, filmWidthMM: 61),
-        FilmGate(id: "120_6x7", title: "120 / 6×7", detail: "6×7 · 片边字 / 日期",
+        FilmGate(id: "120_6x7", title: "120 / 6×7", detail: String(localized: "6×7 · 片边字 / 日期"),
                  longEdgeMM: 69.5, shortEdgeMM: 56.0, supportsDateBack: true, filmWidthMM: 61),
-        FilmGate(id: "120_6x8", title: "120 / 6×8", detail: "6×8 · 片边字 / 日期",
+        FilmGate(id: "120_6x8", title: "120 / 6×8", detail: String(localized: "6×8 · 片边字 / 日期"),
                  longEdgeMM: 76.0, shortEdgeMM: 56.0, supportsDateBack: true, filmWidthMM: 61),
-        FilmGate(id: "120_6x9", title: "120 / 6×9", detail: "6×9 · 片边字 / 日期",
+        FilmGate(id: "120_6x9", title: "120 / 6×9", detail: String(localized: "6×9 · 片边字 / 日期"),
                  longEdgeMM: 84.0, shortEdgeMM: 56.0, supportsDateBack: true, filmWidthMM: 61),
-        FilmGate(id: "135_xpan", title: "XPan", detail: "135 全景 · 无日期后背",
+        FilmGate(id: "135_xpan", title: "XPan", detail: String(localized: "135 全景 · 无日期后背"),
                  longEdgeMM: 65.0, shortEdgeMM: 24.0, supportsDateBack: false),
-        FilmGate(id: "120_6x12", title: "120 / 6×12", detail: "全景 · 无日期后背",
+        FilmGate(id: "120_6x12", title: "120 / 6×12", detail: String(localized: "全景 · 无日期后背"),
                  longEdgeMM: 112.0, shortEdgeMM: 56.0, supportsDateBack: false, filmWidthMM: 61),
-        FilmGate(id: "120_6x17", title: "120 / 6×17", detail: "全景 · 无日期后背",
+        FilmGate(id: "120_6x17", title: "120 / 6×17", detail: String(localized: "全景 · 无日期后背"),
                  longEdgeMM: 168.0, shortEdgeMM: 56.0, supportsDateBack: false, filmWidthMM: 61),
         // Below: the engine's own sizes (`overscan.cpp` kFormats / kCine), offered by name only.
-        FilmGate(id: "135_sprocket", title: "齿孔全景", detail: "135 · 连齿孔一起曝光",
+        FilmGate(id: "135_sprocket", title: String(localized: "齿孔全景"), detail: String(localized: "135 · 连齿孔一起曝光"),
                  longEdgeMM: 72.0, shortEdgeMM: 36.0, supportsDateBack: false, manualOnly: true),
-        FilmGate(id: "8_super", title: "Super 8", detail: "8 mm 电影 · 单边齿孔",
+        FilmGate(id: "8_super", title: "Super 8", detail: String(localized: "8 mm 电影 · 单边齿孔"),
                  longEdgeMM: 5.79, shortEdgeMM: 4.01, supportsDateBack: false, filmWidthMM: 7.976, manualOnly: true),
-        FilmGate(id: "16_super", title: "Super 16", detail: "16 mm 电影 · 单边齿孔",
+        FilmGate(id: "16_super", title: "Super 16", detail: String(localized: "16 mm 电影 · 单边齿孔"),
                  longEdgeMM: 12.35, shortEdgeMM: 7.50, supportsDateBack: false, filmWidthMM: 15.95, manualOnly: true),
-        FilmGate(id: "35_4perf", title: "35 mm 电影", detail: "4 齿孔 · 电影摄影机画幅",
+        FilmGate(id: "35_4perf", title: String(localized: "35 mm 电影"), detail: String(localized: "4 齿孔 · 电影摄影机画幅"),
                  longEdgeMM: 24.89, shortEdgeMM: 18.67, supportsDateBack: false, manualOnly: true),
-        FilmGate(id: "65_5perf", title: "65 mm 电影", detail: "5 齿孔 · 宽银幕",
+        FilmGate(id: "65_5perf", title: String(localized: "65 mm 电影"), detail: String(localized: "5 齿孔 · 宽银幕"),
                  longEdgeMM: 52.63, shortEdgeMM: 23.01, supportsDateBack: false, filmWidthMM: 64.97, manualOnly: true),
-        FilmGate(id: "65_15perf", title: "IMAX", detail: "65 mm · 15 齿孔 · 横向走片",
+        FilmGate(id: "65_15perf", title: "IMAX", detail: String(localized: "65 mm · 15 齿孔 · 横向走片"),
                  longEdgeMM: 70.41, shortEdgeMM: 52.63, supportsDateBack: false, filmWidthMM: 64.97, manualOnly: true),
     ]
 
@@ -154,8 +154,8 @@ enum DateBackStyle: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .lcd: "液晶七段"
-        case .dots: "点阵"
+        case .lcd: String(localized: "液晶七段")
+        case .dots: String(localized: "点阵")
         }
     }
 }
@@ -167,8 +167,8 @@ enum DateBackPlacement: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .frame: "画面内"
-        case .rebate: "片边之间"
+        case .frame: String(localized: "画面内")
+        case .rebate: String(localized: "片边之间")
         }
     }
 }
@@ -179,10 +179,10 @@ enum DateBackCorner: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .br: "右下"
-        case .bl: "左下"
-        case .tr: "右上"
-        case .tl: "左上"
+        case .br: String(localized: "右下")
+        case .bl: String(localized: "左下")
+        case .tr: String(localized: "右上")
+        case .tl: String(localized: "左上")
         }
     }
 }

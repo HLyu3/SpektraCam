@@ -147,29 +147,29 @@ enum ParamGroup: String, CaseIterable, Identifiable, Sendable {
 /// The controls the iOS app shows, in the order it shows them.
 enum ParamCatalog {
     static let all: [ParamControl] = [
-        ParamControl(.exposureCompensation, title: "曝光补偿", range: -3...3, defaultValue: 0, group: .exposure),
+        ParamControl(.exposureCompensation, title: String(localized: "曝光补偿"), range: -3...3, defaultValue: 0, group: .exposure),
 
-        ParamControl(.printBrightness, title: "印放亮度", range: -3...3, defaultValue: 0, group: .enlarger),
-        ParamControl(.yFilterShift, title: "黄 ↔ 蓝", range: -1...1, defaultValue: 0, group: .enlarger),
-        ParamControl(.mFilterShift, title: "品红 ↔ 绿", range: -1...1, defaultValue: 0, group: .enlarger),
-        ParamControl(.preflash, title: "预闪", range: 0...0.2, defaultValue: 0, group: .enlarger),
-        ParamControl(.densityCurveGamma, title: "密度曲线", range: 0.2...1.5, defaultValue: 1, group: .enlarger),
+        ParamControl(.printBrightness, title: String(localized: "印放亮度"), range: -3...3, defaultValue: 0, group: .enlarger),
+        ParamControl(.yFilterShift, title: String(localized: "黄 ↔ 蓝"), range: -1...1, defaultValue: 0, group: .enlarger),
+        ParamControl(.mFilterShift, title: String(localized: "品红 ↔ 绿"), range: -1...1, defaultValue: 0, group: .enlarger),
+        ParamControl(.preflash, title: String(localized: "预闪"), range: 0...0.2, defaultValue: 0, group: .enlarger),
+        ParamControl(.densityCurveGamma, title: String(localized: "密度曲线"), range: 0.2...1.5, defaultValue: 1, group: .enlarger),
 
-        ParamControl(.sceneLatitudeActive, title: "场景置位", defaultValue: 0, group: .placement, toggle: true,
-                     note: "把超出相纸宽容度的高光和阴影柔和地收进来，像冲印师傅手工遮挡加光"),
-        ParamControl(.highlightRoom, title: "高光收回", range: 0...6, defaultValue: 0, group: .placement),
-        ParamControl(.shadowRoom, title: "阴影提起", range: 0...6, defaultValue: 0, group: .placement),
+        ParamControl(.sceneLatitudeActive, title: String(localized: "场景置位"), defaultValue: 0, group: .placement, toggle: true,
+                     note: String(localized: "把超出相纸宽容度的高光和阴影柔和地收进来，像冲印师傅手工遮挡加光")),
+        ParamControl(.highlightRoom, title: String(localized: "高光收回"), range: 0...6, defaultValue: 0, group: .placement),
+        ParamControl(.shadowRoom, title: String(localized: "阴影提起"), range: 0...6, defaultValue: 0, group: .placement),
 
-        ParamControl(.grainAmount, title: "颗粒", range: 0...2, defaultValue: 1),
-        ParamControl(.halationAmount, title: "光晕", range: 0...4, defaultValue: 1),
-        ParamControl(.halationScatter, title: "光晕扩散", range: 0...1, defaultValue: 1),
-        ParamControl(.glareAmount, title: "眩光", range: 0...3, defaultValue: 1),
-        ParamControl(.couplersAmount, title: "成色剂", range: 0...1.5, defaultValue: 1),
+        ParamControl(.grainAmount, title: String(localized: "颗粒"), range: 0...2, defaultValue: 1),
+        ParamControl(.halationAmount, title: String(localized: "光晕"), range: 0...4, defaultValue: 1),
+        ParamControl(.halationScatter, title: String(localized: "光晕扩散"), range: 0...1, defaultValue: 1),
+        ParamControl(.glareAmount, title: String(localized: "眩光"), range: 0...3, defaultValue: 1),
+        ParamControl(.couplersAmount, title: String(localized: "成色剂"), range: 0...1.5, defaultValue: 1),
 
-        ParamControl(.scanFilm, title: "扫描底片", defaultValue: 0, group: .output, toggle: true,
-                     note: "不印放，直接看冲出来的底片（负片会是橙色的反相）"),
-        ParamControl(.digitalIntermediate, title: "数字中间片", defaultValue: 0, group: .output, toggle: true,
-                     note: "像电影后期那样把底片转成平淡的 Log 画面，留给后期调色"),
+        ParamControl(.scanFilm, title: String(localized: "扫描底片"), defaultValue: 0, group: .output, toggle: true,
+                     note: String(localized: "不印放，直接看冲出来的底片（负片会是橙色的反相）")),
+        ParamControl(.digitalIntermediate, title: String(localized: "数字中间片"), defaultValue: 0, group: .output, toggle: true,
+                     note: String(localized: "像电影后期那样把底片转成平淡的 Log 画面，留给后期调色")),
     ]
 
     static func control(for key: String) -> ParamControl? {

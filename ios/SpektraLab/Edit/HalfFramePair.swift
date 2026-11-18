@@ -176,7 +176,7 @@ struct PairSheet: View {
         let a = max(l.pixelWidth, l.pixelHeight), b = max(r.pixelWidth, r.pixelHeight)
         guard min(a, b) * 2 < max(a, b) else { return nil }
         let small = a < b ? l : r
-        return "「\(small.name)」只有 \(small.pixelWidth)×\(small.pixelHeight)，会被放大到另一张的尺寸，这一格会偏软。"
+        return String(localized: "「\(small.name)」只有 \(small.pixelWidth)×\(small.pixelHeight)，会被放大到另一张的尺寸，这一格会偏软。")
     }
 
     var body: some View {
@@ -187,13 +187,13 @@ struct PairSheet: View {
                 Button {
                     spec = spec.swapped
                 } label: {
-                    Label("左右互换", systemImage: "arrow.left.arrow.right")
+                    Label(String(localized: "左右互换"), systemImage: "arrow.left.arrow.right")
                         .font(.footnote.weight(.semibold))
                 }
                 VStack(spacing: 10) {
-                    FinishSlider(title: "左格曝光", value: $spec.leftEV, range: -2...2,
+                    FinishSlider(title: String(localized: "左格曝光"), value: $spec.leftEV, range: -2...2,
                                  text: { String(format: "%+.1f EV", $0) })
-                    FinishSlider(title: "右格曝光", value: $spec.rightEV, range: -2...2,
+                    FinishSlider(title: String(localized: "右格曝光"), value: $spec.rightEV, range: -2...2,
                                  text: { String(format: "%+.1f EV", $0) })
                     if let small = lowResolutionNote {
                         Text(small)
@@ -201,7 +201,7 @@ struct PairSheet: View {
                             .foregroundStyle(Color.labRed)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    Text("两格各自测光，先拉到中灰，这里再各自加减。双击标题归零。")
+                    Text(String(localized: "两格各自测光，先拉到中灰，这里再各自加减。双击标题归零。"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -217,7 +217,7 @@ struct PairSheet: View {
                 } label: {
                     HStack {
                         if working { ProgressView().tint(.white) }
-                        Text(working ? "正在合成…" : "生成双拼")
+                        Text(working ? String(localized: "正在合成…") : String(localized: "生成双拼"))
                     }
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 50)
@@ -229,10 +229,10 @@ struct PairSheet: View {
             }
             .padding(20)
             .background(Color.labInk.ignoresSafeArea())
-            .navigationTitle("半格双拼")
+            .navigationTitle(String(localized: "半格双拼"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(working) }
+                ToolbarItem(placement: .cancellationAction) { Button(String(localized: "取消")) { dismiss() }.disabled(working) }
             }
             .interactiveDismissDisabled(working)
         }
@@ -251,7 +251,7 @@ struct PairSheet: View {
             .background(Color.black)
             .clipShape(RoundedRectangle(cornerRadius: 4))
             .frame(maxWidth: 340)
-            Text("拖动选取画面，双指缩放取局部，双击恢复整幅")
+            Text(String(localized: "拖动选取画面，双指缩放取局部，双击恢复整幅"))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

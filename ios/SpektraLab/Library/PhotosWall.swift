@@ -18,7 +18,7 @@ final class PhotosFeed: NSObject, ObservableObject, PHPhotoLibraryChangeObserver
     @Published private(set) var assets: PHFetchResult<PHAsset>?
     @Published private(set) var denied = false
     @Published private(set) var albums: [PhotoAlbum] = []
-    @Published var album = PhotoAlbum(id: "", title: "全部照片", symbol: "photo.on.rectangle")
+    @Published var album = PhotoAlbum(id: "", title: String(localized: "全部照片"), symbol: "photo.on.rectangle")
     let images = PHCachingImageManager()
     private var observing = false
     /// Told after Photos changed (the wall uses it to drop entries of deleted photos).
@@ -43,17 +43,17 @@ final class PhotosFeed: NSObject, ObservableObject, PHPhotoLibraryChangeObserver
         } else if let c = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [album.id], options: nil).firstObject {
             assets = PHAsset.fetchAssets(in: c, options: options)
         } else {
-            album = PhotoAlbum(id: "", title: "全部照片", symbol: "photo.on.rectangle")
+            album = PhotoAlbum(id: "", title: String(localized: "全部照片"), symbol: "photo.on.rectangle")
             assets = PHAsset.fetchAssets(with: options)
         }
     }
 
     /// Favourites, RAW and the camera's own smart albums first, then the person's albums.
     private static func listAlbums() -> [PhotoAlbum] {
-        var out = [PhotoAlbum(id: "", title: "全部照片", symbol: "photo.on.rectangle")]
+        var out = [PhotoAlbum(id: "", title: String(localized: "全部照片"), symbol: "photo.on.rectangle")]
         let smart: [(PHAssetCollectionSubtype, String, String)] = [
-            (.smartAlbumFavorites, "个人收藏", "heart"), (.smartAlbumRAW, "RAW", "r.square"),
-            (.smartAlbumSelfPortraits, "自拍", "person.crop.square"), (.smartAlbumScreenshots, "截屏", "camera.viewfinder"),
+            (.smartAlbumFavorites, String(localized: "个人收藏"), "heart"), (.smartAlbumRAW, "RAW", "r.square"),
+            (.smartAlbumSelfPortraits, String(localized: "自拍"), "person.crop.square"), (.smartAlbumScreenshots, String(localized: "截屏"), "camera.viewfinder"),
         ]
         for (subtype, title, symbol) in smart {
             if let c = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: subtype, options: nil).firstObject {
@@ -61,7 +61,7 @@ final class PhotosFeed: NSObject, ObservableObject, PHPhotoLibraryChangeObserver
             }
         }
         PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil).enumerateObjects { c, _, _ in
-            out.append(PhotoAlbum(id: c.localIdentifier, title: c.localizedTitle ?? "相簿", symbol: "rectangle.stack"))
+            out.append(PhotoAlbum(id: c.localIdentifier, title: c.localizedTitle ?? String(localized: "相簿"), symbol: "rectangle.stack"))
         }
         return out
     }
@@ -94,8 +94,8 @@ struct PhotosWall: View {
         Group {
             if feed.denied {
                 VStack(spacing: 10) {
-                    Text("没有相册权限").font(.headline).foregroundStyle(Color.labCream)
-                    Text("在“设置 > Spektra Cam > 照片”里选“所有照片”，或把来源改回 Spektra Cam 图库。")
+                    Text(String(localized: "没有相册权限")).font(.headline).foregroundStyle(Color.labCream)
+                    Text(String(localized: "在“设置 > Spektra Cam > 照片”里选“所有照片”，或把来源改回 Spektra Cam 图库。"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -140,7 +140,7 @@ struct PhotoAlbumMenu: View {
     @ObservedObject var feed: PhotosFeed
     var body: some View {
         Menu {
-            Picker("相簿", selection: Binding(get: { feed.album }, set: { feed.choose($0) })) {
+            Picker(String(localized: "相簿"), selection: Binding(get: { feed.album }, set: { feed.choose($0) })) {
                 ForEach(feed.albums) { Label($0.title, systemImage: $0.symbol).tag($0) }
             }
         } label: {
@@ -156,7 +156,7 @@ struct PhotoAlbumMenu: View {
             .frame(height: 32)
             .background(Color.white.opacity(0.06), in: Capsule())
         }
-        .accessibilityLabel("相簿：\(feed.album.title)")
+        .accessibilityLabel(String(localized: "相簿：\(feed.album.title)"))
     }
 }
 
@@ -218,7 +218,7 @@ private struct AssetCell: View {
                 guard linked == nil else { return }
                 image = await PhotoAssets.thumbnail(asset, side: 300, manager: images)
             }
-            .accessibilityLabel(linked.map { "已冲洗，\(model.filmName(for: $0.recipe.filmID))" } ?? "相册照片")
+            .accessibilityLabel(linked.map { String(localized: "已冲洗，\(model.filmName(for: $0.recipe.filmID))") } ?? String(localized: "相册照片"))
             .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

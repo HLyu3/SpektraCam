@@ -226,13 +226,13 @@ struct WatermarkPanel: View {
 
     var body: some View {
         ToolScroll {
-            Text("水印库 · 点一下放到照片上，长按删除").font(.caption).foregroundStyle(.secondary)
+            Text(String(localized: "水印库 · 点一下放到照片上，长按删除")).font(.caption).foregroundStyle(.secondary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Menu {
-                        Button { pickingPhoto = true } label: { Label("从相册（PNG 透明底最好）", systemImage: "photo") }
-                        Button { pickingFile = true } label: { Label("从文件", systemImage: "folder") }
-                        Button { text = ""; writing = true } label: { Label("用文字做一个", systemImage: "textformat") }
+                        Button { pickingPhoto = true } label: { Label(String(localized: "从相册（PNG 透明底最好）"), systemImage: "photo") }
+                        Button { pickingFile = true } label: { Label(String(localized: "从文件"), systemImage: "folder") }
+                        Button { text = ""; writing = true } label: { Label(String(localized: "用文字做一个"), systemImage: "textformat") }
                     } label: {
                         Image(systemName: "plus").font(.title3)
                             .frame(width: 56, height: 56)
@@ -245,14 +245,14 @@ struct WatermarkPanel: View {
             }
             if let p = current {
                 if placements.count > 1 {
-                    Picker("水印", selection: Binding(get: { p.id }, set: { chosen = $0 })) {
-                        ForEach(Array(placements.enumerated()), id: \.element.id) { i, q in Text("水印 \(i + 1)").tag(q.id) }
+                    Picker(String(localized: "水印"), selection: Binding(get: { p.id }, set: { chosen = $0 })) {
+                        ForEach(Array(placements.enumerated()), id: \.element.id) { i, q in Text(String(localized: "水印 \(i + 1)")).tag(q.id) }
                     }
                     .pickerStyle(.segmented)
                 }
                 controls(p)
             } else {
-                Note("还没有水印。点 ＋ 添加一个 PNG（透明底的签名或标志最好），或用文字做一个。导出的成片、缩略图和观片台都会带上。")
+                Note(String(localized: "还没有水印。点 ＋ 添加一个 PNG（透明底的签名或标志最好），或用文字做一个。导出的成片、缩略图和观片台都会带上。"))
             }
         }
         .photosPicker(isPresented: $pickingPhoto, selection: $photoItem, matching: .images)
@@ -269,15 +269,15 @@ struct WatermarkPanel: View {
             defer { if ok { url.stopAccessingSecurityScopedResource() } }
             if let data = try? Data(contentsOf: url), let id = shelf.add(data) { place(id) }
         }
-        .alert("文字水印", isPresented: $writing) {
-            TextField("例如 © 你的名字", text: $text)
-            Button("取消", role: .cancel) {}
-            Button("做好") { if let data = Watermark.textMark(text), let id = shelf.add(data) { place(id) } }
+        .alert(String(localized: "文字水印"), isPresented: $writing) {
+            TextField(String(localized: "例如 © 你的名字"), text: $text)
+            Button(String(localized: "取消"), role: .cancel) {}
+            Button(String(localized: "做好")) { if let data = Watermark.textMark(text), let id = shelf.add(data) { place(id) } }
         }
-        .confirmationDialog("从水印库删除这个水印？", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+        .confirmationDialog(String(localized: "从水印库删除这个水印？"), isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
                             titleVisibility: .visible) {
-            Button("删除", role: .destructive) { if let id = removing { shelf.delete(id) }; removing = nil }
-        } message: { Text("已经放上去的照片不再显示它。") }
+            Button(String(localized: "删除"), role: .destructive) { if let id = removing { shelf.delete(id) }; removing = nil }
+        } message: { Text(String(localized: "已经放上去的照片不再显示它。")) }
     }
 
     private func markTile(_ id: UUID) -> some View {
@@ -290,11 +290,11 @@ struct WatermarkPanel: View {
             .background(Color(white: 0.35), in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .contextMenu { Button(role: .destructive) { removing = id } label: { Label("从水印库删除", systemImage: "trash") } }
+        .contextMenu { Button(role: .destructive) { removing = id } label: { Label(String(localized: "从水印库删除"), systemImage: "trash") } }
     }
 
     private func place(_ id: UUID) {
-        guard placements.count < Watermark.maxPerPhoto else { model.libraryMessage = "一张照片最多 \(Watermark.maxPerPhoto) 个水印"; return }
+        guard placements.count < Watermark.maxPerPhoto else { model.libraryMessage = String(localized: "一张照片最多 \(Watermark.maxPerPhoto) 个水印"); return }
         let p = WatermarkPlacement(mark: id, size: 0.25).placed(margin: 0.04, aspect: shelf.aspect(id))
         model.edit { r in r.watermarks = (r.watermarks ?? []) + [p] }
         chosen = p.id
@@ -311,22 +311,22 @@ struct WatermarkPanel: View {
     @ViewBuilder private func controls(_ p: WatermarkPlacement) -> some View {
         let aspect = shelf.aspect(p.mark)
         let margin = p.margin(aspect: aspect)
-        ChipRow(title: "位置", options: [("tl", "左上"), ("tr", "右上"), ("bl", "左下"), ("br", "右下")],
+        ChipRow(title: String(localized: "位置"), options: [("tl", String(localized: "左上")), ("tr", String(localized: "右上")), ("bl", String(localized: "左下")), ("br", String(localized: "右下"))],
                 selected: p.anchor) { a in var q = p; q.anchor = a; update(q.placed(margin: margin, aspect: aspect)) }
-        FinishSlider(title: "大小", value: Binding(get: { p.size }, set: { v in var q = p; q.size = v; update(q.placed(margin: margin, aspect: aspect)) }),
+        FinishSlider(title: String(localized: "大小"), value: Binding(get: { p.size }, set: { v in var q = p; q.size = v; update(q.placed(margin: margin, aspect: aspect)) }),
                      range: 0.03...1, rest: 0.25, text: { String(format: "%.0f%%", $0 * 100) })
-        FinishSlider(title: "边距", value: Binding(get: { margin }, set: { update(p.placed(margin: $0, aspect: aspect)) }),
+        FinishSlider(title: String(localized: "边距"), value: Binding(get: { margin }, set: { update(p.placed(margin: $0, aspect: aspect)) }),
                      range: 0...0.3, rest: 0.04, text: { String(format: "%.0f%%", $0 * 100) })
-        FinishSlider(title: "透明度", value: Binding(get: { p.opacity }, set: { v in var q = p; q.opacity = v; update(q) }),
+        FinishSlider(title: String(localized: "透明度"), value: Binding(get: { p.opacity }, set: { v in var q = p; q.opacity = v; update(q) }),
                      range: 0.05...1, rest: 1, text: { String(format: "%.0f%%", $0 * 100) })
-        FinishSlider(title: "旋转", value: Binding(get: { p.rotation }, set: { v in var q = p; q.rotation = v.rounded(); update(q) }),
+        FinishSlider(title: String(localized: "旋转"), value: Binding(get: { p.rotation }, set: { v in var q = p; q.rotation = v.rounded(); update(q) }),
                      range: -180...180, rest: 0, text: { String(format: "%.0f°", $0) })
-        ChipRow(title: "颜色", options: [("", "原样"), ("white", "白色"), ("black", "黑色")], selected: p.fill ?? "") { f in
+        ChipRow(title: String(localized: "颜色"), options: [("", String(localized: "原样")), ("white", String(localized: "白色")), ("black", String(localized: "黑色"))], selected: p.fill ?? "") { f in
             var q = p; q.fill = f.isEmpty ? nil : f; update(q)
         }
         Button(role: .destructive) {
             model.edit { r in r.watermarks = (r.watermarks ?? []).filter { $0.id != p.id } }
             chosen = nil
-        } label: { Label("从这张照片拿掉", systemImage: "minus.circle").font(.footnote) }
+        } label: { Label(String(localized: "从这张照片拿掉"), systemImage: "minus.circle").font(.footnote) }
     }
 }

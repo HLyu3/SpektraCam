@@ -53,7 +53,7 @@ extension ViewModel {
         let saved = SavedRecipe(name: trimmed.isEmpty ? currentLookName : trimmed, recipe: currentRecipe)
         savedRecipes.insert(saved, at: 0)
         storeSavedRecipes()
-        libraryMessage = "已存为配方「\(saved.name)」"
+        libraryMessage = String(localized: "已存为配方「\(saved.name)」")
         return saved
     }
 
@@ -115,7 +115,7 @@ extension ViewModel {
     }
 
     func rollTitle(_ roll: String) -> String {
-        if roll.isEmpty { return "无胶卷" }
+        if roll.isEmpty { return String(localized: "无胶卷") }
         if roll.hasPrefix("recipe:"), let id = UUID(uuidString: String(roll.dropFirst(7))),
            let saved = savedRecipes.first(where: { $0.id == id }) {
             return saved.name

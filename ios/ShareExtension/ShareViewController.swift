@@ -16,7 +16,7 @@ final class ShareViewController: UIViewController {
         label.font = .systemFont(ofSize: 17, weight: .semibold)
         label.numberOfLines = 0
         label.textAlignment = .center
-        label.text = "正在加入 Spektra Cam…"
+        label.text = String(localized: "正在加入 Spektra Cam…")
         label.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(label)
         NSLayoutConstraint.activate([
@@ -39,7 +39,7 @@ final class ShareViewController: UIViewController {
                 copied += 1
             }
         }
-        label.text = copied == 0 ? "没有可以加入的照片" : "已加入 \(copied) 张\n打开 Spektra Cam 时导入"
+        label.text = copied == 0 ? String(localized: "没有可以加入的照片") : String(localized: "已加入 \(copied) 张\n打开 Spektra Cam 时导入")
         try? await Task.sleep(nanoseconds: 1_100_000_000)
         extensionContext?.completeRequest(returningItems: nil)
     }

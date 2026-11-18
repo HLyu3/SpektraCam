@@ -379,7 +379,7 @@ enum LibraryThumbnail {
 
     static func saveJPEG(_ image: UIImage, to url: URL) throws {
         guard let data = image.jpegData(compressionQuality: 0.86) else {
-            throw DecodeError.unreadable("缩略图无法编码")
+            throw DecodeError.unreadable(String(localized: "缩略图无法编码"))
         }
         try data.write(to: url, options: .atomic)
     }
@@ -434,10 +434,10 @@ enum LensCharacter: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .swirl: "旋焦"
+        case .swirl: String(localized: "旋焦")
         case .petzval: "Petzval"
-        case .vintage: "老镜"
-        case .toy: "玩具镜"
+        case .vintage: String(localized: "老镜")
+        case .toy: String(localized: "玩具镜")
         }
     }
 

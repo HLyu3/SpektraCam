@@ -203,6 +203,7 @@
 		A3683B4388735BD2619A86E7 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
 		8874395C8D41849932265430 /* ExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExportSheet.swift"; sourceTree = "<group>"; };
 		AC1103EAAEEF5ACAFDF57005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		6D13D799C8E7F3A2036326BA /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = "Localizable.xcstrings"; sourceTree = "<group>"; };
 		08561BE9E56B23AE2089EC17 /* PhotoLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PhotoLibraryView.swift"; sourceTree = "<group>"; };
 		5536740621F6631B2197BCC3 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
 		E75CF164A8C2B3A55ED5B5F0 /* SpektraLab.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SpektraLab.entitlements"; sourceTree = "<group>"; };
@@ -225,6 +226,7 @@
 				A3683B4388735BD2619A86E7 /* ContentView.swift */,
 				8874395C8D41849932265430 /* ExportSheet.swift */,
 				AC1103EAAEEF5ACAFDF57005 /* Info.plist */,
+				6D13D799C8E7F3A2036326BA /* Localizable.xcstrings */,
 				08561BE9E56B23AE2089EC17 /* PhotoLibraryView.swift */,
 				5536740621F6631B2197BCC3 /* SettingsView.swift */,
 				E75CF164A8C2B3A55ED5B5F0 /* SpektraLab.entitlements */,
@@ -263,12 +265,14 @@
 			sourceTree = "<group>";
 		};
 		EF36881F5F2BBD93530FA898 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		C08A9A06E2487569E1FABD09 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = "Localizable.xcstrings"; sourceTree = "<group>"; };
 		D31500F4A66C319CAB0DF12B /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ShareExtension.entitlements"; sourceTree = "<group>"; };
 		64BB437008C3A3D336D3DC78 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShareViewController.swift"; sourceTree = "<group>"; };
 		49379961FDC56D64F8B36E43 /* ShareExtension */ = {
 			isa = PBXGroup;
 			children = (
 				EF36881F5F2BBD93530FA898 /* Info.plist */,
+				C08A9A06E2487569E1FABD09 /* Localizable.xcstrings */,
 				D31500F4A66C319CAB0DF12B /* ShareExtension.entitlements */,
 				64BB437008C3A3D336D3DC78 /* ShareViewController.swift */
 			);
@@ -892,12 +896,14 @@
 		};
 		B663863AD126A4768BAE9A7F /* Assets.xcassets */ = {isa = PBXBuildFile; fileRef = 89E16FC080E6CEAED03F1090; };
 		30D31A838BCFD72486198123 /* engine-assets.bin */ = {isa = PBXBuildFile; fileRef = 1B8D604DB29AAA97A51EA81A; };
+		3A8F79DA24F3BE7A8C9EEC44 /* Localizable.xcstrings */ = {isa = PBXBuildFile; fileRef = 6D13D799C8E7F3A2036326BA; };
 		C831EECBAB01524E02C71B42 /* app-resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				B663863AD126A4768BAE9A7F /* Assets.xcassets */,
-				30D31A838BCFD72486198123 /* engine-assets.bin */
+				30D31A838BCFD72486198123 /* engine-assets.bin */,
+				3A8F79DA24F3BE7A8C9EEC44 /* Localizable.xcstrings */
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -946,11 +952,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		98A4424C540866D606E1FCFC /* Localizable.xcstrings */ = {isa = PBXBuildFile; fileRef = C08A9A06E2487569E1FABD09; };
 		435CA211A2FC7FBE63B6DB30 /* ShareExtension-resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-
+				98A4424C540866D606E1FCFC /* Localizable.xcstrings */
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -971,7 +978,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_DEBUG_DYLIB = NO;
@@ -981,7 +988,7 @@
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.6;
+				MARKETING_VERSION = 2.1.7;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
@@ -989,7 +996,7 @@
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -1005,21 +1012,21 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.6;
+				MARKETING_VERSION = 2.1.7;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
 				PRODUCT_NAME = ShareExtension;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -1101,7 +1108,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1127,7 +1134,8 @@
 				INFOPLIST_FILE = SpektraLab/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 2.1.6;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 2.1.7;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1139,7 +1147,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "SpektraLab/Service/SpektraLab-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -1160,7 +1168,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1183,7 +1191,8 @@
 				INFOPLIST_FILE = SpektraLab/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 2.1.6;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 2.1.7;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = NO;
@@ -1194,7 +1203,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "SpektraLab/Service/SpektraLab-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -1295,9 +1304,10 @@
 			};
 			buildConfigurationList = 3D29D9F3A882C4202964FB56;
 			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				"zh-Hans",
 				en,
 				Base
 			);

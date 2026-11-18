@@ -30,8 +30,8 @@ struct FrameCrop: Codable, Equatable, Sendable {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .free: "自由"
-            case .original: "原始"
+            case .free: String(localized: "自由")
+            case .original: String(localized: "原始")
             case .square: "1:1"
             case .r4x3: "4:3"
             case .r3x2: "3:2"

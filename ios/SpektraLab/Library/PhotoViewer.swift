@@ -70,7 +70,7 @@ struct PhotoViewer: View {
         // (the export is full size).
         // Under the top bar: at the bottom the bar and the home indicator covered it.
         .overlay(alignment: .top) {
-            let note = large[current] == nil ? "清晰版冲洗中…" : zoom > 1.5 ? "预览图放大会略模糊，导出是原图全尺寸" : nil
+            let note = large[current] == nil ? String(localized: "清晰版冲洗中…") : zoom > 1.5 ? String(localized: "预览图放大会略模糊，导出是原图全尺寸") : nil
             if let note, !holding {
                 Text(note).font(.caption2.weight(.medium)).foregroundStyle(Color.labCream.opacity(0.85))
                     .padding(.horizontal, 10).frame(height: 24)
@@ -81,7 +81,7 @@ struct PhotoViewer: View {
         }
         .overlay(alignment: .top) {
             if holding {
-                Text(originals[current] == nil ? "原图载入中…" : "原图")
+                Text(originals[current] == nil ? String(localized: "原图载入中…") : String(localized: "原图"))
                     .font(.caption.weight(.semibold)).padding(.horizontal, 10).frame(height: 24)
                     .background(.ultraThinMaterial, in: Capsule()).padding(.top, 70)
             }
@@ -100,20 +100,20 @@ struct PhotoViewer: View {
                 if let image = await model.largeDevelop(for: ids[j]) { large[ids[j]] = image }
             }
         }
-        .confirmationDialog("导出这张？", isPresented: Binding(get: { exportQuestion != nil }, set: { if !$0 { exportQuestion = nil } }),
+        .confirmationDialog(String(localized: "导出这张？"), isPresented: Binding(get: { exportQuestion != nil }, set: { if !$0 { exportQuestion = nil } }),
                             titleVisibility: .visible) {
             let id = exportQuestion.map { [$0] } ?? []
             if model.previousPrints(of: id).count > 0 {
-                Button("导出，替换旧的成片") { run(id, replacing: true) }
-                Button("导出，旧成片也保留") { run(id, replacing: false) }
+                Button(String(localized: "导出，替换旧的成片")) { run(id, replacing: true) }
+                Button(String(localized: "导出，旧成片也保留")) { run(id, replacing: false) }
             } else {
-                Button("导出") { run(id, replacing: false) }
+                Button(String(localized: "导出")) { run(id, replacing: false) }
             }
-            Button("取消", role: .cancel) { exportQuestion = nil }
+            Button(String(localized: "取消"), role: .cancel) { exportQuestion = nil }
         } message: {
             let before = model.previousPrints(of: exportQuestion.map { [$0] } ?? [])
-            Text((before.count == 0 ? "还没导出过。" : before.changed > 0 ? "已经导出过，之后又改过，新成片会和旧的不一样。" : "已经导出过，之后没改过。")
-                 + "存到“照片”，格式：\(model.exportOptions.format.title) · \(model.exportOptions.colorSpace.title)。")
+            Text((before.count == 0 ? String(localized: "还没导出过。") : before.changed > 0 ? String(localized: "已经导出过，之后又改过，新成片会和旧的不一样。") : String(localized: "已经导出过，之后没改过。"))
+                 + String(localized: "存到“照片”，格式：\(model.exportOptions.format.title) · \(model.exportOptions.colorSpace.title)。"))
         }
     }
 
@@ -159,14 +159,14 @@ struct PhotoViewer: View {
             VStack(alignment: .leading, spacing: 1) {
                 if let p = photo {
                     Text(model.filmName(for: p.recipe.filmID)).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    Text(p.recipe.noFilm == true ? "原图" : "相纸 · " + model.filmName(for: p.recipe.printStock))
+                    Text(p.recipe.noFilm == true ? String(localized: "原图") : String(localized: "相纸 · ") + model.filmName(for: p.recipe.printStock))
                         .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             Spacer()
             // The editor opens first, under this cover, and the cover goes once it is there: dismissing first and
             // opening after a delay left the wall showing with no editor.
-            Button { openEditor() } label: { if opening { ProgressView() } else { Text("编辑") } }
+            Button { openEditor() } label: { if opening { ProgressView() } else { Text(String(localized: "编辑")) } }
                 .disabled(opening)
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 14).frame(height: 34)
@@ -189,10 +189,10 @@ struct PhotoViewer: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Menu {
-                    Button { model.copyRecipe(from: p.id) } label: { Label("复制配方", systemImage: "doc.on.doc") }
+                    Button { model.copyRecipe(from: p.id) } label: { Label(String(localized: "复制配方"), systemImage: "doc.on.doc") }
                     if let r = model.clipboardRecipe, model.recipeSourcePhotoID != p.id {
                         Button { Task { @MainActor in await model.pasteRecipe(to: [p.id]) } } label: {
-                            Label("粘贴配方 · \(model.filmName(for: r.filmID))", systemImage: "doc.on.clipboard")
+                            Label(String(localized: "粘贴配方 · \(model.filmName(for: r.filmID))"), systemImage: "doc.on.clipboard")
                         }
                     }
                 } label: { Image(systemName: "ellipsis.circle").frame(width: 44, height: 44) }

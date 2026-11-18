@@ -117,11 +117,11 @@ struct LightTableSlideShow: View {
             Spacer()
             HStack(spacing: 12) {
                 Button { shuffle() } label: {
-                    Label("随机", systemImage: "shuffle").padding(.horizontal, 14).frame(height: 40)
+                    Label(String(localized: "随机"), systemImage: "shuffle").padding(.horizontal, 14).frame(height: 40)
                         .background(shuffled ? Color.labRed.opacity(0.4) : Color.white.opacity(0.1), in: Capsule())
                 }
                 Button { auto.toggle() } label: {
-                    Label(auto ? "暂停" : "自动", systemImage: auto ? "pause.fill" : "play.fill").padding(.horizontal, 14).frame(height: 40)
+                    Label(auto ? String(localized: "暂停") : String(localized: "自动"), systemImage: auto ? "pause.fill" : "play.fill").padding(.horizontal, 14).frame(height: 40)
                         .background(auto ? Color.labRed.opacity(0.4) : Color.white.opacity(0.1), in: Capsule())
                 }
             }

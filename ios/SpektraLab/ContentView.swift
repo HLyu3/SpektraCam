@@ -28,7 +28,7 @@ extension Color {
 }
 
 extension View {
-    /// Liquid Glass on iOS 26 and later; the same layout in a material on iOS 18–25 (the app's minimum is 18).
+    /// Liquid Glass on iOS 26 and later; the same layout in a material on iOS 18 (Apple went from 18 to 26; 18 is the minimum).
     @ViewBuilder
     nonisolated func labGlass<S: Shape>(_ active: Bool = true, in shape: S) -> some View {
         if #available(iOS 26.0, *) {
@@ -218,7 +218,7 @@ struct EditorView: View {
                         ProgressView()
                             .controlSize(.large)
                             .tint(Color.labCream)
-                        Text("正在导出")
+                        Text(String(localized: "正在导出"))
                             .font(.headline)
                             .foregroundStyle(Color.labCream)
                         Text(model.statusText)
@@ -226,7 +226,7 @@ struct EditorView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
-                        Text("完成前请不要切换 App")
+                        Text(String(localized: "完成前请不要切换 App"))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -240,7 +240,7 @@ struct EditorView: View {
             }
 
             if copyToast {
-                Text("配方已复制")
+                Text(String(localized: "配方已复制"))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.labCream)
                     .padding(.horizontal, 16)
@@ -258,12 +258,12 @@ struct EditorView: View {
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showingExport) { ExportSheet(model: model) }
         .sheet(isPresented: $showingDiagnostics) { diagnosticsSheet }
-        .alert("存为配方", isPresented: $savingRecipe) {
-            TextField("名字", text: $recipeName)
-            Button("取消", role: .cancel) {}
-            Button("存") { model.saveCurrentRecipe(named: recipeName) }
+        .alert(String(localized: "存为配方"), isPresented: $savingRecipe) {
+            TextField(String(localized: "名字"), text: $recipeName)
+            Button(String(localized: "取消"), role: .cancel) {}
+            Button(String(localized: "存")) { model.saveCurrentRecipe(named: recipeName) }
         } message: {
-            Text("胶片、相纸、曝光、效果、片边、日期和后期都会存进去；裁剪不会。")
+            Text(String(localized: "胶片、相纸、曝光、效果、片边、日期和后期都会存进去；裁剪不会。"))
         }
         .sheet(item: Binding(get: { browsingPapers.map(BrowseStocks.init) }, set: { browsingPapers = $0?.papers })) {
             StockBrowser(model: model, papers: $0.papers)
@@ -331,7 +331,7 @@ struct EditorView: View {
                     .labGlassInteractive(in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("返回照片墙")
+            .accessibilityLabel(String(localized: "返回照片墙"))
 
             Button {
                 withAnimation(.easeOut(duration: 0.18)) { stage = .film; chosenTool[.film] = "film" }
@@ -340,7 +340,7 @@ struct EditorView: View {
                     Text(model.currentLookName)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.labCream)
-                    Text(model.recipe.noFilm == true ? "原图，不经过胶片" : model.currentPaperName)
+                    Text(model.recipe.noFilm == true ? String(localized: "原图，不经过胶片") : model.currentPaperName)
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(Color.secondary.opacity(0.78))
                 }
@@ -352,13 +352,13 @@ struct EditorView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(model.recipe.noFilm == true ? "无胶片，原图"
-                                : "当前胶片 \(model.currentLookName)，相纸 \(model.currentPaperName)")
+            .accessibilityLabel(model.recipe.noFilm == true ? String(localized: "无胶片，原图")
+                                : String(localized: "当前胶片 \(model.currentLookName)，相纸 \(model.currentPaperName)"))
             .labGlassInteractive(in: Capsule())
 
             HStack(spacing: 0) {
-                barButton("arrow.uturn.backward", label: "撤销", enabled: model.canUndo && !isBusy) { model.undo() }
-                barButton("arrow.uturn.forward", label: "重做", enabled: model.canRedo && !isBusy) { model.redo() }
+                barButton("arrow.uturn.backward", label: String(localized: "撤销"), enabled: model.canUndo && !isBusy) { model.undo() }
+                barButton("arrow.uturn.forward", label: String(localized: "重做"), enabled: model.canRedo && !isBusy) { model.redo() }
             }
             .labGlassInteractive(in: Capsule())
 
@@ -371,7 +371,7 @@ struct EditorView: View {
             .buttonStyle(.plain)
             .disabled(model.renderedTexture == nil)
             .opacity(model.renderedTexture == nil ? 0.4 : 1)
-            .accessibilityLabel("导出")
+            .accessibilityLabel(String(localized: "导出"))
 
             Menu {
                 if let id = model.editingPhotoID {
@@ -383,17 +383,17 @@ struct EditorView: View {
                             copyToast = false
                         }
                     } label: {
-                        Label("复制这张照片的配方", systemImage: "doc.on.doc")
+                        Label(String(localized: "复制这张照片的配方"), systemImage: "doc.on.doc")
                     }
                 }
                 Button { recipeName = model.currentLookName; savingRecipe = true } label: {
-                    Label("存为配方…", systemImage: "wand.and.stars")
+                    Label(String(localized: "存为配方…"), systemImage: "wand.and.stars")
                 }
                 Toggle(isOn: Binding(get: { showHistogram }, set: { showHistogram = $0; model.refreshHistogram() })) {
-                    Label("直方图", systemImage: "chart.bar.xaxis")
+                    Label(String(localized: "直方图"), systemImage: "chart.bar.xaxis")
                 }
                 Button { showingDiagnostics = true } label: {
-                    Label("诊断信息", systemImage: "info.circle")
+                    Label(String(localized: "诊断信息"), systemImage: "info.circle")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -401,7 +401,7 @@ struct EditorView: View {
                     .frame(width: 32, height: 40)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("更多")
+            .accessibilityLabel(String(localized: "更多"))
         }
         .tint(Color.labRed)
         .foregroundStyle(Color.labCream)
@@ -446,7 +446,7 @@ struct EditorView: View {
                                                                       y: (p.y - (area.height - h) / 2) / h))
                                     }
                                     .overlay(alignment: .top) {
-                                        Label("点一块应该是灰色或白色的地方", systemImage: "eyedropper")
+                                        Label(String(localized: "点一块应该是灰色或白色的地方"), systemImage: "eyedropper")
                                             .font(.footnote.weight(.semibold))
                                             .padding(.horizontal, 12).frame(height: 32)
                                             .background(.ultraThinMaterial, in: Capsule())
@@ -482,7 +482,7 @@ struct EditorView: View {
             // Small, see-through, gone after 3 s and not repeated for the photo (the owner: it was in the way).
             if zoomHint, !immersive, model.renderedTexture != nil {
                 VStack {
-                    Text("预览图放大略模糊，导出是全尺寸")
+                    Text(String(localized: "预览图放大略模糊，导出是全尺寸"))
                         .font(.system(size: 10, weight: .medium)).foregroundStyle(Color.labCream.opacity(0.8))
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Color.black.opacity(0.35), in: Capsule())
@@ -547,7 +547,7 @@ struct EditorView: View {
                         Spacer()
                         if !immersive {
                             // Hold to see the imported photograph (also: long-press the picture).
-                            Label("原图", systemImage: model.showingOriginal ? "eye.fill" : "eye")
+                            Label(String(localized: "原图"), systemImage: model.showingOriginal ? "eye.fill" : "eye")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(model.showingOriginal ? Color.black : Color.labCream)
                                 .padding(.horizontal, 10)
@@ -558,7 +558,7 @@ struct EditorView: View {
                                 .contentShape(Capsule())
                                 .onLongPressGesture(minimumDuration: .infinity, maximumDistance: .infinity,
                                                     perform: {}, onPressingChanged: { model.setShowingOriginal($0) })
-                                .accessibilityLabel("按住看原图")
+                                .accessibilityLabel(String(localized: "按住看原图"))
                                 .transition(.opacity)
                         }
                     }
@@ -572,7 +572,7 @@ struct EditorView: View {
                 HStack(spacing: 7) {
                     ProgressView()
                         .controlSize(.mini)
-                    Text(model.state == .importing ? "读取中" : "渲染中")
+                    Text(model.state == .importing ? String(localized: "读取中") : String(localized: "渲染中"))
                         .font(.caption2.weight(.medium))
                 }
                 .padding(.horizontal, 12)
@@ -669,10 +669,10 @@ struct EditorView: View {
                     .foregroundStyle(Color.labRed)
             }
             VStack(spacing: 7) {
-                Text("这张照片没有显示出来")
+                Text(String(localized: "这张照片没有显示出来"))
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.labCream)
-                Text("回到照片墙重新打开，或查看诊断信息。")
+                Text(String(localized: "回到照片墙重新打开，或查看诊断信息。"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -680,7 +680,7 @@ struct EditorView: View {
             Button {
                 model.closeEditor()
             } label: {
-                Label("返回照片墙", systemImage: "chevron.left")
+                Label(String(localized: "返回照片墙"), systemImage: "chevron.left")
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 22)
                     .frame(minHeight: 46)
@@ -733,7 +733,7 @@ struct EditorView: View {
             Button {
                 showingDiagnostics = true
             } label: {
-                Text("查看诊断信息")
+                Text(String(localized: "查看诊断信息"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Color.labRed)
             }
@@ -753,7 +753,7 @@ struct EditorView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("把这段内容发给开发者，可以直接定位引擎侧的问题。")
+                    Text(String(localized: "把这段内容发给开发者，可以直接定位引擎侧的问题。"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Text(model.diagnostics)
@@ -767,11 +767,11 @@ struct EditorView: View {
                 }
                 .padding(16)
             }
-            .navigationTitle("诊断")
+            .navigationTitle(String(localized: "诊断"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("复制") {
+                    Button(String(localized: "复制")) {
                         UIPasteboard.general.string = model.diagnostics
                     }
                 }
@@ -887,7 +887,7 @@ struct ParamSlider: View {
             return String(format: "%+.2f EV", value)
         }
         if control.key == FilmParam.highlightRoom.key || control.key == FilmParam.shadowRoom.key {
-            return String(format: "%.1f 档", value)
+            return String(format: String(localized: "%.1f 档"), value)
         }
         if control.key == FilmParam.preflash.key {
             return String(format: "%.3f", value)
@@ -960,10 +960,10 @@ struct StockTile: View {
     }
 
     private var typeLabel: String {
-        if stock.support == .paper { return stock.monochrome ? "黑白相纸" : recommended ? "相纸 · 推荐" : "相纸" }
-        if stock.monochrome { return "黑白负片" }
-        if stock.isCine { return "电影负片" }
-        return stock.type == .positive ? "反转片" : "负片"
+        if stock.support == .paper { return stock.monochrome ? String(localized: "黑白相纸") : recommended ? String(localized: "相纸 · 推荐") : String(localized: "相纸") }
+        if stock.monochrome { return String(localized: "黑白负片") }
+        if stock.isCine { return String(localized: "电影负片") }
+        return stock.type == .positive ? String(localized: "反转片") : String(localized: "负片")
     }
 }
 
@@ -1004,7 +1004,7 @@ struct FilmEffectsSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 13) {
-                    Text("让画面重新成为一段底片。片边、齿孔、格号、日期与拍摄数据都按上游引擎的曝光模型生成，并和照片一起显影。")
+                    Text(String(localized: "让画面重新成为一段底片。片边、齿孔、格号、日期与拍摄数据都按上游引擎的曝光模型生成，并和照片一起显影。"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1015,11 +1015,11 @@ struct FilmEffectsSheet: View {
                 .padding(16)
             }
             .background(Color.labInk.ignoresSafeArea())
-            .navigationTitle("片边与日期后背")
+            .navigationTitle(String(localized: "片边与日期后背"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") {
+                    Button(String(localized: "完成")) {
                         model.setShootingDataText(dataDraft)
                         model.setEdgeText(edgeDraft)
                         dismiss()
@@ -1043,7 +1043,7 @@ struct FilmEffectsSheet: View {
     private var borderSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("片边", systemImage: "film")
+                Label(String(localized: "片边"), systemImage: "film")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Toggle("", isOn: Binding(
@@ -1053,7 +1053,7 @@ struct FilmEffectsSheet: View {
                     .tint(Color.labRed)
             }
 
-            Text("片边文字")
+            Text(String(localized: "片边文字"))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField(model.currentFilmName.uppercased(), text: $edgeDraft)
@@ -1064,18 +1064,18 @@ struct FilmEffectsSheet: View {
                 .padding(.horizontal, 10)
                 .frame(height: 36)
                 .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-            Text("留空就印胶片名。建议用英文字母和数字，最多 24 个字符。")
+            Text(String(localized: "留空就印胶片名。建议用英文字母和数字，最多 24 个字符。"))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            Text("片幅")
+            Text(String(localized: "片幅"))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
                     gateChip(id: FilmGateCatalog.automaticID,
-                             title: "自动",
+                             title: String(localized: "自动"),
                              detail: model.selectedGate.title)
                     ForEach(FilmGateCatalog.gates.filter { !$0.manualOnly || $0.id == "135_sprocket" }) { gate in
                         gateChip(id: gate.id, title: gate.title, detail: gate.detail)
@@ -1084,7 +1084,7 @@ struct FilmEffectsSheet: View {
             }
 
             // Engine 2.4.1's motion-picture gauges: their own row.
-            Text("电影画幅（颜色在“胶片”里选，如 Vision3）")
+            Text(String(localized: "电影画幅（颜色在“胶片”里选，如 Vision3）"))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -1095,12 +1095,12 @@ struct FilmEffectsSheet: View {
                 }
             }
 
-            Text("片边方向")
+            Text(String(localized: "片边方向"))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
 
-            Picker("片边方向", selection: Binding(
+            Picker(String(localized: "片边方向"), selection: Binding(
                 get: { model.stripOrientation },
                 set: { model.setStripOrientation($0) })) {
                 ForEach(FilmStripOrientation.allCases) { orientation in
@@ -1113,8 +1113,8 @@ struct FilmEffectsSheet: View {
             HStack(spacing: 6) {
                 Image(systemName: model.selectedGate.isSquare ? "square" : "rectangle.split.2x1")
                 Text(model.selectedGate.isSquare
-                     ? "方形片幅没有横竖之分；画面会以中心裁切到 1:1。"
-                     : "当前 \(model.gateDisplayName) · \(model.stripOrientation.detail)。为避免拉伸，画面会中心裁切到对应方向的片条，预览与导出使用同一构图。")
+                     ? String(localized: "方形片幅没有横竖之分；画面会以中心裁切到 1:1。")
+                     : String(localized: "当前 \(model.gateDisplayName) · \(model.stripOrientation.detail)。为避免拉伸，画面会中心裁切到对应方向的片条，预览与导出使用同一构图。"))
             }
             .font(.caption2)
             .foregroundStyle(.secondary)
@@ -1126,7 +1126,7 @@ struct FilmEffectsSheet: View {
     private var dateSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("日期后背", systemImage: "calendar")
+                Label(String(localized: "日期后背"), systemImage: "calendar")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Toggle("", isOn: Binding(
@@ -1138,14 +1138,14 @@ struct FilmEffectsSheet: View {
             }
 
             if !model.dateBackAvailable {
-                Text("这个全景片幅在真实相机上没有日期后背，引擎会忽略日期曝光。")
+                Text(String(localized: "这个全景片幅在真实相机上没有日期后背，引擎会忽略日期曝光。"))
                     .font(.caption2)
                     .foregroundStyle(Color.labRed.opacity(0.85))
             }
 
             if model.dateBackEnabled && model.dateBackAvailable {
                 HStack {
-                    Text("日期")
+                    Text(String(localized: "日期"))
                         .font(.footnote)
                     Spacer()
                     DatePicker("", selection: Binding(
@@ -1160,12 +1160,12 @@ struct FilmEffectsSheet: View {
                         .font(.system(.caption, design: .monospaced).weight(.semibold))
                         .foregroundStyle(Color.labCream)
                     Spacer()
-                    Text("负片曝光")
+                    Text(String(localized: "负片曝光"))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
 
-                Picker("字面", selection: Binding(
+                Picker(String(localized: "字面"), selection: Binding(
                     get: { model.dateBackStyle },
                     set: { model.setDateBackStyle($0) })) {
                     ForEach(DateBackStyle.allCases) { style in
@@ -1174,7 +1174,7 @@ struct FilmEffectsSheet: View {
                 }
                 .pickerStyle(.segmented)
 
-                Picker("位置", selection: Binding(
+                Picker(String(localized: "位置"), selection: Binding(
                     get: { model.dateBackPlacement },
                     set: { model.setDateBackPlacement($0) })) {
                     ForEach(DateBackPlacement.allCases) { placement in
@@ -1185,12 +1185,12 @@ struct FilmEffectsSheet: View {
                 .disabled(!model.filmBorderEnabled)
 
                 if !model.filmBorderEnabled {
-                    Text("打开片边后才能把日期放在帧与帧之间；当前会曝在画面内。")
+                    Text(String(localized: "打开片边后才能把日期放在帧与帧之间；当前会曝在画面内。"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
 
-                Picker("角落", selection: Binding(
+                Picker(String(localized: "角落"), selection: Binding(
                     get: { model.dateBackCorner },
                     set: { model.setDateBackCorner($0) })) {
                     ForEach(DateBackCorner.allCases) { corner in
@@ -1200,7 +1200,7 @@ struct FilmEffectsSheet: View {
                 .pickerStyle(.segmented)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("拍摄数据")
+                    Text(String(localized: "拍摄数据"))
                         .font(.footnote)
                     TextField("1/125  F2.8  ISO 400  50mm", text: $dataDraft)
                         .textInputAutocapitalization(.never)
@@ -1209,7 +1209,7 @@ struct FilmEffectsSheet: View {
                         .padding(10)
                         .background(Color.white.opacity(0.055),
                                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    Text("120 会印在片边留白，135 会印在齿孔之间；日期仍按上面的字面曝光。")
+                    Text(String(localized: "120 会印在片边留白，135 会印在齿孔之间；日期仍按上面的字面曝光。"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -1317,7 +1317,7 @@ struct StockBrowser: View {
         _ = stockOrder
         if papers { return Stock.grouped(model.papers) }
         let favourites = model.films.filter { model.favoriteFilms.contains($0.id) }
-        return ([("收藏", favourites)] + Stock.grouped(model.films)).filter { !$0.1.isEmpty }
+        return ([(String(localized: "收藏"), favourites)] + Stock.grouped(model.films)).filter { !$0.1.isEmpty }
     }
 
     /// A saved look: in the camera it becomes the roll, in the editor it goes on the photo.
@@ -1351,8 +1351,8 @@ struct StockBrowser: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button { newName = saved.name; renaming = saved } label: { Label("重命名", systemImage: "pencil") }
-            Button(role: .destructive) { model.deleteRecipe(saved.id) } label: { Label("删除配方", systemImage: "trash") }
+            Button { newName = saved.name; renaming = saved } label: { Label(String(localized: "重命名"), systemImage: "pencil") }
+            Button(role: .destructive) { model.deleteRecipe(saved.id) } label: { Label(String(localized: "删除配方"), systemImage: "trash") }
         }
     }
 
@@ -1364,15 +1364,15 @@ struct StockBrowser: View {
                     // The camera's roll can also be no film at all; so can the photo in the editor.
                     if !papers {
                         let plain = pickFilm != nil ? current?.isEmpty == true : model.recipe.noFilm == true
-                        NoFilmTile(title: pickFilm != nil ? "无胶卷" : "无胶片",
-                                   detail: pickFilm != nil ? "原始文件直接存进“照片”" : "原图，不经过胶片", on: plain) {
+                        NoFilmTile(title: pickFilm != nil ? String(localized: "无胶卷") : String(localized: "无胶片"),
+                                   detail: pickFilm != nil ? String(localized: "原始文件直接存进“照片”") : String(localized: "原图，不经过胶片"), on: plain) {
                             if let pickFilm { pickFilm("") } else { model.chooseNoFilm() }
                             dismiss()
                         }
                         .padding(.top, 8)
                     }
                     if !papers && !model.savedRecipes.isEmpty {
-                        Text("我的配方 · \(model.savedRecipes.count)")
+                        Text(String(localized: "我的配方 · \(model.savedRecipes.count)"))
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1408,7 +1408,7 @@ struct StockBrowser: View {
                                     if !papers {
                                         let fav = model.favoriteFilms.contains(stock.id)
                                         Button { model.toggleFavoriteFilm(stock.id) } label: {
-                                            Label(fav ? "取消收藏" : "收藏", systemImage: fav ? "star.slash" : "star")
+                                            Label(fav ? String(localized: "取消收藏") : String(localized: "收藏"), systemImage: fav ? "star.slash" : "star")
                                         }
                                     }
                                 }
@@ -1418,23 +1418,23 @@ struct StockBrowser: View {
                 .padding(.horizontal, 14)
             }
             .background(Color.labInk.ignoresSafeArea())
-            .navigationTitle(pickFilm != nil ? "装哪一卷" : papers ? "相纸" : "胶片")
-            .alert("重命名配方", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-                TextField("名字", text: $newName)
-                Button("取消", role: .cancel) { renaming = nil }
-                Button("好") { if let r = renaming { model.renameRecipe(r.id, to: newName) }; renaming = nil }
+            .navigationTitle(pickFilm != nil ? String(localized: "装哪一卷") : papers ? String(localized: "相纸") : String(localized: "胶片"))
+            .alert(String(localized: "重命名配方"), isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+                TextField(String(localized: "名字"), text: $newName)
+                Button(String(localized: "取消"), role: .cancel) { renaming = nil }
+                Button(String(localized: "好")) { if let r = renaming { model.renameRecipe(r.id, to: newName) }; renaming = nil }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button(String(localized: "完成")) { dismiss() } }
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        Picker("排列", selection: $stockOrder) {
-                            Text("按类型").tag("kind")
-                            Text("按品牌").tag("brand")
+                        Picker(String(localized: "排列"), selection: $stockOrder) {
+                            Text(String(localized: "按类型")).tag("kind")
+                            Text(String(localized: "按品牌")).tag("brand")
                         }
                     } label: {
-                        Label(stockOrder == "kind" ? "按类型" : "按品牌", systemImage: "arrow.up.arrow.down")
+                        Label(stockOrder == "kind" ? String(localized: "按类型") : String(localized: "按品牌"), systemImage: "arrow.up.arrow.down")
                             .labelStyle(.titleAndIcon)
                     }
                 }
@@ -1509,6 +1509,6 @@ struct HistogramPlot: View {
                 ctx.fill(p, with: .color(colours[c].opacity(0.55)))
             }
         }
-        .accessibilityLabel("直方图")
+        .accessibilityLabel(String(localized: "直方图"))
     }
 }

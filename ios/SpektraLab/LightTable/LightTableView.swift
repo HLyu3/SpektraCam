@@ -246,7 +246,7 @@ final class LightTableMetalView: MTKView, MTKViewDelegate {
         init(view: LightTableMetalView) {
             self.view = view
             super.init(accessibilityContainer: view)
-            accessibilityLabel = "观片台"
+            accessibilityLabel = String(localized: "观片台")
             accessibilityTraits = [.adjustable, .allowsDirectInteraction]
         }
         override func accessibilityIncrement() {

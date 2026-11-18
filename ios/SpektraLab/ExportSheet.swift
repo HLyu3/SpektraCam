@@ -40,29 +40,29 @@ struct ExportSheet: View {
                         }
                     }
                 } header: {
-                    Text("推荐设置")
+                    Text(String(localized: "推荐设置"))
                 } footer: {
-                    Text("不确定选什么，用「日常」就好。下面可以再单独调。")
+                    Text(String(localized: "不确定选什么，用「日常」就好。下面可以再单独调。"))
                 }
 
                 Section {
-                    Picker("格式", selection: $model.exportOptions.format) {
+                    Picker(String(localized: "格式"), selection: $model.exportOptions.format) {
                         ForEach(ExportFormat.allCases) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
                 } header: {
-                    Text("格式")
+                    Text(String(localized: "格式"))
                 } footer: {
                     Text(model.exportOptions.format.detail)
                 }
 
                 Section {
-                    Picker("色彩空间", selection: $model.exportOptions.colorSpace) {
+                    Picker(String(localized: "色彩空间"), selection: $model.exportOptions.colorSpace) {
                         ForEach(ExportColorSpace.allCases) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
                 } header: {
-                    Text("色彩空间")
+                    Text(String(localized: "色彩空间"))
                 } footer: {
                     Text(model.exportOptions.colorSpace.detail)
                 }
@@ -76,24 +76,24 @@ struct ExportSheet: View {
                                 .frame(width: 36, alignment: .trailing)
                         }
                     } header: {
-                        Text("质量")
+                        Text(String(localized: "质量"))
                     } footer: {
-                        Text("推荐 90：和 100 肉眼看不出差别，文件小一半左右；低于 80 在天空、暗部会出现压缩痕迹。")
+                        Text(String(localized: "推荐 90：和 100 肉眼看不出差别，文件小一半左右；低于 80 在天空、暗部会出现压缩痕迹。"))
                     }
                 }
 
                 Section {
-                    Toggle("保留相机 EXIF 与定位", isOn: $model.exportOptions.keepMetadata)
-                    Picker("保存到", selection: $model.exportOptions.destination) {
+                    Toggle(String(localized: "保留相机 EXIF 与定位"), isOn: $model.exportOptions.keepMetadata)
+                    Picker(String(localized: "保存到"), selection: $model.exportOptions.destination) {
                         ForEach(ExportDestination.allCases) { Text($0.title).tag($0) }
                     }
                 } footer: {
-                    Text("按原图像素尺寸完整重新渲染。选择「文件 / 分享」可以存到「文件」App、AirDrop 到 Mac，或发给其他 App。")
+                    Text(String(localized: "按原图像素尺寸完整重新渲染。选择「文件 / 分享」可以存到「文件」App、AirDrop 到 Mac，或发给其他 App。"))
                 }
 
                 if model.exportOptions.format == .jpeg && model.exportOptions.colorSpace == .proPhoto {
                     Section {
-                        Label("ProPhoto 配 8 位 JPEG 容易出现色带，建议改用 TIFF 或 HEIF。",
+                        Label(String(localized: "ProPhoto 配 8 位 JPEG 容易出现色带，建议改用 TIFF 或 HEIF。"),
                               systemImage: "exclamationmark.triangle")
                             .font(.footnote)
                             .foregroundStyle(.orange)
@@ -102,14 +102,14 @@ struct ExportSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.labInk.ignoresSafeArea())
-            .navigationTitle("导出")
+            .navigationTitle(String(localized: "导出"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(String(localized: "取消")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("导出") {
+                    Button(String(localized: "导出")) {
                         // A print of this photo already in Photos: ask first (replace, keep both, or not now).
                         if model.exportOptions.destination == .photos, let previous = model.previousPrint() {
                             previousPrint = previous
@@ -121,16 +121,16 @@ struct ExportSheet: View {
                 }
             }
         }
-        .confirmationDialog("“照片”里已经有这张的成片",
+        .confirmationDialog(String(localized: "“照片”里已经有这张的成片"),
                             isPresented: Binding(get: { previousPrint != nil }, set: { if !$0 { previousPrint = nil } }),
                             titleVisibility: .visible, presenting: previousPrint) { previous in
-            Button("替换旧的成片") { start(replacing: previous.assetID) }
-            Button("另存一张") { start(replacing: nil) }
-            Button("取消", role: .cancel) {}
+            Button(String(localized: "替换旧的成片")) { start(replacing: previous.assetID) }
+            Button(String(localized: "另存一张")) { start(replacing: nil) }
+            Button(String(localized: "取消"), role: .cancel) {}
         } message: { previous in
             Text(previous.changed
-                 ? "上次导出后改过这张照片（胶片、相纸、曝光、后期或裁剪），新成片会和旧的不一样。替换会把旧的移到“最近删除”。"
-                 : "上次导出后没有改过，新成片和旧的一样。替换会把旧的移到“最近删除”。")
+                 ? String(localized: "上次导出后改过这张照片（胶片、相纸、曝光、后期或裁剪），新成片会和旧的不一样。替换会把旧的移到“最近删除”。")
+                 : String(localized: "上次导出后没有改过，新成片和旧的一样。替换会把旧的移到“最近删除”。"))
         }
         .tint(Color.labRed)
         .presentationDetents([.medium, .large])
@@ -143,36 +143,36 @@ struct ExportSheet: View {
     private var estimateSection: some View {
         Section {
             if let estimate = model.exportEstimate {
-                LabeledContent("尺寸") {
+                LabeledContent(String(localized: "尺寸")) {
                     Text("\(estimate.width) × \(estimate.height) · \(String(format: "%.1f", estimate.megapixels)) MP")
                         .monospacedDigit()
                 }
                 if let original = model.exportCappedFromMegapixels {
-                    Text("原图 \(String(format: "%.1f", original)) MP。手机内存放不下全尺寸冲洗，按上面的尺寸导出。")
+                    Text(String(localized: "原图 \(String(format: "%.1f", original)) MP。手机内存放不下全尺寸冲洗，按上面的尺寸导出。"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                LabeledContent("预计大小") {
+                LabeledContent(String(localized: "预计大小")) {
                     if let bytes = estimate.bytes {
-                        Text("约 " + Self.format(bytes: bytes))
+                        Text(String(localized: "约 ") + Self.format(bytes: bytes))
                             .monospacedDigit()
                             .fontWeight(.semibold)
                     } else {
                         HStack(spacing: 6) {
                             ProgressView().controlSize(.mini)
-                            Text("估算中…").foregroundStyle(.secondary)
+                            Text(String(localized: "估算中…")).foregroundStyle(.secondary)
                         }
                     }
                 }
             } else {
-                Text("打开一张照片后可以看到预计尺寸和大小")
+                Text(String(localized: "打开一张照片后可以看到预计尺寸和大小"))
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("预计输出")
+            Text(String(localized: "预计输出"))
         } footer: {
             if let estimate = model.exportEstimate, estimate.bytes != nil, !estimate.calibrated {
-                Text("按预览图推算，偏差可能较大。这个格式导出过一次后，会按实际结果自动校准。")
+                Text(String(localized: "按预览图推算，偏差可能较大。这个格式导出过一次后，会按实际结果自动校准。"))
             }
         }
     }
@@ -224,7 +224,7 @@ struct ExportSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     static func summary(_ o: ExportOptions) -> String {
-        "\(o.format.title) · \(o.colorSpace.title)" + (o.format.usesQuality ? " · 质量 \(Int((o.quality * 100).rounded()))" : "")
+        "\(o.format.title) · \(o.colorSpace.title)" + (o.format.usesQuality ? String(localized: " · 质量 \(Int((o.quality * 100).rounded()))") : "")
     }
 
     var body: some View {
@@ -243,38 +243,38 @@ struct ExportSettingsSheet: View {
                             }
                         }
                     }
-                } header: { Text("推荐设置") }
+                } header: { Text(String(localized: "推荐设置")) }
                 Section {
-                    Picker("格式", selection: $model.exportOptions.format) {
+                    Picker(String(localized: "格式"), selection: $model.exportOptions.format) {
                         ForEach(ExportFormat.allCases) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                } header: { Text("格式") } footer: { Text(model.exportOptions.format.detail) }
+                } header: { Text(String(localized: "格式")) } footer: { Text(model.exportOptions.format.detail) }
                 Section {
-                    Picker("色彩空间", selection: $model.exportOptions.colorSpace) {
+                    Picker(String(localized: "色彩空间"), selection: $model.exportOptions.colorSpace) {
                         ForEach(ExportColorSpace.allCases) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                } header: { Text("色彩空间") } footer: { Text(model.exportOptions.colorSpace.detail) }
+                } header: { Text(String(localized: "色彩空间")) } footer: { Text(model.exportOptions.colorSpace.detail) }
                 if model.exportOptions.format.usesQuality {
                     Section {
                         HStack {
                             Slider(value: $model.exportOptions.quality, in: 0.7...1.0, step: 0.01)
                             Text("\(Int((model.exportOptions.quality * 100).rounded()))").monospacedDigit().frame(width: 36, alignment: .trailing)
                         }
-                    } header: { Text("质量") } footer: { Text("推荐 90：和 100 肉眼看不出差别，文件小一半左右。") }
+                    } header: { Text(String(localized: "质量")) } footer: { Text(String(localized: "推荐 90：和 100 肉眼看不出差别，文件小一半左右。")) }
                 }
                 Section {
-                    Toggle("保留相机 EXIF 与定位", isOn: $model.exportOptions.keepMetadata)
+                    Toggle(String(localized: "保留相机 EXIF 与定位"), isOn: $model.exportOptions.keepMetadata)
                 } footer: {
-                    Text("批量导出都存到“照片”，每张按原图全尺寸、用它自己的配方冲洗。这些设置和编辑页“导出”里的是同一套。")
+                    Text(String(localized: "批量导出都存到“照片”，每张按原图全尺寸、用它自己的配方冲洗。这些设置和编辑页“导出”里的是同一套。"))
                 }
             }
             .scrollContentBackground(.hidden)
             .background(Color.labInk.ignoresSafeArea())
-            .navigationTitle("导出设置")
+            .navigationTitle(String(localized: "导出设置"))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("好") { dismiss() }.fontWeight(.semibold) } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button(String(localized: "好")) { dismiss() }.fontWeight(.semibold) } }
         }
         .tint(Color.labRed)
         .presentationDetents([.medium, .large])

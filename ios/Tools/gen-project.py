@@ -56,8 +56,8 @@ LIBRAW = Path(os.environ.get("SPEKTRALAB_LIBRAW_SOURCE",
 APP = "SpektraLab"
 PRODUCT_NAME = "SpektraLab"
 IOS_MIN = "18.0"
-MARKETING_VERSION = "2.1.6"
-BUILD_NUMBER = "14"
+MARKETING_VERSION = "2.1.7"
+BUILD_NUMBER = "15"
 
 # Signing, from the environment: a development certificate is not in this
 # repository and must not be.
@@ -161,6 +161,7 @@ def file_type(p: Path) -> str:
         ".plist": "text.plist.xml",
         ".entitlements": "text.plist.entitlements",
         ".xcassets": "folder.assetcatalog",
+        ".xcstrings": "text.json.xcstrings",
         ".bin": "file",
         ".md": "net.daringfireball.markdown",
         ".py": "text.script.python",
@@ -284,7 +285,7 @@ def build() -> str:
     # Keep engine-assets.bin as one root-level bundle resource. A top-level
     # `Resources/` directory makes CoreFoundation classify a shallow iOS app
     # as a deep macOS-style bundle and look for Info.plist in the wrong place.
-    is_res = lambda q: q.suffix in (".xcassets", ".png") or q.name == "engine-assets.bin"
+    is_res = lambda q: q.suffix in (".xcassets", ".png", ".xcstrings") or q.name == "engine-assets.bin"
     app_sources = phase("PBXSourcesBuildPhase", app_files + shared_files + engine_files, is_src, "app-sources")
     app_resources = phase("PBXResourcesBuildPhase", app_files, is_res, "app-resources")
     app_frameworks = phase("PBXFrameworksBuildPhase", [], lambda q: False, "app-frameworks")
@@ -325,6 +326,10 @@ def build() -> str:
         **engine_cfg,
         "SWIFT_VERSION": "6.0",
         "SWIFT_STRICT_CONCURRENCY": "complete",
+        # Chinese is the source language, English a translation (Localizable.xcstrings); the compiler lists every
+        # String(localized:) for the catalog.
+        "SWIFT_EMIT_LOC_STRINGS": "YES",
+        "LOCALIZATION_PREFERS_STRING_CATALOGS": "YES",
         "IPHONEOS_DEPLOYMENT_TARGET": IOS_MIN,
         "SDKROOT": "iphoneos",
         # iPhone only, matching the build that installs. `TARGETED_DEVICE_FAMILY`
@@ -339,7 +344,6 @@ def build() -> str:
         "CLANG_ENABLE_MODULES": "YES",
         "MARKETING_VERSION": MARKETING_VERSION,
         "CURRENT_PROJECT_VERSION": BUILD_NUMBER,
-        "SWIFT_EMIT_LOC_STRINGS": "NO",
         "GENERATE_INFOPLIST_FILE": "NO",
         "MTL_ENABLE_DEBUG_INFO": "INCLUDE_SOURCE",
         # The app's own canvas shader may use fast math; the engine's kernels
@@ -464,7 +468,7 @@ def build() -> str:
     for name, ptype, where, suffix, has_ent, uses_shared in EXTENSIONS:
         files = ext_files[name] + (shared_files if uses_shared else [])
         sources = phase("PBXSourcesBuildPhase", files, is_src, f"{name}-sources")
-        resources = phase("PBXResourcesBuildPhase", ext_files[name], lambda q: q.suffix == ".xcassets", f"{name}-resources")
+        resources = phase("PBXResourcesBuildPhase", ext_files[name], lambda q: q.suffix in (".xcassets", ".xcstrings"), f"{name}-resources")
         frameworks = phase("PBXFrameworksBuildPhase", [], lambda q: False, f"{name}-frameworks")
         settings = {k: common[k] for k in (
             "SWIFT_VERSION", "SWIFT_STRICT_CONCURRENCY", "IPHONEOS_DEPLOYMENT_TARGET", "SDKROOT",
@@ -548,9 +552,9 @@ def build() -> str:
           f'\t\t\t}};\n'
           f'\t\t\tbuildConfigurationList = {proj_cfg};\n'
           f'\t\t\tcompatibilityVersion = "Xcode 14.0";\n'
-          f'\t\t\tdevelopmentRegion = en;\n'
+          f'\t\t\tdevelopmentRegion = "zh-Hans";\n'
           f'\t\t\thasScannedForEncodings = 0;\n'
-          f'\t\t\tknownRegions = (\n\t\t\t\ten,\n\t\t\t\tBase\n\t\t\t);\n'
+          f'\t\t\tknownRegions = (\n\t\t\t\t"zh-Hans",\n\t\t\t\ten,\n\t\t\t\tBase\n\t\t\t);\n'
           f'\t\t\tmainGroup = {main_group};\n'
           f'\t\t\tproductRefGroup = {products};\n'
           f'\t\t\tprojectDirPath = "";\n\t\t\t\tprojectRoot = "";\n'

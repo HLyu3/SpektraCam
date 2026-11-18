@@ -32,10 +32,10 @@ enum ExportFormat: String, CaseIterable, Identifiable, Codable, Sendable {
 
     var detail: String {
         switch self {
-        case .jpeg: "8 位，兼容性最好：发给 Windows 电脑、网页、老设备时用"
-        case .heif: "推荐 · 10 位，体积约为 JPEG 的一半，天空等渐变更平滑；iPhone、Mac 和主流 App 都能看"
-        case .tiff16: "16 位无损（LZW），适合再修图或打印，文件很大"
-        case .png: "16 位无损，网页和大多数软件都能打开，文件很大"
+        case .jpeg: String(localized: "8 位，兼容性最好：发给 Windows 电脑、网页、老设备时用")
+        case .heif: String(localized: "推荐 · 10 位，体积约为 JPEG 的一半，天空等渐变更平滑；iPhone、Mac 和主流 App 都能看")
+        case .tiff16: String(localized: "16 位无损（LZW），适合再修图或打印，文件很大")
+        case .png: String(localized: "16 位无损，网页和大多数软件都能打开，文件很大")
         }
     }
 
@@ -70,9 +70,9 @@ struct ExportPreset: Identifiable {
     let quality: Double
 
     static let all: [ExportPreset] = [
-        ExportPreset(id: "daily", title: "日常（推荐）", detail: "HEIF · P3 · 90", format: .heif, colorSpace: .displayP3, quality: 0.9),
-        ExportPreset(id: "share", title: "发给别人 / 上网", detail: "JPEG · sRGB · 90", format: .jpeg, colorSpace: .sRGB, quality: 0.9),
-        ExportPreset(id: "edit", title: "再修图 / 打印", detail: "TIFF 16 位 · Adobe RGB", format: .tiff16, colorSpace: .adobeRGB, quality: 1),
+        ExportPreset(id: "daily", title: String(localized: "日常（推荐）"), detail: "HEIF · P3 · 90", format: .heif, colorSpace: .displayP3, quality: 0.9),
+        ExportPreset(id: "share", title: String(localized: "发给别人 / 上网"), detail: "JPEG · sRGB · 90", format: .jpeg, colorSpace: .sRGB, quality: 0.9),
+        ExportPreset(id: "edit", title: String(localized: "再修图 / 打印"), detail: String(localized: "TIFF 16 位 · Adobe RGB"), format: .tiff16, colorSpace: .adobeRGB, quality: 1),
     ]
 
     func matches(_ o: ExportOptions) -> Bool {
@@ -113,10 +113,10 @@ enum ExportColorSpace: String, CaseIterable, Identifiable, Codable, Sendable {
 
     var detail: String {
         switch self {
-        case .sRGB: "网页与社交平台的通用标准：发给别人、发到网上、在 Windows 电脑上看时最稳妥"
-        case .displayP3: "推荐 · iPhone 和 Mac 屏幕的色域，和编辑时看到的一样；比 sRGB 更鲜艳的颜色不会被裁掉"
-        case .adobeRGB: "印刷常用，青绿色域更宽"
-        case .proPhoto: "最大色域，建议只配合 TIFF 16 位使用，8 位 JPEG 容易出现色带"
+        case .sRGB: String(localized: "网页与社交平台的通用标准：发给别人、发到网上、在 Windows 电脑上看时最稳妥")
+        case .displayP3: String(localized: "推荐 · iPhone 和 Mac 屏幕的色域，和编辑时看到的一样；比 sRGB 更鲜艳的颜色不会被裁掉")
+        case .adobeRGB: String(localized: "印刷常用，青绿色域更宽")
+        case .proPhoto: String(localized: "最大色域，建议只配合 TIFF 16 位使用，8 位 JPEG 容易出现色带")
         }
     }
 
@@ -150,8 +150,8 @@ enum ExportDestination: String, CaseIterable, Identifiable, Codable, Sendable {
 
     var title: String {
         switch self {
-        case .photos: "相册"
-        case .files: "文件 / 分享"
+        case .photos: String(localized: "相册")
+        case .files: String(localized: "文件 / 分享")
         }
     }
 }

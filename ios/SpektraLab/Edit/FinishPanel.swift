@@ -52,7 +52,7 @@ struct FinishPanel: View {
                     ForEach(FinishTool.allCases) { t in
                         Button { chosenTool = t } label: {
                             HStack(spacing: 3) {
-                                Text(t.rawValue)
+                                Text(tr(t.rawValue))
                                 if !isNeutral(t) { Circle().fill(Color.labRed).frame(width: 4, height: 4) }
                             }
                             .font(.system(size: 11, weight: tool == t ? .semibold : .medium))
@@ -73,7 +73,7 @@ struct FinishPanel: View {
             .buttonStyle(.plain)
             .foregroundStyle(isNeutral(tool) ? Color.secondary.opacity(0.4) : Color.labCream)
             .disabled(isNeutral(tool))
-            .accessibilityLabel("重置\(tool.rawValue)")
+            .accessibilityLabel(String(localized: "重置\(tr(tool.rawValue))"))
         }
     }
 
@@ -140,9 +140,9 @@ struct FinishPanel: View {
                     .accessibilityLabel(h.title)
                 }
             }
-            FinishSlider(title: "\(hue.title) · 色相", value: bind(\.hsl[hue].hue), range: HSLSet.range)
-            FinishSlider(title: "\(hue.title) · 饱和度", value: bind(\.hsl[hue].saturation), range: HSLSet.range)
-            FinishSlider(title: "\(hue.title) · 明度", value: bind(\.hsl[hue].luminance), range: HSLSet.range)
+            FinishSlider(title: String(localized: "\(hue.title) · 色相"), value: bind(\.hsl[hue].hue), range: HSLSet.range)
+            FinishSlider(title: String(localized: "\(hue.title) · 饱和度"), value: bind(\.hsl[hue].saturation), range: HSLSet.range)
+            FinishSlider(title: String(localized: "\(hue.title) · 明度"), value: bind(\.hsl[hue].luminance), range: HSLSet.range)
             Spacer(minLength: 0)
         }
     }
@@ -174,18 +174,18 @@ struct FinishPanel: View {
         let tint: [ChannelMixer.Channel: Color] = [.red: .red, .green: .green, .blue: .blue]
         // Scrolls: taller than the deck's panel, it was centred and ran up under the tool row.
         return ScrollView { VStack(spacing: 7) {
-            Picker("输出", selection: $output) {
-                ForEach(ChannelMixer.Channel.allCases) { Text("输出" + $0.title).tag($0) }
+            Picker(String(localized: "输出"), selection: $output) {
+                ForEach(ChannelMixer.Channel.allCases) { Text(String(localized: "输出") + $0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             ForEach(ChannelMixer.Channel.allCases) { input in
-                FinishSlider(title: "取" + input.title, value: bind(\.channelMixer[output][input]),
+                FinishSlider(title: String(localized: "取") + input.title, value: bind(\.channelMixer[output][input]),
                              range: ChannelMixer.range, rest: 0,
                              track: LinearGradient(colors: [.black, tint[input] ?? .white],
                                                    startPoint: .leading, endPoint: .trailing))
             }
             // Not a black-and-white tool here: it runs on the finished print, already grey on a silver paper.
-            Text("例：输出红里多取一些绿，绿色的地方会偏红。在成片上调，黑白相纸的成片已经是灰的，调它没有作用。双击名字回到 0。")
+            Text(String(localized: "例：输出红里多取一些绿，绿色的地方会偏红。在成片上调，黑白相纸的成片已经是灰的，调它没有作用。双击名字回到 0。"))
                 .font(.caption2).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -206,9 +206,9 @@ struct FinishPanel: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-            FinishSlider(title: "\(zone.title) · 明度", value: bind(\.colorBalance[zone].luminance), range: -1...1, rest: 0,
+            FinishSlider(title: String(localized: "\(zone.title) · 明度"), value: bind(\.colorBalance[zone].luminance), range: -1...1, rest: 0,
                          text: { Fmt.signed($0 * 100, decimals: 0) })
-            Text("拖动色轮里的点调色相和强度，双击色轮复位。")
+            Text(String(localized: "拖动色轮里的点调色相和强度，双击色轮复位。"))
                 .font(.caption2).foregroundStyle(.secondary)
             Spacer(minLength: 0)
         }
@@ -269,8 +269,8 @@ struct ColourWheel: View {
             .simultaneousGesture(TapGesture(count: 2).onEnded { var next = zone; next.hue = 0; next.saturation = 0; zone = next })
         }
         .accessibilityElement()
-        .accessibilityLabel("色轮")
-        .accessibilityValue(String(format: "色相 %.0f°，强度 %.0f", zone.hue, zone.saturation * 100))
+        .accessibilityLabel(String(localized: "色轮"))
+        .accessibilityValue(String(format: String(localized: "色相 %.0f°，强度 %.0f"), zone.hue, zone.saturation * 100))
     }
 }
 
@@ -365,7 +365,7 @@ struct CurveEditor: View {
             .simultaneousGesture(TapGesture(count: 2).onEnded { curve = .identity })
         }
         .clipShape(RoundedRectangle(cornerRadius: 6))
-        .accessibilityLabel("曲线，双击重置")
+        .accessibilityLabel(String(localized: "曲线，双击重置"))
     }
 }
 

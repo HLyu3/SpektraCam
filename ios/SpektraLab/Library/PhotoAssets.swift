@@ -29,7 +29,7 @@ enum PhotoAssets {
     /// The original's bytes, downloaded from iCloud if they are not on the phone.
     static func originalData(_ asset: PHAsset) async throws -> (data: Data, type: String?) {
         guard let resource = originalResource(asset) else {
-            throw DecodeError.unreadable("这张照片在相册里没有原图")
+            throw DecodeError.unreadable(String(localized: "这张照片在相册里没有原图"))
         }
         let options = PHAssetResourceRequestOptions()
         options.isNetworkAccessAllowed = true
@@ -55,7 +55,7 @@ enum PhotoAssets {
             request.addResource(with: .photo, data: data, options: options)
             box.id = request.placeholderForCreatedAsset?.localIdentifier
         }
-        guard let id = box.id else { throw DecodeError.unreadable("照片没能存进相册") }
+        guard let id = box.id else { throw DecodeError.unreadable(String(localized: "照片没能存进相册")) }
         return id
     }
 

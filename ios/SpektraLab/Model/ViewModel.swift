@@ -314,7 +314,7 @@ final class ViewModel: ObservableObject {
     var papers: [Stock] { Stock.ordered(catalog.papers) }
 
     /// The editor's name for the look: "无胶片" or the film.
-    var currentLookName: String { recipe.noFilm == true ? "无胶片" : currentFilmName }
+    var currentLookName: String { recipe.noFilm == true ? String(localized: "无胶片") : currentFilmName }
 
     var currentFilmName: String {
         films.first { $0.id == filmStock }?.name ?? filmStock
@@ -337,12 +337,12 @@ final class ViewModel: ObservableObject {
 
     var gateDisplayName: String {
         overscanFormat == FilmGateCatalog.automaticID
-            ? "自动 · \(selectedGate.title)"
+            ? String(localized: "自动 · \(selectedGate.title)")
             : selectedGate.title
     }
 
     var filmEdgeDisplayName: String {
-        guard filmBorderEnabled else { return "关闭" }
+        guard filmBorderEnabled else { return String(localized: "关闭") }
         return stripOrientation == .automatic
             ? gateDisplayName
             : "\(gateDisplayName) · \(stripOrientation.title)"
@@ -420,7 +420,7 @@ final class ViewModel: ObservableObject {
     init() {
         historyWatch = objectWillChange.sink { [weak self] _ in self?.scheduleSettle() }
         guard let device = MTLCreateSystemDefaultDevice() else {
-            state = .failed("这台设备没有可用的 Metal 设备")
+            state = .failed(String(localized: "这台设备没有可用的 Metal 设备"))
             return
         }
         self.device = device
@@ -445,7 +445,7 @@ final class ViewModel: ObservableObject {
             self.engine = engine
             self.renderer = CanvasRenderer(device: device)
             state = .empty
-            statusText = "就绪 · \(catalog.films.count) 款胶片 · \(catalog.papers.count) 款相纸"
+            statusText = String(localized: "就绪 · \(catalog.films.count) 款胶片 · \(catalog.papers.count) 款相纸")
         } catch {
             // The CI build does not ship the resource archive inside the .app:
             // a 15 MB payload makes the side-loading installer fail when it
@@ -453,7 +453,7 @@ final class ViewModel: ObservableObject {
             // only "Failed to get bundle ID". The six-entry test bundle
             // installed fine, so the archive is fetched here once instead.
             state = .importing
-            statusText = "首次启动：正在准备引擎资源…"
+            statusText = String(localized: "首次启动：正在准备引擎资源…")
             Task { @MainActor in
                 await self.prepareResourcesAndStart(device: device)
             }
@@ -471,10 +471,10 @@ final class ViewModel: ObservableObject {
             self.engine = engine
             self.renderer = CanvasRenderer(device: device)
             state = .empty
-            statusText = "就绪 · \(catalog.films.count) 款胶片 · \(catalog.papers.count) 款相纸"
+            statusText = String(localized: "就绪 · \(catalog.films.count) 款胶片 · \(catalog.papers.count) 款相纸")
         } catch {
             state = .failed(error.localizedDescription)
-            statusText = "资源准备失败"
+            statusText = String(localized: "资源准备失败")
         }
     }
 
@@ -482,8 +482,8 @@ final class ViewModel: ObservableObject {
     /// cycle of "it just closes" to find out what happened.
     private func reportPreviousCrash() {
         guard let crash = CrashLog.take() else { return }
-        state = .failed("上次异常退出：\(crash)")
-        statusText = "上次异常退出 · \(crash)"
+        state = .failed(String(localized: "上次异常退出：\(crash)"))
+        statusText = String(localized: "上次异常退出 · \(crash)")
     }
 
     // MARK: - importing
@@ -505,22 +505,22 @@ final class ViewModel: ObservableObject {
         // A photo picked from Photos is linked, not copied: its original stays the one in Photos.
         // Without library access (or without an identifier) it is copied as before.
         let canLink = await PhotoAssets.authorize()
-        libraryBusy = "正在导入 0/\(items.count)"
+        libraryBusy = String(localized: "正在导入 0/\(items.count)")
         var imported = 0
         var failed = 0
         for (index, item) in items.enumerated() {
-            libraryBusy = "正在导入 \(index + 1)/\(items.count)"
+            libraryBusy = String(localized: "正在导入 \(index + 1)/\(items.count)")
             if canLink, let id = item.itemIdentifier, PhotoAssets.asset(id) != nil {
                 if await linkAsset(id) != nil { imported += 1 } else { failed += 1 }
                 continue
             }
             do {
                 let data = try await Self.loadData(from: item)
-                guard !data.isEmpty else { throw DecodeError.unreadable("照片没有返回数据") }
+                guard !data.isEmpty else { throw DecodeError.unreadable(String(localized: "照片没有返回数据")) }
                 let hint = item.supportedContentTypes.first { $0.conforms(to: .rawImage) }
                     ?? item.supportedContentTypes.first
                     ?? ImageDecoder.inferredRAWTypeHint(for: data)
-                let name = String(format: "照片 %02d", library.count + 1)
+                let name = String(format: String(localized: "照片 %02d"), library.count + 1)
                 try await addPhoto(data: data, name: name, typeHint: hint)
                 imported += 1
             } catch {
@@ -530,8 +530,8 @@ final class ViewModel: ObservableObject {
         }
         await developImportThumbnails()
         libraryMessage = failed == 0
-            ? "已导入 \(imported) 张照片"
-            : "已导入 \(imported) 张，\(failed) 张无法读取"
+            ? String(localized: "已导入 \(imported) 张照片")
+            : String(localized: "已导入 \(imported) 张，\(failed) 张无法读取")
     }
 
     /// Import one or more files, including the RAW containers Photos may only
@@ -571,20 +571,20 @@ final class ViewModel: ObservableObject {
         let fresh = again ? files : files.filter { !present.contains(identity($0)) }
         let skipped = files.count - fresh.count
         guard !fresh.isEmpty else {
-            if files.isEmpty { libraryMessage = "没有找到照片或 RAW 文件" } else { reimportOffer = ReimportOffer(urls: urls, count: skipped) }
+            if files.isEmpty { libraryMessage = String(localized: "没有找到照片或 RAW 文件") } else { reimportOffer = ReimportOffer(urls: urls, count: skipped) }
             return
         }
-        libraryBusy = "正在导入 0/\(fresh.count)"
+        libraryBusy = String(localized: "正在导入 0/\(fresh.count)")
         var imported = 0
         var failures: [String] = []
         for (index, url) in fresh.enumerated() {
-            libraryBusy = "正在导入 \(index + 1)/\(fresh.count)"
+            libraryBusy = String(localized: "正在导入 \(index + 1)/\(fresh.count)")
             NSLog("SpektraLab import: %d/%d %@", index + 1, fresh.count, url.lastPathComponent)
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             do {
                 let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-                guard !data.isEmpty else { throw DecodeError.unreadable("文件为空") }
+                guard !data.isEmpty else { throw DecodeError.unreadable(String(localized: "文件为空")) }
                 let hint = RAWTypes.hint(forExtension: url.pathExtension)
                 try await addPhoto(data: data,
                                    name: url.deletingPathExtension().lastPathComponent,
@@ -596,8 +596,8 @@ final class ViewModel: ObservableObject {
             await Task.yield()
         }
         await developImportThumbnails()
-        var parts = ["已导入 \(imported) 张"]
-        if skipped > 0 { parts.append("\(skipped) 张导入过，已跳过") }
+        var parts = [String(localized: "已导入 \(imported) 张")]
+        if skipped > 0 { parts.append(String(localized: "\(skipped) 张导入过，已跳过")) }
         if !failures.isEmpty {
             importFailures = ImportFailures(summary: parts.joined(separator: "，"), lines: failures)
         } else {
@@ -612,14 +612,14 @@ final class ViewModel: ObservableObject {
     /// Why a file did not import, in a few words.
     private static func importFailureReason(_ error: Error, url: URL) -> String {
         switch url.pathExtension.lowercased() {
-        case "x3f": return "Sigma Foveon RAW 暂不支持"
-        case "gpr": return "GoPro GPR RAW 暂不支持"
+        case "x3f": return String(localized: "Sigma Foveon RAW 暂不支持")
+        case "gpr": return String(localized: "GoPro GPR RAW 暂不支持")
         default: break
         }
         let text = error.localizedDescription
-        if text.contains("Unsupported") { return "这种 RAW 格式读不了" }
-        if text.contains("文件为空") { return "文件是空的" }
-        return "无法读取"
+        if text.contains("Unsupported") { return String(localized: "这种 RAW 格式读不了") }
+        if text.contains(String(localized: "文件为空")) { return String(localized: "文件是空的") }
+        return String(localized: "无法读取")
     }
 
     /// The old "imported before" list (name|size|mtime), read once by `adoptLegacyImportList`.
@@ -725,7 +725,7 @@ final class ViewModel: ObservableObject {
             ? decoded.centerCropped(toTargetAspect: filmCropAspect)
             : decoded
         try await loadFrame(framed)
-        statusText = "已载入 \(name) · \(decoded.width)×\(decoded.height) · \(String(format: "%.1f", decoded.megapixels)) MP"
+        statusText = String(localized: "已载入 \(name) · \(decoded.width)×\(decoded.height) · \(String(format: "%.1f", decoded.megapixels)) MP")
     }
 
     /// The look currently on the canvas, ready to be stored on a photo or
@@ -796,7 +796,7 @@ final class ViewModel: ObservableObject {
     private func originalData(for photo: LibraryPhoto) async throws -> Data {
         if let assetID = photo.assetID {
             guard let asset = PhotoAssets.asset(assetID) else {
-                throw DecodeError.unreadable("这张照片已经不在系统相册里了")
+                throw DecodeError.unreadable(String(localized: "这张照片已经不在系统相册里了"))
             }
             return try await PhotoAssets.originalData(asset).data
         }
@@ -806,7 +806,7 @@ final class ViewModel: ObservableObject {
     /// Open a photo from the system library (linking it first if it has no SpektraLab entry yet).
     func openAsset(_ localIdentifier: String) async {
         guard libraryBusy == nil else { return }
-        libraryBusy = "正在从相册读取…"
+        libraryBusy = String(localized: "正在从相册读取…")
         let id = await linkAsset(localIdentifier)
         libraryBusy = nil
         if let id { await openLibraryPhoto(id) }
@@ -817,7 +817,7 @@ final class ViewModel: ObservableObject {
     func linkAsset(_ localIdentifier: String) async -> UUID? {
         if let linked = library.first(where: { $0.assetID == localIdentifier }) { return linked.id }
         guard let asset = PhotoAssets.asset(localIdentifier) else {
-            libraryMessage = "这张照片已经不在系统相册里了"
+            libraryMessage = String(localized: "这张照片已经不在系统相册里了")
             return nil
         }
         let resource = PhotoAssets.originalResource(asset)
@@ -825,7 +825,7 @@ final class ViewModel: ObservableObject {
         let id = UUID()
         try? LibraryThumbnail.saveJPEG(thumbnail, to: thumbnailURL(for: id))
         let w = max(asset.pixelWidth, 1), h = max(asset.pixelHeight, 1)
-        let name = resource.map { ($0.originalFilename as NSString).deletingPathExtension } ?? "相册照片"
+        let name = resource.map { ($0.originalFilename as NSString).deletingPathExtension } ?? String(localized: "相册照片")
         let photo = LibraryPhoto(id: id, name: name, fileName: "", typeIdentifier: resource?.uniformTypeIdentifier,
                                  pixelWidth: w, pixelHeight: h, sourceAspect: Double(w) / Double(h),
                                  createdAt: asset.creationDate ?? Date(), recipe: newPhotoRecipe,
@@ -896,8 +896,8 @@ final class ViewModel: ObservableObject {
         NSLog("SpektraLab negatives: removing %d exported, %d never exported", old.count, forgotten.count)
         deletePhotos(Set((old + forgotten).map(\.id)))
         libraryMessage = forgotten.isEmpty
-            ? "已清理 \(old.count) 张超过 \(days) 天、已导出的底片"
-            : "已清理 \(old.count + forgotten.count) 张底片（其中 \(forgotten.count) 张超过 \(unexportedDays) 天未导出）"
+            ? String(localized: "已清理 \(old.count) 张超过 \(days) 天、已导出的底片")
+            : String(localized: "已清理 \(old.count + forgotten.count) 张底片（其中 \(forgotten.count) 张超过 \(unexportedDays) 天未导出）")
     }
 
     // MARK: - culling
@@ -1013,7 +1013,7 @@ final class ViewModel: ObservableObject {
             libraryBusy = nil   // `openLibraryPhoto` refuses while the wall is busy
             await openLibraryPhoto(id)
             guard editingPhotoID == id else { continue }
-            libraryBusy = "正在导出 \(i + 1)/\(ids.count)"
+            libraryBusy = String(localized: "正在导出 \(i + 1)/\(ids.count)")
             await export(toPhotos: true, replacing: replacingOld ? previousPrint()?.assetID : nil)
             if library.first(where: { $0.id == id })?.exportedAt != nil { done += 1; exported.append(id) }
             closeEditor()
@@ -1021,10 +1021,10 @@ final class ViewModel: ObservableObject {
         // Thumbnails after the batch: each opens its own engine session, which must not land
         // between an export's open and its render.
         for id in exported {
-            libraryBusy = "正在更新缩略图…"
+            libraryBusy = String(localized: "正在更新缩略图…")
             if let recipe = library.first(where: { $0.id == id })?.recipe { await refreshThumbnail(for: id, recipe: recipe) }
         }
-        libraryMessage = done == ids.count ? "已导出 \(done) 张到相册" : "已导出 \(done) 张，\(ids.count - done) 张失败"
+        libraryMessage = done == ids.count ? String(localized: "已导出 \(done) 张到相册") : String(localized: "已导出 \(done) 张，\(ids.count - done) 张失败")
         return done
     }
 
@@ -1039,14 +1039,14 @@ final class ViewModel: ObservableObject {
     @discardableResult
     func deleteFromPhotos(_ assetIDs: [String]) async -> Bool {
         guard !assetIDs.isEmpty, await PhotoAssets.authorize() else {
-            libraryMessage = "没有相册权限，无法删除“照片”里的照片"
+            libraryMessage = String(localized: "没有相册权限，无法删除“照片”里的照片")
             return false
         }
         // Off the main actor: Photos runs the change block on its own queue, and a block made here inherited the
         // main actor's isolation — Swift's executor check stopped the app the moment Photos ran it.
         let count = await PhotoLibrary.deleteAssets(assetIDs)
         guard count > 0 else {
-            if count == 0 { libraryMessage = "“照片”里已经没有这些照片了" }
+            if count == 0 { libraryMessage = String(localized: "“照片”里已经没有这些照片了") }
             return false        // none found, or the person said no in iOS's own prompt
         }
         let gone = Set(assetIDs)
@@ -1055,7 +1055,7 @@ final class ViewModel: ObservableObject {
             library[i].exportedAssetID = nil
         }
         saveLibraryManifest()
-        libraryMessage = "已从“照片”删除 \(count) 张"
+        libraryMessage = String(localized: "已从“照片”删除 \(count) 张")
         return true
     }
 
@@ -1072,7 +1072,7 @@ final class ViewModel: ObservableObject {
 
     /// A film's or a paper's display name (callers pass either: a roll's paper went through here and showed its id).
     func filmName(for stock: String) -> String {
-        if stock.isEmpty { return "无胶片" }
+        if stock.isEmpty { return String(localized: "无胶片") }
         return (films.first { $0.id == stock } ?? papers.first { $0.id == stock })?.name ?? stock
     }
 
@@ -1301,14 +1301,14 @@ final class ViewModel: ObservableObject {
         guard libraryBusy == nil,
               let photo = library.first(where: { $0.id == id }) else {
             NSLog("SpektraLab open: refused (busy: %@)", libraryBusy ?? "no")
-            if let busy = libraryBusy { libraryMessage = "稍等，\(busy)" }
+            if let busy = libraryBusy { libraryMessage = String(localized: "稍等，\(busy)") }
             return
         }
         guard engine != nil else {
-            libraryMessage = "引擎还在准备，请稍后再试"
+            libraryMessage = String(localized: "引擎还在准备，请稍后再试")
             return
         }
-        libraryBusy = "正在打开 \(photo.name)…"
+        libraryBusy = String(localized: "正在打开 \(photo.name)…")
         let openStarted = CACurrentMediaTime()
         func lap(_ what: String) { NSLog("SpektraLab timing open: %@ at %.0f ms", what, (CACurrentMediaTime() - openStarted) * 1000) }
         if !batchExporting { openingPreview = keptLargeDevelop(for: id) }
@@ -1334,7 +1334,7 @@ final class ViewModel: ObservableObject {
             libraryMessage = nil
         } catch {
             libraryBusy = nil
-            libraryMessage = "无法打开 \(photo.name)：\(error.localizedDescription)"
+            libraryMessage = String(localized: "无法打开 \(photo.name)：\(error.localizedDescription)")
             state = .failed(error.localizedDescription)
         }
     }
@@ -1373,7 +1373,7 @@ final class ViewModel: ObservableObject {
         clipboardRecipe = photo.recipe
         recipeSourcePhotoID = id
         saveClipboardRecipe(photo.recipe)
-        libraryMessage = "已复制 \(filmName(for: photo.recipe.filmID)) 配方"
+        libraryMessage = String(localized: "已复制 \(filmName(for: photo.recipe.filmID)) 配方")
         if let data = try? JSONEncoder().encode(photo.recipe) {
             UIPasteboard.general.string = "spektralab-recipe:v1:" + data.base64EncodedString()
         }
@@ -1388,9 +1388,9 @@ final class ViewModel: ObservableObject {
 
     /// Why the eyedropper cannot be used on this photo now, or nil.
     var neutralRefusal: String? {
-        if recipe.noFilm == true { return "无胶片时不能用：先选一款胶片。" }
-        if filmBorderEnabled { return "开着片边时不能用：先关掉片边，校正后再打开。" }
-        if frame == nil { return "照片还在载入。" }
+        if recipe.noFilm == true { return String(localized: "无胶片时不能用：先选一款胶片。") }
+        if filmBorderEnabled { return String(localized: "开着片边时不能用：先关掉片边，校正后再打开。") }
+        if frame == nil { return String(localized: "照片还在载入。") }
         return nil
     }
 
@@ -1399,11 +1399,11 @@ final class ViewModel: ObservableObject {
     func pickNeutral(at n: CGPoint) {
         pickingNeutral = false
         if let why = neutralRefusal { neutralNote = why; return }
-        guard let c = frame?.sample(at: n) else { neutralNote = "请点在照片上。"; return }
-        guard let g = SceneBalance.gains(neutralizing: c) else { neutralNote = "这里太暗，看不出颜色：换一块亮一点的灰色或白色。"; return }
+        guard let c = frame?.sample(at: n) else { neutralNote = String(localized: "请点在照片上。"); return }
+        guard let g = SceneBalance.gains(neutralizing: c) else { neutralNote = String(localized: "这里太暗，看不出颜色：换一块亮一点的灰色或白色。"); return }
         let next = SceneBalance.combined(recipe.sceneBalance, g)
         edit { $0.sceneBalance = next }
-        neutralNote = "已校正：" + SceneBalance.describe(next)
+        neutralNote = String(localized: "已校正：") + SceneBalance.describe(next)
     }
 
     /// Forget the copied look (the wall's banner ✕ and the photo menus' 清除).
@@ -1412,7 +1412,7 @@ final class ViewModel: ObservableObject {
         recipeSourcePhotoID = nil
         UserDefaults.standard.removeObject(forKey: Self.clipboardRecipeKey)
         UserDefaults.standard.removeObject(forKey: Self.clipboardRecipeSourceKey)
-        libraryMessage = "已清除复制的配方"
+        libraryMessage = String(localized: "已清除复制的配方")
     }
 
     /// Apply the copied look to every selected photo and refresh each wall
@@ -1420,7 +1420,7 @@ final class ViewModel: ObservableObject {
     /// a hundred selected photos do not become a hundred GPU sessions.
     func pasteRecipe(to ids: Set<UUID>) async {
         guard let recipe = clipboardRecipe else {
-            libraryMessage = "先在一张照片上复制配方"
+            libraryMessage = String(localized: "先在一张照片上复制配方")
             return
         }
         await applyRecipe(recipe, to: ids)
@@ -1432,10 +1432,10 @@ final class ViewModel: ObservableObject {
             ids.contains($0.id) && $0.id != recipeSourcePhotoID
         }
         guard !targets.isEmpty else { return }
-        libraryBusy = "正在粘贴配方 0/\(targets.count)"
+        libraryBusy = String(localized: "正在粘贴配方 0/\(targets.count)")
         var failed = 0
         for (offset, target) in targets.enumerated() {
-            libraryBusy = "正在粘贴配方 \(offset + 1)/\(targets.count)"
+            libraryBusy = String(localized: "正在粘贴配方 \(offset + 1)/\(targets.count)")
             guard let index = library.firstIndex(where: { $0.id == target.id }) else { continue }
             var look = recipe
             // A camera shot keeps its own exposure compensation (the viewfinder drag): it belongs to the shot, not the look.
@@ -1457,8 +1457,8 @@ final class ViewModel: ObservableObject {
         saveLibraryManifest()
         libraryBusy = nil
         libraryMessage = failed == 0
-            ? "已把配方套用到 \(targets.count) 张照片"
-            : "已套用 \(targets.count - failed) 张，\(failed) 张缩略图未更新"
+            ? String(localized: "已把配方套用到 \(targets.count) 张照片")
+            : String(localized: "已套用 \(targets.count - failed) 张，\(failed) 张缩略图未更新")
     }
 
     /// Delete photos and their on-disk originals. The manifest is rewritten
@@ -1485,7 +1485,7 @@ final class ViewModel: ObservableObject {
         }
         library.removeAll { ids.contains($0.id) }
         saveLibraryManifest()
-        libraryMessage = "已删除 \(ids.count) 张照片"
+        libraryMessage = String(localized: "已删除 \(ids.count) 张照片")
     }
 
     func clearLibraryMessage() {
@@ -1502,7 +1502,7 @@ final class ViewModel: ObservableObject {
         thumbnailsToDevelop = []
         for (i, id) in ids.enumerated() {
             guard let photo = library.first(where: { $0.id == id }) else { continue }
-            libraryBusy = "正在生成缩略图 \(i + 1)/\(ids.count)"
+            libraryBusy = String(localized: "正在生成缩略图 \(i + 1)/\(ids.count)")
             await refreshThumbnail(for: id, recipe: photo.recipe)
         }
         libraryBusy = nil
@@ -1511,7 +1511,7 @@ final class ViewModel: ObservableObject {
     private func refreshThumbnail(for id: UUID, recipe: PhotoRecipe) async {
         guard let index = library.firstIndex(where: { $0.id == id }) else { return }
         let previousBusy = libraryBusy
-        libraryBusy = "正在更新缩略图…"
+        libraryBusy = String(localized: "正在更新缩略图…")
         defer { libraryBusy = previousBusy }
         guard let image = try? await renderThumbnail(for: library[index], recipe: recipe) else { return }
         guard let current = library.firstIndex(where: { $0.id == id }) else { return }
@@ -1536,7 +1536,7 @@ final class ViewModel: ObservableObject {
     private func renderThumbnail(for photo: LibraryPhoto, recipe: PhotoRecipe, longEdge: Int = 900, timed: Bool = false) async throws -> UIImage {
         let t0 = CACurrentMediaTime()
         func lap(_ what: String) { if timed { NSLog("SpektraLab timing develop: %@ at %.0f ms", what, (CACurrentMediaTime() - t0) * 1000) } }
-        guard let engine else { throw EngineError.failed(status: -1, message: "引擎没有启动") }
+        guard let engine else { throw EngineError.failed(status: -1, message: String(localized: "引擎没有启动")) }
         let data = try await originalData(for: photo)
         let hintID = photo.typeIdentifier
         let photoCrop = photo.crop
@@ -1590,7 +1590,7 @@ final class ViewModel: ObservableObject {
         let bitmap = try await engine.perform {
             try framed.pixels.withUnsafeBufferPointer { buffer in
                 guard let base = buffer.baseAddress else {
-                    throw EngineError.failed(status: -1, message: "解码结果为空")
+                    throw EngineError.failed(status: -1, message: String(localized: "解码结果为空"))
                 }
                 _ = try engine.open(pixels: EnginePixels(data: base,
                                                          width: framed.width,
@@ -1612,7 +1612,7 @@ final class ViewModel: ObservableObject {
     /// Load an already-decoded frame: open a session and render the first
     /// preview.
     private func loadFrame(_ decoded: DecodedFrame) async throws {
-        guard let engine else { throw EngineError.failed(status: -1, message: "引擎没有启动") }
+        guard let engine else { throw EngineError.failed(status: -1, message: String(localized: "引擎没有启动")) }
         frame = decoded
         sourceSize = CGSize(width: decoded.width, height: decoded.height)
 
@@ -1631,7 +1631,7 @@ final class ViewModel: ObservableObject {
         let reply = try await engine.perform {
             try decoded.pixels.withUnsafeBufferPointer { buffer in
                 guard let base = buffer.baseAddress else {
-                    throw EngineError.failed(status: -1, message: "解码结果为空")
+                    throw EngineError.failed(status: -1, message: String(localized: "解码结果为空"))
                 }
                 return try engine.open(pixels: EnginePixels(
                     data: base,
@@ -1728,8 +1728,8 @@ final class ViewModel: ObservableObject {
                 self.effectReloadNeeded = false
                 self.state = .importing
                 self.statusText = self.filmBorderEnabled
-                    ? "正在裁切到 \(self.gateDisplayName)…"
-                    : "正在重新曝光…"
+                    ? String(localized: "正在裁切到 \(self.gateDisplayName)…")
+                    : String(localized: "正在重新曝光…")
                 do {
                     guard let data = self.originalData else { break }
                     let sourceGeneration = self.sourceGeneration
@@ -1749,7 +1749,7 @@ final class ViewModel: ObservableObject {
                     try await self.loadFrame(framed)
                 } catch {
                     self.state = .failed(error.localizedDescription)
-                    self.statusText = "片边载入失败"
+                    self.statusText = String(localized: "片边载入失败")
                 }
             }
             self.effectReloadRunning = false
@@ -1825,7 +1825,7 @@ final class ViewModel: ObservableObject {
             return long * 2 < declared || (isRAW && (long < 1024 || ImageDecoder.isBlack($0))) }) ?? true {
             image = try linearImage(ImageDecoder.decode(data: data, maxLongEdge: maxLongEdge, typeHint: typeHint))
         }
-        guard var image else { throw DecodeError.unreadable("无法读取原图") }
+        guard var image else { throw DecodeError.unreadable(String(localized: "无法读取原图")) }
         let long = max(image.extent.width, image.extent.height)
         if long > CGFloat(maxLongEdge) {
             let s = CGFloat(maxLongEdge) / long
@@ -1834,7 +1834,7 @@ final class ViewModel: ObservableObject {
         let context = CIContext(options: [.cacheIntermediates: false])
         let r = image.extent.integral
         guard let whole = context.createCGImage(image, from: r, format: .RGBA16, colorSpace: space) else {
-            throw DecodeError.unreadable("无法渲染原图")
+            throw DecodeError.unreadable(String(localized: "无法渲染原图"))
         }
         guard let crop, !crop.isIdentity else { return whole }
         return crop.render(whole, space: space) ?? whole
@@ -1866,7 +1866,7 @@ final class ViewModel: ObservableObject {
 
     func paperChanged(_ stock: String) {
         guard catalog.canPrint(film: filmStock, on: stock) else {
-            statusText = catalog.isMonochrome(filmStock) ? "黑白胶片只能印在黑白相纸上" : "黑白相纸只能印黑白胶片"
+            statusText = catalog.isMonochrome(filmStock) ? String(localized: "黑白胶片只能印在黑白相纸上") : String(localized: "黑白相纸只能印黑白胶片")
             return
         }
         edit { $0.printStock = stock }
@@ -1927,7 +1927,7 @@ final class ViewModel: ObservableObject {
                 do {
                     let image = try await engine.perform { () -> CGImage in
                         try small.pixels.withUnsafeBufferPointer { buffer in
-                            guard let base = buffer.baseAddress else { throw EngineError.failed(status: -1, message: "空") }
+                            guard let base = buffer.baseAddress else { throw EngineError.failed(status: -1, message: String(localized: "空")) }
                             _ = try engine.open(pixels: EnginePixels(data: base, width: small.width, height: small.height),
                                                 params: open)
                         }
@@ -1968,7 +1968,7 @@ final class ViewModel: ObservableObject {
                     // it keeps.
                     try frame.pixels.withUnsafeBufferPointer { buffer in
                         guard let base = buffer.baseAddress else {
-                            throw EngineError.failed(status: -1, message: "解码结果为空")
+                            throw EngineError.failed(status: -1, message: String(localized: "解码结果为空"))
                         }
                         _ = try engine.open(pixels: EnginePixels(
                             data: base,
@@ -2086,7 +2086,7 @@ final class ViewModel: ObservableObject {
             lastRenderMs = result.elapsedMs
             NSLog("SpektraLab render: done %.0f ms", result.elapsedMs)
             state = .ready
-            statusText = String(format: "渲染完成 · %.0f ms · %d×%d",
+            statusText = String(format: String(localized: "渲染完成 · %.0f ms · %d×%d"),
                                 result.elapsedMs, result.width, result.height)
         } catch {
             // The state stays `.failed`. It used to be forced back to `.ready`
@@ -2095,7 +2095,7 @@ final class ViewModel: ObservableObject {
             // explanation.
             NSLog("SpektraLab render: FAILED %@", error.localizedDescription)
             state = .failed(error.localizedDescription)
-            statusText = "渲染失败：\(error.localizedDescription)"
+            statusText = String(localized: "渲染失败：\(error.localizedDescription)")
         }
     }
 
@@ -2346,10 +2346,10 @@ final class ViewModel: ObservableObject {
     /// Returns the wall thumbnail, nil when it could not be kept.
     func addCapturedShot(_ data: Data, isRAW: Bool, look: PhotoRecipe, toPhotos: Bool = false,
                          develop: Bool = false, zoom: Double = 1, askedLongEdge: Int = 0) async -> UIImage? {
-        let shots = library.filter { $0.name.hasPrefix("胶卷 ") }.count
+        let shots = library.filter { $0.name.hasPrefix(String(localized: "胶卷 ")) }.count
         let type: UTType = isRAW ? (UTType("com.adobe.raw-image") ?? .rawImage) : .heic
         do {
-            let id = try await addPhoto(data: data, name: String(format: "胶卷 %03d", shots + 1), typeHint: type)
+            let id = try await addPhoto(data: data, name: String(format: String(localized: "胶卷 %03d"), shots + 1), typeHint: type)
             guard let index = library.firstIndex(where: { $0.id == id }) else { return nil }
             library[index].recipe = look
             library[index].captured = true
@@ -2371,12 +2371,12 @@ final class ViewModel: ObservableObject {
                     try data.write(to: copy)
                     try await PhotoLibrary.saveImage(at: copy)
                 } catch {
-                    libraryMessage = "照片已拍好，但没能存入“照片”：\(error.localizedDescription)"
+                    libraryMessage = String(localized: "照片已拍好，但没能存入“照片”：\(error.localizedDescription)")
                 }
             }
             return library[index].thumbnail
         } catch {
-            libraryMessage = "照片没能保存：\(error.localizedDescription)"
+            libraryMessage = String(localized: "照片没能保存：\(error.localizedDescription)")
             return nil
         }
     }
@@ -2471,7 +2471,7 @@ final class ViewModel: ObservableObject {
         do {
             let bitmap = try await engine.perform { () -> RenderedBitmap in
                 try chartFrame.pixels.withUnsafeBufferPointer { buffer in
-                    guard let base = buffer.baseAddress else { throw EngineError.failed(status: -1, message: "色卡为空") }
+                    guard let base = buffer.baseAddress else { throw EngineError.failed(status: -1, message: String(localized: "色卡为空")) }
                     _ = try engine.open(pixels: EnginePixels(data: base, width: side, height: side), params: openDelta)
                 }
                 try engine.solve(target: "both")
@@ -2532,7 +2532,7 @@ final class ViewModel: ObservableObject {
     /// links it (no copy here) so it can still be developed later.
     func addShotToPhotos(_ data: Data, isRAW: Bool) async -> UIImage? {
         guard await PhotoAssets.authorize() else {
-            libraryMessage = "没有相册权限，照片没能保存"
+            libraryMessage = String(localized: "没有相册权限，照片没能保存")
             return nil
         }
         do {
@@ -2542,7 +2542,7 @@ final class ViewModel: ObservableObject {
             guard let asset = PhotoAssets.asset(assetID) else { return nil }
             return await PhotoAssets.thumbnail(asset, side: LibraryThumbnail.maxPixel)
         } catch {
-            libraryMessage = "照片没能存进相册：\(error.localizedDescription)"
+            libraryMessage = String(localized: "照片没能存进相册：\(error.localizedDescription)")
             return nil
         }
     }
@@ -2556,7 +2556,7 @@ final class ViewModel: ObservableObject {
         guard libraryBusy == nil,
               let left = library.first(where: { $0.id == spec.left }),
               let right = library.first(where: { $0.id == spec.right }) else { return nil }
-        libraryBusy = "正在合成双拼…"
+        libraryBusy = String(localized: "正在合成双拼…")
         defer { libraryBusy = nil }
         func upright(_ p: LibraryPhoto) -> CGSize {
             let long = CGFloat(max(p.pixelWidth, p.pixelHeight)), a = CGFloat(max(p.sourceAspect, 0.01))
@@ -2579,7 +2579,7 @@ final class ViewModel: ObservableObject {
                                 max(1, Int((long * k).rounded())), item.1))
             }
         } catch {
-            libraryMessage = "双拼失败：\(error.localizedDescription)"
+            libraryMessage = String(localized: "双拼失败：\(error.localizedDescription)")
             return nil
         }
         let target = Int(holeHeight.rounded())
@@ -2601,16 +2601,16 @@ final class ViewModel: ObservableObject {
                 return try PairComposer.heif(PairComposer.compose(holes[0], holes[1], gains: gains))
             }.value
             let pairs = library.filter { $0.pair != nil }.count
-            let id = try await addPhoto(data: heif, name: String(format: "双拼 %02d", pairs + 1), typeHint: .heic)
+            let id = try await addPhoto(data: heif, name: String(format: String(localized: "双拼 %02d"), pairs + 1), typeHint: .heic)
             if let index = library.firstIndex(where: { $0.id == id }) {
                 library[index].pair = spec
                 library[index].recipe = left.recipe
                 saveLibraryManifest()
             }
-            libraryMessage = "已生成双拼：\(left.name) + \(right.name)"
+            libraryMessage = String(localized: "已生成双拼：\(left.name) + \(right.name)")
             return id
         } catch {
-            libraryMessage = "双拼失败：\(error.localizedDescription)"
+            libraryMessage = String(localized: "双拼失败：\(error.localizedDescription)")
             return nil
         }
     }
@@ -2643,7 +2643,7 @@ final class ViewModel: ObservableObject {
         showingOriginal = on
         if on {
             originalTexture = originalTexture ?? makeOriginalTexture()
-            guard let originalTexture else { statusText = "无法读取原图"; return }
+            guard let originalTexture else { statusText = String(localized: "无法读取原图"); return }
             renderer?.setHDR(nil)          // the original as the camera wrote it, SDR
             renderer?.setTexture(originalTexture)
             renderedTexture = originalTexture
@@ -2751,7 +2751,7 @@ final class ViewModel: ObservableObject {
     func export(toPhotos: Bool = false, replacing: String? = nil) async {
         guard !exporting else { return }
         guard let engine, let originalData else {
-            statusText = "还没有可导出的照片"
+            statusText = String(localized: "还没有可导出的照片")
             return
         }
         exporting = true
@@ -2762,11 +2762,11 @@ final class ViewModel: ObservableObject {
         state = .importing
         let started = Date()
         func stage(_ text: String) {
-            statusText = "导出：\(text)"
+            statusText = String(localized: "导出：\(text)")
             NSLog("SpektraLab export: %@ (%.1fs, %d MB free)", text, Date().timeIntervalSince(started),
                   Int(os_proc_available_memory() >> 20))
         }
-        stage("解码原图 · \(options.format.title) · \(options.colorSpace.title)")
+        stage(String(localized: "解码原图 · \(options.format.title) · \(options.colorSpace.title)"))
         var shareURL: URL?
         var reopened = false
 
@@ -2791,7 +2791,7 @@ final class ViewModel: ObservableObject {
                                                   typeHint: hint).applying(frameCrop).balanced(gains)
                 return cropAspect.map { cut.centerCropped(toTargetAspect: $0) } ?? cut
             }.value
-            if let decoded { stage("全尺寸渲染 \(decoded.width)×\(decoded.height)") }
+            if let decoded { stage(String(localized: "全尺寸渲染 \(decoded.width)×\(decoded.height)")) }
 
             var exportDelta = currentOpenDelta()
             exportDelta["output_color_space"] = .string(options.colorSpace.engineName)
@@ -2806,7 +2806,7 @@ final class ViewModel: ObservableObject {
             // 无胶片: the system's own rendering of the original stands in for the engine's print.
             var plainImage: CGImage?
             if noFilm {
-                stage("原图（无胶片）")
+                stage(String(localized: "原图（无胶片）"))
                 let tag = space.cgColorSpace ?? Layer2Renderer.previewSpace
                 let edge = memoryCap ?? ImageDecoder.exportLongEdge ?? Int.max
                 plainImage = try await Task.detached(priority: .userInitiated) {
@@ -2818,7 +2818,7 @@ final class ViewModel: ObservableObject {
             if !noFilm { try await engine.perform { [full = decoded!] in
                 try full.pixels.withUnsafeBufferPointer { buffer in
                     guard let base = buffer.baseAddress else {
-                        throw EngineError.failed(status: -1, message: "解码结果为空")
+                        throw EngineError.failed(status: -1, message: String(localized: "解码结果为空"))
                     }
                     _ = try engine.open(pixels: EnginePixels(
                         data: base,
@@ -2828,7 +2828,7 @@ final class ViewModel: ObservableObject {
             }
             }
             decoded = nil
-            if !noFilm { stage("引擎已载入原图") }
+            if !noFilm { stage(String(localized: "引擎已载入原图")) }
             let place = recipe.placesAutomatically
             var rendered: RenderedBitmap? = noFilm ? nil : try await engine.perform {
                 try engine.solve(placement: place)
@@ -2854,7 +2854,7 @@ final class ViewModel: ObservableObject {
             // small preview one, and only then run 后期 and encode — with all of it held at
             // once the app was killed while encoding.
             if let layer2 = Layer2Renderer.shared {
-                stage("复制成片")
+                stage(String(localized: "复制成片"))
                 let tag = space.cgColorSpace ?? Layer2Renderer.previewSpace
                 let engineImage = cgImage
                 var copy: Layer2Source? = try await Task.detached(priority: .userInitiated) {
@@ -2863,11 +2863,11 @@ final class ViewModel: ObservableObject {
                 cgImage = try Layer2Renderer.image(of: copy!, space: tag)
                 rendered = nil
                 decoded = nil
-                stage("释放全尺寸会话")
+                stage(String(localized: "释放全尺寸会话"))
                 if let frame { try await loadFrame(frame); reopened = true }
                 let look = adjustments
                 if look.isActive {
-                    stage("后期")
+                    stage(String(localized: "后期"))
                     let source = copy!
                     cgImage = try await Task.detached(priority: .userInitiated) {
                         try layer2.image(source, look, space: tag, midGrey: space.midGrey)
@@ -2877,17 +2877,17 @@ final class ViewModel: ObservableObject {
             }
             let marks = watermarkShelf.resolved(recipe.watermarks)
             if !marks.isEmpty {
-                stage("水印")
+                stage(String(localized: "水印"))
                 let picture = cgImage
                 cgImage = await Task.detached(priority: .userInitiated) { Watermark.composite(picture, marks) }.value
             }
-            stage("编码 \(options.format.title) \(bitmap.width)×\(bitmap.height)")
+            stage(String(localized: "编码 \(options.format.title) \(bitmap.width)×\(bitmap.height)"))
             let source: Data? = options.keepMetadata ? data : nil
             var gainMap: HDRGainMap.Attachment?
             if isSlideHDR, reopened, options.format == .jpeg || options.format == .heif, HDRGainMap.supported,
                let engine = self.engine {
                 // A slide: the ratio of its two renditions on the (reopened) preview session, at the preview's size.
-                stage("HDR 增益图（反转片）")
+                stage(String(localized: "HDR 增益图（反转片）"))
                 if let pair = try? await engine.perform({ () -> (CGImage, CGImage) in
                     let s = try engine.renderBitmap(tier: "live", reprint: true).cgImage
                     _ = try engine.setParams(HDRSlide.renditionDelta)
@@ -2900,7 +2900,7 @@ final class ViewModel: ObservableObject {
                 }
             }
             if gainMap == nil, let hdrCurve {
-                stage("HDR 增益图")
+                stage(String(localized: "HDR 增益图"))
                 let picture = cgImage
                 gainMap = await Task.detached(priority: .userInitiated) { HDRExport.attachment(for: picture, curve: hdrCurve) }.value
             }
@@ -2919,7 +2919,7 @@ final class ViewModel: ObservableObject {
             let megabytes = Double(bytes) / 1_048_576
             switch options.destination {
             case .photos:
-                stage("保存到相册")
+                stage(String(localized: "保存到相册"))
                 let assetID = try await PhotoLibrary.saveImage(at: url)
                 if let id = editingPhotoID, let i = library.firstIndex(where: { $0.id == id }) {
                     library[i].exportedAt = Date()
@@ -2930,15 +2930,15 @@ final class ViewModel: ObservableObject {
                     saveLibraryManifest()
                 }
                 if let replacing, replacing != assetID {
-                    stage("删除旧成片")
+                    stage(String(localized: "删除旧成片"))
                     _ = await PhotoLibrary.deleteAsset(replacing)
                 }
-                doneText = String(format: "已导出 %d×%d · %.1f MB 到相册",
-                                  bitmap.width, bitmap.height, megabytes) + (memoryCap == nil ? "" : "（内存不够，已缩小）")
+                doneText = String(format: String(localized: "已导出 %d×%d · %.1f MB 到相册"),
+                                  bitmap.width, bitmap.height, megabytes) + (memoryCap == nil ? "" : String(localized: "（内存不够，已缩小）"))
             case .files:
                 shareURL = url
-                doneText = String(format: "已生成 %d×%d · %.1f MB",
-                                  bitmap.width, bitmap.height, megabytes) + (memoryCap == nil ? "" : "（内存不够，已缩小）")
+                doneText = String(format: String(localized: "已生成 %d×%d · %.1f MB"),
+                                  bitmap.width, bitmap.height, megabytes) + (memoryCap == nil ? "" : String(localized: "（内存不够，已缩小）"))
             }
             NSLog("SpektraLab export: done in %.1fs", Date().timeIntervalSince(started))
         } catch {
@@ -2948,7 +2948,7 @@ final class ViewModel: ObservableObject {
 
         if let failure {
             state = .failed(failure)
-            statusText = "导出失败"
+            statusText = String(localized: "导出失败")
         } else if let doneText {
             state = .ready
             statusText = doneText
@@ -3281,8 +3281,8 @@ enum ExportError: Error, CustomStringConvertible {
     case encodingFailed
     var description: String {
         switch self {
-        case .permissionDenied: "没有相册写入权限，请在系统设置里允许"
-        case .encodingFailed: "照片编码失败，无法导出"
+        case .permissionDenied: String(localized: "没有相册写入权限，请在系统设置里允许")
+        case .encodingFailed: String(localized: "照片编码失败，无法导出")
         }
     }
 }

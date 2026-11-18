@@ -1,0 +1,54 @@
+{
+  "sourceLanguage": "zh-Hans",
+  "strings": {
+    "已加入 %lld 张\n打开 Spektra Cam 时导入": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added %lld\nImported when you open Spektra Cam"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已加入 %lld 张\n打开 Spektra Cam 时导入"
+          }
+        }
+      }
+    },
+    "正在加入 Spektra Cam…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adding to Spektra Cam…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加入 Spektra Cam…"
+          }
+        }
+      }
+    },
+    "没有可以加入的照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No photos to add"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可以加入的照片"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

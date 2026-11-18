@@ -359,8 +359,8 @@ enum ImageDecoder {
             ?? UTType(identifier ?? "")?.preferredFilenameExtension
         // Formats the bundled LibRaw 0.22 does not read: Foveon X3F (dropped in 0.21) and GoPro GPR (needs the GPR SDK).
         let ext = (typeHint?.preferredFilenameExtension ?? "").lowercased()
-        if ext == "x3f" || identifier?.contains("x3f") == true { throw DecodeError.unreadable("暂不支持 Sigma Foveon（X3F）RAW") }
-        if ext == "gpr" || identifier == "com.gopro.gpr" { throw DecodeError.unreadable("暂不支持 GoPro GPR RAW") }
+        if ext == "x3f" || identifier?.contains("x3f") == true { throw DecodeError.unreadable(String(localized: "暂不支持 Sigma Foveon（X3F）RAW")) }
+        if ext == "gpr" || identifier == "com.gopro.gpr" { throw DecodeError.unreadable(String(localized: "暂不支持 GoPro GPR RAW")) }
         guard let decoded = SPKLibRawDecode(
             data,
             suffix,

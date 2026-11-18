@@ -111,10 +111,10 @@ struct CameraView: View {
 
     /// What the roll prints on, under the strip.
     private var rollSubtitle: String {
-        guard let look = model.rollRecipe(roll, paper: rollPaper) else { return "不冲洗 · 原始文件直接存进“照片”" }
-        if model.catalog.isSlide(look.filmStock) { return "反转片 · 直接扫描，不印放" }
-        let paper = "相纸 · " + model.filmName(for: look.printStock)
-        return roll.hasPrefix("recipe:") ? "配方 · \(model.filmName(for: look.filmStock)) · " + paper : paper
+        guard let look = model.rollRecipe(roll, paper: rollPaper) else { return String(localized: "不冲洗 · 原始文件直接存进“照片”") }
+        if model.catalog.isSlide(look.filmStock) { return String(localized: "反转片 · 直接扫描，不印放") }
+        let paper = String(localized: "相纸 · ") + model.filmName(for: look.printStock)
+        return roll.hasPrefix("recipe:") ? String(localized: "配方 · \(model.filmName(for: look.filmStock)) · ") + paper : paper
     }
 
     var body: some View {
@@ -200,8 +200,8 @@ struct CameraView: View {
         }
         .sheet(isPresented: $showingSettings) { SettingsView(model: model) }
         .onReceive(level.$uiTurn) { t in withAnimation(.snappy(duration: 0.3)) { turn = t } }
-        .confirmationDialog("删除刚拍的这张？", isPresented: $deletingLast, titleVisibility: .visible) {
-            Button("删除", role: .destructive) {
+        .confirmationDialog(String(localized: "删除刚拍的这张？"), isPresented: $deletingLast, titleVisibility: .visible) {
+            Button(String(localized: "删除"), role: .destructive) {
                 if let latest = latestShot {
                     model.deletePhotos([latest.id])
                     last = model.library.filter(\.captured).max { $0.createdAt < $1.createdAt }?.thumbnail
@@ -209,23 +209,23 @@ struct CameraView: View {
                 }
             }
         } message: {
-            Text("Spektra Cam 里的底片会删掉；已经存进“照片”或冲洗好的成片不受影响。")
+            Text(String(localized: "Spektra Cam 里的底片会删掉；已经存进“照片”或冲洗好的成片不受影响。"))
         }
-        .alert("存为组合", isPresented: $savingCombo) {
-            TextField("名称", text: $comboName)
-            Button("保存") {
+        .alert(String(localized: "存为组合"), isPresented: $savingCombo) {
+            TextField(String(localized: "名称"), text: $comboName)
+            Button(String(localized: "保存")) {
                 if let look = model.rollRecipe(roll, paper: rollPaper) {
                     roll = model.saveCombination(look, named: comboName).roll
                 }
             }
-            Button("取消", role: .cancel) {}
+            Button(String(localized: "取消"), role: .cancel) {}
         } message: {
-            Text("这卷胶片和相纸会出现在胶卷栏最前面，点一下就能装上。")
+            Text(String(localized: "这卷胶片和相纸会出现在胶卷栏最前面，点一下就能装上。"))
         }
-        .alert("重命名组合", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-            TextField("名称", text: $comboName)
-            Button("好") { if let r = renaming { model.renameRecipe(r.id, to: comboName) } }
-            Button("取消", role: .cancel) {}
+        .alert(String(localized: "重命名组合"), isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField(String(localized: "名称"), text: $comboName)
+            Button(String(localized: "好")) { if let r = renaming { model.renameRecipe(r.id, to: comboName) } }
+            Button(String(localized: "取消"), role: .cancel) {}
         }
         .sheet(isPresented: $choosingRoll) {
             RollSheet(model: model, current: roll) { roll = $0 }.equatable()
@@ -254,7 +254,7 @@ struct CameraView: View {
     /// histogram behind them), and the settings menu.
     private var topBar: some View {
         HStack(spacing: narrow ? 6 : 8) {
-            roundButton(flash == "on" ? "bolt.fill" : flash == "auto" ? "bolt.badge.automatic" : "bolt.slash", "闪光灯") { cycleFlash() }
+            roundButton(flash == "on" ? "bolt.fill" : flash == "auto" ? "bolt.badge.automatic" : "bolt.slash", String(localized: "闪光灯")) { cycleFlash() }
                 .opacity(status.flash ? 1 : 0.35)
                 .disabled(!status.flash)
             formatMenu
@@ -275,16 +275,16 @@ struct CameraView: View {
             .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
             .accessibilityElement(children: .combine)
             Menu {
-                Toggle("同时存入“照片”", isOn: $toPhotos)
+                Toggle(String(localized: "同时存入“照片”"), isOn: $toPhotos)
                 Divider()
-                Picker("镜头显示", selection: $lensLabel) {
-                    Text("倍率（0.5 · 1 · 2 · 4）").tag("x")
-                    Text("焦段（13 · 24 · 48 · 100 mm）").tag("mm")
+                Picker(String(localized: "镜头显示"), selection: $lensLabel) {
+                    Text(String(localized: "倍率（0.5 · 1 · 2 · 4）")).tag("x")
+                    Text(String(localized: "焦段（13 · 24 · 48 · 100 mm）")).tag("mm")
                 }
-                Toggle("网格", isOn: $showGrid)
-                Toggle("水平仪", isOn: $showLevel)
+                Toggle(String(localized: "网格"), isOn: $showGrid)
+                Toggle(String(localized: "水平仪"), isOn: $showLevel)
                 Divider()
-                Button { showingSettings = true } label: { Label("设置…", systemImage: "gearshape") }
+                Button { showingSettings = true } label: { Label(String(localized: "设置…"), systemImage: "gearshape") }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 17, weight: .semibold))
@@ -292,7 +292,7 @@ struct CameraView: View {
                     .frame(width: 44, height: 44)
                     .labGlassInteractive(in: Circle())
             }
-            .accessibilityLabel("相机设置")
+            .accessibilityLabel(String(localized: "相机设置"))
         }
         .foregroundStyle(Color.labCream)
         .padding(.horizontal, 12)
@@ -328,7 +328,7 @@ struct CameraView: View {
             .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("拍摄格式 \(chosen.title)，\(status.megapixels) MP，点按更改")
+        .accessibilityLabel(String(localized: "拍摄格式 \(chosen.title)，\(status.megapixels) MP，点按更改"))
         .sheet(isPresented: $choosingFormat) {
             FormatSheet(modes: CaptureMode.available(sizes: status.sizes, proRAW: status.proRAW, bayer: status.bayer),
                         heifOnFilm: !noFilm && chosen == .heif,
@@ -404,7 +404,7 @@ struct CameraView: View {
                         HStack(spacing: 5) {
                             if baking { ProgressView().controlSize(.mini).tint(filmLook ? Color.black : Color.labCream) }
                             else { Image(systemName: filmLook ? "film" : "eye") }
-                            Text(filmLook ? "胶片预览" : "实景预览")
+                            Text(filmLook ? String(localized: "胶片预览") : String(localized: "实景预览"))
                             Image(systemName: "arrow.left.arrow.right").font(.system(size: 9, weight: .bold)).opacity(0.6)
                         }
                         .font(.system(size: 12, weight: .semibold))
@@ -415,7 +415,7 @@ struct CameraView: View {
                     }
                     .buttonStyle(.plain)
                     if !filmLook {
-                        Text("取景是实景，拍出来仍是 \(model.rollTitle(roll))")
+                        Text(String(localized: "取景是实景，拍出来仍是 \(model.rollTitle(roll))"))
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(Color.labCream)
                             .padding(.horizontal, 8).frame(height: 20)
@@ -423,7 +423,7 @@ struct CameraView: View {
                     }
                 }
                 .padding(10)
-                .accessibilityLabel(filmLook ? "取景显示胶片效果，点按切换到实景" : "取景显示实景，拍出来仍套用胶卷，点按切换到胶片效果")
+                .accessibilityLabel(filmLook ? String(localized: "取景显示胶片效果，点按切换到实景") : String(localized: "取景显示实景，拍出来仍套用胶卷，点按切换到胶片效果"))
             }
         }
         .overlay { if showGrid { GridLines() } }
@@ -468,7 +468,7 @@ struct CameraView: View {
         }
         .overlay(alignment: .top) {
             if aeLocked {
-                Text("AE/AF 锁定")
+                Text(String(localized: "AE/AF 锁定"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.black)
                     .padding(.horizontal, 10).frame(height: 24)
@@ -491,7 +491,7 @@ struct CameraView: View {
                     .frame(minWidth: 30, minHeight: 26)
                     .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6))
                     .padding(10)
-                    .accessibilityLabel("下一格 \(CameraBody.nextFrame)")
+                    .accessibilityLabel(String(localized: "下一格 \(CameraBody.nextFrame)"))
             }
         }
         .clipped()
@@ -518,7 +518,7 @@ struct CameraView: View {
                     .background(pro ? Color.labRed : Color.white.opacity(0.1), in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(pro ? "收起手动控制" : "手动控制")
+            .accessibilityLabel(pro ? String(localized: "收起手动控制") : String(localized: "手动控制"))
             Spacer(minLength: 0)
             if !front {
                 HStack(spacing: 2) {
@@ -536,7 +536,7 @@ struct CameraView: View {
                                 .background(on ? Color.labRed : Color.clear, in: Capsule())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(mm) 毫米，\(zoomText(Double(mm)))倍")
+                        .accessibilityLabel(String(localized: "\(mm) 毫米，\(zoomText(Double(mm)))倍"))
                     }
                 }
                 .padding(3)
@@ -564,7 +564,7 @@ struct CameraView: View {
                 .padding(3)
                 .background(Color.white.opacity(0.07), in: Capsule())
             } else {
-                Text("前置").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                Text(String(localized: "前置")).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
             if front && status.turnsFraming {
@@ -596,7 +596,7 @@ struct CameraView: View {
                         .background(Color.white.opacity(0.1), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(frontLandscape ? "横向取景，点按改为竖向" : "竖向取景，点按改为横向")
+                .accessibilityLabel(frontLandscape ? String(localized: "横向取景，点按改为竖向") : String(localized: "竖向取景，点按改为横向"))
             } else {
                 Color.clear.frame(width: 44, height: 44)
             }
@@ -613,7 +613,7 @@ struct CameraView: View {
             HStack(spacing: 4) {
                 ForEach(ProControl.allCases, id: \.self) { c in
                     Button { proControl = c } label: {
-                        Text(c.rawValue)
+                        Text(tr(c.rawValue))
                             .font(.system(size: 12, weight: proControl == c ? .semibold : .medium))
                             .foregroundStyle(proControl == c ? Color.black : Color.labCream)
                             .frame(maxWidth: .infinity, minHeight: 28)
@@ -673,7 +673,7 @@ struct CameraView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(auto == nil ? "自动" : "恢复自动")
+            .accessibilityLabel(auto == nil ? String(localized: "自动") : String(localized: "恢复自动"))
             slider().tint(Color.labRed)
             Text(value)
                 .font(.caption.monospacedDigit())
@@ -711,11 +711,11 @@ struct CameraView: View {
                                     }
                                 }
                                 .contextMenu {
-                                    Button { renaming = saved; comboName = saved.name } label: { Label("重命名", systemImage: "pencil") }
+                                    Button { renaming = saved; comboName = saved.name } label: { Label(String(localized: "重命名"), systemImage: "pencil") }
                                     Button(role: .destructive) {
                                         if roll == saved.roll { roll = saved.recipe.filmStock }
                                         model.deleteRecipe(saved.id)
-                                    } label: { Label("删除组合", systemImage: "trash") }
+                                    } label: { Label(String(localized: "删除组合"), systemImage: "trash") }
                                 }
                             }
                             ForEach(model.filmsFavouritesFirst) { film in
@@ -735,10 +735,10 @@ struct CameraView: View {
                         .frame(width: 44, height: 50)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("全部胶卷")
+                .accessibilityLabel(String(localized: "全部胶卷"))
             }
             VStack(spacing: 1) {
-                Text(roll.isEmpty ? "无胶卷" : model.rollTitle(roll))
+                Text(roll.isEmpty ? String(localized: "无胶卷") : model.rollTitle(roll))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.labCream)
                 // A film roll's paper is chosen here (the 相纸 chip) (the default paper, also in Settings); 推荐 marks its classic pairs.
@@ -805,7 +805,7 @@ struct CameraView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(saved != nil ? "取消收藏这个组合" : "收藏这个胶卷和相纸的组合")
+        .accessibilityLabel(saved != nil ? String(localized: "取消收藏这个组合") : String(localized: "收藏这个胶卷和相纸的组合"))
     }
 
     private func canister<V: View>(id: String, on: Bool, @ViewBuilder face: () -> V) -> some View {
@@ -822,7 +822,7 @@ struct CameraView: View {
         }
         .buttonStyle(.plain)
         .id(id)
-        .accessibilityLabel(id.isEmpty ? "无胶卷" : model.rollTitle(id))
+        .accessibilityLabel(id.isEmpty ? String(localized: "无胶卷") : model.rollTitle(id))
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -850,7 +850,7 @@ struct CameraView: View {
             }
             .overlay(alignment: .bottom) {
                 if model.developPending > 0 {
-                    Text("冲洗中 \(model.developPending)")
+                    Text(String(localized: "冲洗中 \(model.developPending)"))
                         .font(.system(size: 9, weight: .bold).monospacedDigit())
                         .foregroundStyle(.black)
                         .padding(.horizontal, 5).padding(.vertical, 1)
@@ -858,7 +858,7 @@ struct CameraView: View {
                         .fixedSize()
                         .offset(y: 14)
                 } else if last == nil {
-                    Text("底片")
+                    Text(String(localized: "底片"))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(Color.labCream.opacity(0.7))
                         .fixedSize()
@@ -873,13 +873,13 @@ struct CameraView: View {
                     Button {
                         leave()
                         Task { @MainActor in await model.openLibraryPhoto(latest.id) }
-                    } label: { Label("打开编辑", systemImage: "slider.horizontal.3") }
-                    Button(role: .destructive) { deletingLast = true } label: { Label("删除刚拍的这张", systemImage: "trash") }
+                    } label: { Label(String(localized: "打开编辑"), systemImage: "slider.horizontal.3") }
+                    Button(role: .destructive) { deletingLast = true } label: { Label(String(localized: "删除刚拍的这张"), systemImage: "trash") }
                 }
-                Button { leave() } label: { Label("回到图库", systemImage: "photo.stack") }
+                Button { leave() } label: { Label(String(localized: "回到图库"), systemImage: "photo.stack") }
             }
-            .accessibilityLabel("回到图库")
-            .accessibilityLabel(model.developPending > 0 ? "回到照片墙，冲洗中 \(model.developPending) 张" : "回到照片墙")
+            .accessibilityLabel(String(localized: "回到图库"))
+            .accessibilityLabel(model.developPending > 0 ? String(localized: "回到照片墙，冲洗中 \(model.developPending) 张") : String(localized: "回到照片墙"))
             Spacer()
             Button(action: shoot) {
                 ZStack {
@@ -891,7 +891,7 @@ struct CameraView: View {
             }
             .buttonStyle(.plain)
             .disabled(!ready)
-            .accessibilityLabel("拍摄")
+            .accessibilityLabel(String(localized: "拍摄"))
             Spacer()
             Button {
                 front.toggle()
@@ -907,7 +907,7 @@ struct CameraView: View {
             }
             .buttonStyle(.plain)
             .disabled(camera.frontLens == nil)
-            .accessibilityLabel("切换前后摄像头")
+            .accessibilityLabel(String(localized: "切换前后摄像头"))
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 16)
@@ -1006,7 +1006,7 @@ struct CameraView: View {
                 }
             } catch {
 NSLog("SpektraLab capture failed: %@", String(describing: error))
-                problem = "拍摄失败：\(error.localizedDescription)"
+                problem = String(localized: "拍摄失败：\(error.localizedDescription)")
             }
         }
     }
@@ -1197,7 +1197,7 @@ struct PaperMenu: View, @MainActor Equatable {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("相纸：\(title)，点按更换")
+        .accessibilityLabel(String(localized: "相纸：\(title)，点按更换"))
         .sheet(isPresented: $open) {
             PaperSheet(current: current, papers: papers, recommended: recommended,
                        pick: { pick($0); open = false },
@@ -1217,9 +1217,9 @@ struct FormatSheet: View {
     let pick: (CaptureMode) -> Void
 
     private static let order: [(CameraController.Format, String, String)] = [
-        (.proRAW, "ProRAW · 推荐", "多帧合成、降噪，和原相机一样干净，但留下的是原始光线：胶片按它曝光、显影，颜色和影调才对；不装胶卷时，存进「照片」后也能大幅调整、拉回高光。缺点是文件大（1200 万约 20 MB，4800 万约 75 MB）；装胶卷时成片导出后，底片按「底片保留」天数清理。"),
-        (.raw, "RAW · 没有 ProRAW 的机型用", "只读传感器的一帧，不合成、不降噪、不锐化，1200 万像素，约 10 MB。颜色和影调和 ProRAW 一样对，白天光线足时很好；暗光和长焦下噪点很多。没有 ProRAW 的机型选 ProRAW 时会用它。"),
-        (.heif, "HEIF · 不推荐", "苹果已经处理好的成品照片：对比、饱和度、锐化和暗部提亮都已经做进去了，撤不回来。缺点：① 装胶卷冲洗时这些处理会再叠加一遍，颜色太艳、锐化太重、暗部发黑；② 不装胶卷时，后期调整空间小，过曝的高光拉不回来，大幅调色容易出现色带；③ 苹果的处理每代手机、每个系统版本都不一样，同一卷胶片的效果不稳定。唯一的优点是文件小（约 2–10 MB），手机空间紧张时才用。"),
+        (.proRAW, String(localized: "ProRAW · 推荐"), String(localized: "多帧合成、降噪，和原相机一样干净，但留下的是原始光线：胶片按它曝光、显影，颜色和影调才对；不装胶卷时，存进「照片」后也能大幅调整、拉回高光。缺点是文件大（1200 万约 20 MB，4800 万约 75 MB）；装胶卷时成片导出后，底片按「底片保留」天数清理。")),
+        (.raw, String(localized: "RAW · 没有 ProRAW 的机型用"), String(localized: "只读传感器的一帧，不合成、不降噪、不锐化，1200 万像素，约 10 MB。颜色和影调和 ProRAW 一样对，白天光线足时很好；暗光和长焦下噪点很多。没有 ProRAW 的机型选 ProRAW 时会用它。")),
+        (.heif, String(localized: "HEIF · 不推荐"), String(localized: "苹果已经处理好的成品照片：对比、饱和度、锐化和暗部提亮都已经做进去了，撤不回来。缺点：① 装胶卷冲洗时这些处理会再叠加一遍，颜色太艳、锐化太重、暗部发黑；② 不装胶卷时，后期调整空间小，过曝的高光拉不回来，大幅调色容易出现色带；③ 苹果的处理每代手机、每个系统版本都不一样，同一卷胶片的效果不稳定。唯一的优点是文件小（约 2–10 MB），手机空间紧张时才用。")),
     ]
 
     var body: some View {
@@ -1227,7 +1227,7 @@ struct FormatSheet: View {
             List {
                 if heifOnFilm {
                     Section {
-                        Label("装着胶卷在用 HEIF 拍：苹果的对比、饱和度和锐化会被胶片再叠加一遍，成片会偏艳、偏锐。想要胶片原本的颜色，选 ProRAW 或 RAW。",
+                        Label(String(localized: "装着胶卷在用 HEIF 拍：苹果的对比、饱和度和锐化会被胶片再叠加一遍，成片会偏艳、偏锐。想要胶片原本的颜色，选 ProRAW 或 RAW。"),
                               systemImage: "exclamationmark.triangle")
                             .font(.footnote)
                             .foregroundStyle(Color.labRed)
@@ -1259,7 +1259,7 @@ struct FormatSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .navigationTitle("拍摄格式")
+            .navigationTitle(String(localized: "拍摄格式"))
             .navigationBarTitleDisplayMode(.inline)
         }
         .preferredColorScheme(.dark)
@@ -1280,17 +1280,17 @@ struct PaperSheet: View {
         NavigationStack {
             List {
                 if !top.isEmpty {
-                    Section("这卷胶片推荐") { ForEach(top) { row($0) } }
+                    Section(String(localized: "这卷胶片推荐")) { ForEach(top) { row($0) } }
                 }
-                Section(top.isEmpty ? "相纸" : "其他相纸") { ForEach(rest) { row($0) } }
+                Section(top.isEmpty ? String(localized: "相纸") : String(localized: "其他相纸")) { ForEach(rest) { row($0) } }
                 Section {
-                    Button(action: save) { Label("把胶卷和这张相纸存为组合…", systemImage: "star") }
+                    Button(action: save) { Label(String(localized: "把胶卷和这张相纸存为组合…"), systemImage: "star") }
                 } footer: {
-                    Text("推荐相纸里选的那张会记住，下次拍这卷还用它；推荐以外的只在这次拍摄有效。")
+                    Text(String(localized: "推荐相纸里选的那张会记住，下次拍这卷还用它；推荐以外的只在这次拍摄有效。"))
                 }
             }
             .scrollContentBackground(.hidden)
-            .navigationTitle("相纸")
+            .navigationTitle(String(localized: "相纸"))
             .navigationBarTitleDisplayMode(.inline)
         }
         .preferredColorScheme(.dark)

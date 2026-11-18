@@ -6,14 +6,14 @@ import Foundation
 func L(_ key: String) -> String { layer2Chinese[key] ?? key }
 
 private let layer2Chinese: [String: String] = [
-    "Exposure": "曝光", "Contrast": "对比度", "Brightness": "亮度", "Highlights": "高光",
-    "Shadows": "阴影", "Whites": "白色", "Blacks": "黑色", "Vignette": "暗角", "Midpoint": "中点",
-    "Temperature": "色温", "Tint": "色调", "Saturation": "饱和度", "Vibrance": "自然饱和度",
-    "Red": "红", "Orange": "橙", "Yellow": "黄", "Green": "绿", "Aqua": "青", "Blue": "蓝",
-    "Purple": "紫", "Magenta": "洋红", "Hue": "色相", "Luminance": "明度",
-    "Master": "全局", "Midtones": "中间调", "Lights": "亮部", "Darks": "暗部",
-    "Luma": "亮度", "Light": "光线", "Curve": "曲线", "Colour": "色彩", "Channels": "通道",
-    "None": "无",
+    "Exposure": String(localized: "曝光"), "Contrast": String(localized: "对比度"), "Brightness": String(localized: "亮度"), "Highlights": String(localized: "高光"),
+    "Shadows": String(localized: "阴影"), "Whites": String(localized: "白色"), "Blacks": String(localized: "黑色"), "Vignette": String(localized: "暗角"), "Midpoint": String(localized: "中点"),
+    "Temperature": String(localized: "色温"), "Tint": String(localized: "色调"), "Saturation": String(localized: "饱和度"), "Vibrance": String(localized: "自然饱和度"),
+    "Red": String(localized: "红"), "Orange": String(localized: "橙"), "Yellow": String(localized: "黄"), "Green": String(localized: "绿"), "Aqua": String(localized: "青"), "Blue": String(localized: "蓝"),
+    "Purple": String(localized: "紫"), "Magenta": String(localized: "洋红"), "Hue": String(localized: "色相"), "Luminance": String(localized: "明度"),
+    "Master": String(localized: "全局"), "Midtones": String(localized: "中间调"), "Lights": String(localized: "亮部"), "Darks": String(localized: "暗部"),
+    "Luma": String(localized: "亮度"), "Light": String(localized: "光线"), "Curve": String(localized: "曲线"), "Colour": String(localized: "色彩"), "Channels": String(localized: "通道"),
+    "None": String(localized: "无"),
 ]
 
 /// From upstream `Sources/Model/Format.swift`.
@@ -26,3 +26,7 @@ enum Fmt {
         return (v < 0 ? "−" : "+") + body
     }
 }
+
+/// A text known only at run time (an enum's raw value: 取景, 快门…) looked up in Localizable.xcstrings; the
+/// literals elsewhere go through `String(localized:)`, which the catalog extraction sees.
+func tr(_ key: String) -> String { NSLocalizedString(key, comment: "") }

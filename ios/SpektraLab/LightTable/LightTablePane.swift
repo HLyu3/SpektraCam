@@ -189,7 +189,7 @@ struct LightTablePane: View {
             guard let table else { return }
             table.sync(model.lightTableFrames)
             // The films changed size where they lay: spread them out again so they don't pile up.
-            if count > 1 { arrange("随机摆放") { $0.random() } }
+            if count > 1 { arrange(String(localized: "随机摆放")) { $0.random() } }
         }
         .onChange(of: edr) { _, _ in applyGlow() }
         .onChange(of: loupeMag) { _, m in
@@ -251,7 +251,7 @@ struct LightTablePane: View {
     private var topBar: some View {
         HStack {
             if embedded {
-                Text("观片台").font(.system(size: 28, weight: .bold)).padding(.leading, 8)
+                Text(String(localized: "观片台")).font(.system(size: 28, weight: .bold)).padding(.leading, 8)
                 Spacer()
             } else {
                 // A glass capsule naming where it goes (a bare chevron was small and hard to hit; no edge swipe — the
@@ -259,7 +259,7 @@ struct LightTablePane: View {
                 Button { if let close { close() } else { dismiss() } } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
-                        Text("底片").font(.system(size: 15, weight: .semibold))
+                        Text(String(localized: "底片")).font(.system(size: 15, weight: .semibold))
                     }
                     .foregroundStyle(Color.labCream)
                     .padding(.leading, 12).padding(.trailing, 16)
@@ -268,9 +268,9 @@ struct LightTablePane: View {
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("返回底片")
+                .accessibilityLabel(String(localized: "返回底片"))
                 Spacer()
-                Text("观片台").font(.headline)
+                Text(String(localized: "观片台")).font(.headline)
                 Spacer()
             }
             if loupeMode {
@@ -292,49 +292,49 @@ struct LightTablePane: View {
                 Image(systemName: "play.rectangle").font(.system(size: 16, weight: .semibold)).frame(width: 40, height: 44)
             }
             .disabled(count == 0)
-            .accessibilityLabel("幻灯")
+            .accessibilityLabel(String(localized: "幻灯"))
             Menu {
                 // Short at the top level: the photos' size first (the thing most changed), the rest in submenus.
                 Menu {
-                    Picker("照片尺寸", selection: $printSize) {
-                        Text("底片实际尺寸").tag(false)
-                        Text("相片尺寸（5 寸）").tag(true)
+                    Picker(String(localized: "照片尺寸"), selection: $printSize) {
+                        Text(String(localized: "底片实际尺寸")).tag(false)
+                        Text(String(localized: "相片尺寸（5 寸）")).tag(true)
                     }
-                    Button { resetSizes() } label: { Label("全部恢复原大小", systemImage: "arrow.uturn.backward") }
-                } label: { Label("照片尺寸", systemImage: "photo") }
+                    Button { resetSizes() } label: { Label(String(localized: "全部恢复原大小"), systemImage: "arrow.uturn.backward") }
+                } label: { Label(String(localized: "照片尺寸"), systemImage: "photo") }
                 Menu {
-                    Toggle(isOn: $edr) { Label("EDR 背光", systemImage: "sun.max") }
-                    Picker("背光亮度", selection: $glow) {
-                        Text("标准").tag(1.0)
-                        Text("明亮").tag(2.0)
-                        Text("最亮").tag(4.0)
+                    Toggle(isOn: $edr) { Label(String(localized: "EDR 背光"), systemImage: "sun.max") }
+                    Picker(String(localized: "背光亮度"), selection: $glow) {
+                        Text(String(localized: "标准")).tag(1.0)
+                        Text(String(localized: "明亮")).tag(2.0)
+                        Text(String(localized: "最亮")).tag(4.0)
                     }
                     .disabled(!edr)
-                } label: { Label("背光", systemImage: "sun.max") }
+                } label: { Label(String(localized: "背光"), systemImage: "sun.max") }
                 Menu {
-                    Picker("纸张", selection: Binding(get: { table?.model.paper ?? .a4 }, set: { setTable(paper: $0) })) {
+                    Picker(String(localized: "纸张"), selection: Binding(get: { table?.model.paper ?? .a4 }, set: { setTable(paper: $0) })) {
                         ForEach(LightTablePaper.allCases) { paper in
                             Text("\(paper.name)（\(Int(paper.size.width))×\(Int(paper.size.height)) mm）").tag(paper)
                         }
                     }
                     Button { setTable(portrait: !(table?.model.portrait ?? true)) } label: {
-                        Label((table?.model.portrait ?? true) ? "转成横向" : "转成竖向", systemImage: "rectangle.portrait.rotate")
+                        Label((table?.model.portrait ?? true) ? String(localized: "转成横向") : String(localized: "转成竖向"), systemImage: "rectangle.portrait.rotate")
                     }
-                    Button { table?.fit() } label: { Label("适合屏幕", systemImage: "arrow.down.right.and.arrow.up.left") }
-                } label: { Label("灯箱", systemImage: "rectangle.portrait") }
+                    Button { table?.fit() } label: { Label(String(localized: "适合屏幕"), systemImage: "arrow.down.right.and.arrow.up.left") }
+                } label: { Label(String(localized: "灯箱"), systemImage: "rectangle.portrait") }
                 Divider()
                 Group {
-                Button { arrange("排整齐") { $0.tidyUp($0.model.order) } } label: { Label("排整齐", systemImage: "square.grid.3x3") }
-                Button { arrange("随机摆放") { $0.random() } } label: { Label("随机摆放", systemImage: "shuffle") }
-                Button { arrange("打乱") { $0.scatter() } } label: { Label("打乱", systemImage: "rectangle.on.rectangle.angled") }
+                Button { arrange(String(localized: "排整齐")) { $0.tidyUp($0.model.order) } } label: { Label(String(localized: "排整齐"), systemImage: "square.grid.3x3") }
+                Button { arrange(String(localized: "随机摆放")) { $0.random() } } label: { Label(String(localized: "随机摆放"), systemImage: "shuffle") }
+                Button { arrange(String(localized: "打乱")) { $0.scatter() } } label: { Label(String(localized: "打乱"), systemImage: "rectangle.on.rectangle.angled") }
                 Divider()
-                Button(role: .destructive) { arrange("全部拿走") { $0.removeAll() } } label: { Label("全部拿走", systemImage: "trash") }
+                Button(role: .destructive) { arrange(String(localized: "全部拿走")) { $0.removeAll() } } label: { Label(String(localized: "全部拿走"), systemImage: "trash") }
                 }
                 .disabled(count == 0)
             } label: {
                 Image(systemName: "ellipsis").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44)
             }
-            .accessibilityLabel("更多")
+            .accessibilityLabel(String(localized: "更多"))
         }
         .foregroundStyle(Color.labCream)
         .padding(.horizontal, 8)
@@ -380,7 +380,7 @@ struct LightTablePane: View {
                 }
                 if table.model.order.isEmpty && !trayOpen {
                     Button { withAnimation(.snappy(duration: 0.25)) { trayOpen = true } } label: {
-                        Label("从图库添加", systemImage: "plus")
+                        Label(String(localized: "从图库添加"), systemImage: "plus")
                             .font(.system(size: 15, weight: .semibold))
                             .padding(.horizontal, 20).frame(height: 46)
                             .labGlass(in: Capsule())
@@ -433,7 +433,7 @@ struct LightTablePane: View {
             HStack(spacing: 8) {
                 Text(status).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                 if undo != nil {
-                    Button("撤销") { undoNow() }
+                    Button(String(localized: "撤销")) { undoNow() }
                         .font(.footnote.weight(.semibold))
                         .padding(.horizontal, 10).frame(height: 26)
                         .background(Color.white.opacity(0.1), in: Capsule())
@@ -442,25 +442,25 @@ struct LightTablePane: View {
             .frame(height: 28)
             HStack(spacing: 10) {
                 if let table, let id = table.selected {
-                    action("转 90°", "rotate.left") { table.turnQuarter(id) }
-                    action("拉近", "plus.magnifyingglass") { table.zoomToFilm(id) }
-                    action("拿走", "tray.and.arrow.up") {
+                    action(String(localized: "转 90°"), "rotate.left") { table.turnQuarter(id) }
+                    action(String(localized: "拉近"), "plus.magnifyingglass") { table.zoomToFilm(id) }
+                    action(String(localized: "拿走"), "tray.and.arrow.up") {
                         let kept = table.snapshot(), name = table.caption(id)
                         table.remove(id)
-                        offerUndo(kept, "拿走了 · " + name)
+                        offerUndo(kept, String(localized: "拿走了 · ") + name)
                     }
                     if model.lightTableScale(id) != 1 {
-                        action("原大小", "arrow.uturn.backward") { resetSizes([id]) }
+                        action(String(localized: "原大小"), "arrow.uturn.backward") { resetSizes([id]) }
                     } else {
-                        action("完成", "checkmark") { table.select(nil) }
+                        action(String(localized: "完成"), "checkmark") { table.select(nil) }
                     }
                 } else {
-                    action("胶片托盘", "tray", lit: trayOpen) {
+                    action(String(localized: "胶片托盘"), "tray", lit: trayOpen) {
                         if loupeMode { toggleLoupe() }
                         withAnimation(.snappy(duration: 0.25)) { trayOpen.toggle() }
                     }
-                    action(lampOn ? "关灯" : "开灯", lampOn ? "lightbulb.fill" : "lightbulb.slash", lit: !lampOn) { toggleLamp() }
-                    action("放大镜", "magnifyingglass", lit: loupeMode) { toggleLoupe() }
+                    action(lampOn ? String(localized: "关灯") : String(localized: "开灯"), lampOn ? "lightbulb.fill" : "lightbulb.slash", lit: !lampOn) { toggleLamp() }
+                    action(String(localized: "放大镜"), "magnifyingglass", lit: loupeMode) { toggleLoupe() }
                 }
             }
         }
@@ -477,7 +477,7 @@ struct LightTablePane: View {
         return ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: 6) {
                 if waiting.isEmpty {
-                    Text("图库里的照片都在台上了").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 8)
+                    Text(String(localized: "图库里的照片都在台上了")).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 8)
                 }
                 ForEach(waiting) { photo in
                     Image(uiImage: photo.thumbnail)
@@ -490,7 +490,7 @@ struct LightTablePane: View {
                         .draggable(photo.id.uuidString) {
                             Image(uiImage: photo.thumbnail).resizable().scaledToFit().frame(width: 90)
                         }
-                        .accessibilityLabel("放上台：\(model.filmName(for: photo.recipe.filmID))")
+                        .accessibilityLabel(String(localized: "放上台：\(model.filmName(for: photo.recipe.filmID))"))
                 }
                 Button { adding = true } label: {
                     Image(systemName: "square.grid.2x2")
@@ -499,7 +499,7 @@ struct LightTablePane: View {
                         .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("多选添加")
+                .accessibilityLabel(String(localized: "多选添加"))
             }
             .padding(.horizontal, 4)
         }
@@ -515,7 +515,7 @@ struct LightTablePane: View {
         VStack(spacing: 4) {
             if let symbol { Image(systemName: symbol).font(.system(size: 17, weight: .medium)) }
             else { Text(title).font(.system(size: 15, weight: .bold)) }
-            Text(symbol == nil ? "纸张" : title).font(.system(size: 10, weight: .medium))
+            Text(symbol == nil ? String(localized: "纸张") : title).font(.system(size: 10, weight: .medium))
         }
         .frame(maxWidth: .infinity, minHeight: 54)
         .background(lit ? Color.labRed.opacity(0.35) : Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -524,18 +524,18 @@ struct LightTablePane: View {
     private var status: String {
         guard let t = table else { return "" }
         if let undo { return undo.text }
-        if loupeMode { return "放大镜 · \(Int(loupeMag))× · 手指按哪里看哪里，按住不动凑近" }
-        if trayOpen && t.selected == nil { return "点一下放到中间，或者拖到台上" }
-        if !lampOn { return "灯关着" }
+        if loupeMode { return String(localized: "放大镜 · \(Int(loupeMag))× · 手指按哪里看哪里，按住不动凑近") }
+        if trayOpen && t.selected == nil { return String(localized: "点一下放到中间，或者拖到台上") }
+        if !lampOn { return String(localized: "灯关着") }
         let n = t.model.order.count
         if let id = t.selected, let it = t.model.item(id) {
             let l = it.lying
             return "\(t.caption(id)) · \(LightTable.mm(l.width)) × \(LightTable.mm(l.height)) mm"
         }
-        let paper = t.model.paper.name + (t.model.portrait ? "" : " · 横向")
+        let paper = t.model.paper.name + (t.model.portrait ? "" : String(localized: " · 横向"))
         if n == 0 { return paper }
-        if t.viewport.isZoomed { return "\(n) 张 · \(String(format: "%.1f", t.viewport.zoom))×" }
-        return "\(n) 张 · \(paper)"
+        if t.viewport.isZoomed { return String(localized: "\(n) 张 · \(String(format: "%.1f", t.viewport.zoom))×") }
+        return String(localized: "\(n) 张 · \(paper)")
     }
 
     // MARK: what the controls do
@@ -562,7 +562,7 @@ struct LightTablePane: View {
         let kept = table.snapshot(), n = count
         if loupeMode { toggleLoupe() }
         run(table)
-        offerUndo(kept, "\(text) · \(n) 张")
+        offerUndo(kept, String(localized: "\(text) · \(n) 张"))
     }
 
     private func setTable(paper: LightTablePaper? = nil, portrait: Bool? = nil) {
@@ -570,7 +570,7 @@ struct LightTablePane: View {
         let kept = table.snapshot()
         if loupeMode { toggleLoupe() }
         guard table.setTable(paper: paper ?? table.model.paper, portrait: portrait ?? table.model.portrait) else { return }
-        if count > 0 { offerUndo(kept, table.model.paper.name + (table.model.portrait ? " · 竖向" : " · 横向")) }
+        if count > 0 { offerUndo(kept, table.model.paper.name + (table.model.portrait ? String(localized: " · 竖向") : String(localized: " · 横向"))) }
     }
 
     /// Films back to their size before a pinch: these, or all.
@@ -637,7 +637,7 @@ struct LightTableAddSheet: View {
                                     Text("\(k + 1)").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
                                         .frame(width: 22, height: 22).background(Color.labRed, in: Circle()).padding(5)
                                 } else if on {
-                                    Text("已在台上").font(.system(size: 9, weight: .semibold)).padding(5)
+                                    Text(String(localized: "已在台上")).font(.system(size: 9, weight: .semibold)).padding(5)
                                 }
                             }
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -652,12 +652,12 @@ struct LightTableAddSheet: View {
                 }
                 .padding(.horizontal, 8)
             }
-            .navigationTitle(picked.isEmpty ? "添加到观片台" : "已选 \(picked.count) 张")
+            .navigationTitle(picked.isEmpty ? String(localized: "添加到观片台") : String(localized: "已选 \(picked.count) 张"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(String(localized: "取消")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("放上 \(picked.count) 张") { layDown(picked); dismiss() }.disabled(picked.isEmpty)
+                    Button(String(localized: "放上 \(picked.count) 张")) { layDown(picked); dismiss() }.disabled(picked.isEmpty)
                 }
             }
             .background(Color.labInk.ignoresSafeArea())

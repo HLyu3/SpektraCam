@@ -18,7 +18,7 @@
 
 ## 下载与安装
 
-到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.1.6-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
+到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.1.7-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
 
 | 工具 | 做法 |
 |---|---|
@@ -29,6 +29,10 @@
 - **已在 iPhone 17 Pro Max 和 iPhone 14 Pro 上测试。** iOS 18 及以上的 iPhone 都能安装；其他机型没有实测，镜头焦段、拍摄尺寸、导出大小和 HDR 亮度可能不准。
 - 免费 Apple ID 的签名 7 天后过期，要重新安装。
 - IPA 里带了全部引擎资源，第一次打开不需要联网下载。
+
+## 2.1.7 的变化（相对 2.1.6）
+
+- **中英双语 / Chinese and English**：界面跟着手机的系统语言显示中文或英文；只想换这个 App 的语言，到「设置 › Spektra Cam › 首选语言」里选。The app follows your iPhone's language; to change it for this app only, go to Settings › Spektra Cam › Language.
 
 ## 2.1.6 的变化（相对 2.1.5）
 

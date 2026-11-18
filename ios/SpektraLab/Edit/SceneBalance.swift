@@ -30,10 +30,10 @@ enum SceneBalance {
         func word(_ v: Double, _ plus: String, _ minus: String) -> String? {
             let m = abs(v)
             guard m >= 0.03 else { return nil }
-            return (m < 0.15 ? "略" : m < 0.5 ? "" : "明显") + (v > 0 ? plus : minus)
+            return (m < 0.15 ? String(localized: "略") : m < 0.5 ? "" : String(localized: "明显")) + (v > 0 ? plus : minus)
         }
-        let parts = [word(warm, "暖", "冷"), word(green, "偏绿", "偏品红")].compactMap { $0 }
-        return parts.isEmpty ? "接近原样" : parts.joined(separator: " · ")
+        let parts = [word(warm, String(localized: "暖"), String(localized: "冷")), word(green, String(localized: "偏绿"), String(localized: "偏品红"))].compactMap { $0 }
+        return parts.isEmpty ? String(localized: "接近原样") : parts.joined(separator: " · ")
     }
 }
 

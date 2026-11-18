@@ -43,8 +43,8 @@ struct Stock: Identifiable, Hashable, Sendable {
         case film, paper
         var label: String {
             switch self {
-            case .film: "胶片"
-            case .paper: "相纸"
+            case .film: String(localized: "胶片")
+            case .paper: String(localized: "相纸")
             }
         }
     }
@@ -53,8 +53,8 @@ struct Stock: Identifiable, Hashable, Sendable {
         case negative, positive
         var label: String {
             switch self {
-            case .negative: "负片"
-            case .positive: "反转片"
+            case .negative: String(localized: "负片")
+            case .positive: String(localized: "反转片")
             }
         }
     }
@@ -272,15 +272,15 @@ extension Stock {
     /// found the makers' runs harder to choose from).
     var kind: String {
         if support == .paper {
-            if monochrome { return "黑白相纸" }
-            return id.hasPrefix("kodak_23") ? "电影正片" : "彩色相纸"
+            if monochrome { return String(localized: "黑白相纸") }
+            return id.hasPrefix("kodak_23") ? String(localized: "电影正片") : String(localized: "彩色相纸")
         }
-        if monochrome { return "黑白负片" }
-        if type == .positive { return "反转片" }
-        return isCine ? "电影负片" : "彩色负片"
+        if monochrome { return String(localized: "黑白负片") }
+        if type == .positive { return String(localized: "反转片") }
+        return isCine ? String(localized: "电影负片") : String(localized: "彩色负片")
     }
 
-    private static let kinds = ["彩色负片", "反转片", "电影负片", "黑白负片", "彩色相纸", "电影正片", "黑白相纸"]
+    private static let kinds = [String(localized: "彩色负片"), String(localized: "反转片"), String(localized: "电影负片"), String(localized: "黑白负片"), String(localized: "彩色相纸"), String(localized: "电影正片"), String(localized: "黑白相纸")]
 
     /// The pickers' order: by kind (default) or by maker, then by name. `SpektraLab.stockOrder` "kind" | "brand".
     static let orderKey = "SpektraLab.stockOrder"
