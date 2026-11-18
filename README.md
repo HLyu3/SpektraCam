@@ -26,7 +26,7 @@
 | Xcode | 按下面“本地构建”编译，在 Signing 里选自己的 Personal Team |
 
 - 最低系统 **iOS 18.0**（iPhone XS / XR 及以后），只支持 iPhone。iOS 26 以前的界面用磨砂背景代替玻璃质感。
-- **目前只在 iPhone 17 Pro Max（iOS 27）和 iPhone 14 Pro（iOS 26.5）上测试过。** 其他机型和 iOS 18–27 能装，但镜头焦段、拍摄尺寸、导出内存上限和 HDR 亮度没有验证过，可能有问题。
+- **已在 iPhone 17 Pro Max 和 iPhone 14 Pro 上测试。** iOS 18 及以上的 iPhone 都能安装；其他机型没有实测，镜头焦段、拍摄尺寸、导出大小和 HDR 亮度可能不准。
 - 免费 Apple ID 的签名 7 天后过期，要重新安装。
 - IPA 里带了全部引擎资源，第一次打开不需要联网下载。
 
