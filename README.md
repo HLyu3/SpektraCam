@@ -159,8 +159,8 @@
 需要 Apple silicon Mac、Xcode 27.2+、iOS 27 SDK、Python 3.10+。
 
 ```bash
-git clone <本仓库地址>
-cd SpektraLab-iOS-SpektraCam
+git clone https://github.com/HLyu3/SpektraCam.git
+cd SpektraCam
 
 # 引擎：上游 2.4.1
 GITHUB_TOKEN="<你的 GitHub Token>" python3 tools/fetch-engine.py \
