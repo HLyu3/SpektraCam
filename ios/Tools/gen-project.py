@@ -56,8 +56,8 @@ LIBRAW = Path(os.environ.get("SPEKTRALAB_LIBRAW_SOURCE",
 APP = "SpektraLab"
 PRODUCT_NAME = "SpektraLab"
 IOS_MIN = "18.0"
-MARKETING_VERSION = "2.1.5"
-BUILD_NUMBER = "13"
+MARKETING_VERSION = "2.1.6"
+BUILD_NUMBER = "14"
 
 # Signing, from the environment: a development certificate is not in this
 # repository and must not be.

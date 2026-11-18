@@ -631,7 +631,7 @@ struct FilmGridSheet: View {
     let close: () -> Void
 
     var body: some View {
-        let groups = Stock.byBrand(model.films)
+        let groups = Stock.grouped(model.films)
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {

@@ -58,6 +58,10 @@ final class CameraController: NSObject, @unchecked Sendable {
         var megapixels = 0
         /// The sizes this lens can shoot, in MP as Apple names them (12, 24, 48).
         var sizes: [Int] = []
+        /// The front camera can frame portrait or landscape without turning the phone (iPhone 17's square sensor).
+        var turnsFraming = false
+        /// The front camera's framings' zoom factors (narrowest last); empty = no choice.
+        var frontZooms: [Double] = []
     }
 
     let session = AVCaptureSession()
@@ -169,12 +173,37 @@ final class CameraController: NSObject, @unchecked Sendable {
             if self.input?.device != device, !self.inFlight.isEmpty { self.waitingLens = (device, zoom); return }
             self.waitingLens = nil
             if self.input?.device != device { _ = self.configure(device) }
+            self.levelFront()
             self.applyZoom(zoom)
         }
     }
 
+    /// The front camera's square sensor does not come upright on its own (the preview showed faces lying on their
+    /// side): its preview, viewfinder frames and shots take Apple's rotation coordinator's angles.
+    private var frontRotation: AVCaptureDevice.RotationCoordinator?
+
+    private func levelFront() {
+        guard let d = input?.device, d.position == .front else { frontRotation = nil; return }
+        let layer = session.connections.compactMap(\.videoPreviewLayer).first
+        let rc = frontRotation?.device == d ? frontRotation! : AVCaptureDevice.RotationCoordinator(device: d, previewLayer: layer)
+        frontRotation = rc
+        let a = rc.videoRotationAngleForHorizonLevelPreview
+        for c in session.connections where c.videoPreviewLayer != nil && c.isVideoRotationAngleSupported(a) { c.videoRotationAngle = a }
+        if let c = video.connection(with: .video), c.isVideoRotationAngleSupported(a) { c.videoRotationAngle = a }
+    }
+
     /// A lens asked for while a shot was in flight, put in when the last one lands.
     private var waitingLens: (AVCaptureDevice, Double)?
+
+    /// A smooth zoom to `zoom` (the front camera's framings, as Camera glides between them).
+    func rampZoom(_ zoom: Double) {
+        queue.async {
+            guard let d = self.input?.device, (try? d.lockForConfiguration()) != nil else { return }
+            let z = min(max(CGFloat(zoom), d.minAvailableVideoZoomFactor), d.maxAvailableVideoZoomFactor)
+            d.ramp(toVideoZoomFactor: z, withRate: 3)   // 3 stops a second: 1 → 1.59× in about 0.2 s
+            d.unlockForConfiguration()
+        }
+    }
 
     /// The current lens's digital zoom, from the main actor (a pinch).
     func setZoom(_ zoom: Double) {
@@ -202,6 +231,7 @@ final class CameraController: NSObject, @unchecked Sendable {
         guard session.canAddInput(newInput) else { return "相机无法启动" }
         session.addInput(newInput)
         input = newInput
+        if device.position == .front { useSquareSensor(device) }
         if !session.outputs.contains(output) {
             guard session.canAddOutput(output) else { return "相机无法启动" }
             session.addOutput(output)
@@ -244,7 +274,48 @@ final class CameraController: NSObject, @unchecked Sendable {
 
     /// Megapixels as Apple names a size: 8064 × 6048 is "48 MP", not 49.
     static func megapixels(_ d: CMVideoDimensions) -> Int {
-        Int(Double(d.width) * Double(d.height) / 1_000_000)
+        // The front camera's square sensor (4896² / 4032²) shoots a 4:3 picture out of it: named by that (18 / 12 MP,
+        // as Apple names them), so the size and ProRAW rules (12 or ≥ 40 MP) are the back camera's.
+        let crop = d.width == d.height ? 0.75 : 1
+        return Int((Double(d.width) * Double(d.height) * crop / 1_000_000).rounded(.down))
+    }
+
+    /// Portrait or landscape framing on the front camera (the phone held upright either way).
+    private var frontLandscape = false
+
+    func setFrontLandscape(_ on: Bool) {
+        queue.async {
+            self.frontLandscape = on
+            if let d = self.input?.device, d.position == .front { self.applyFraming(d) }
+        }
+    }
+
+    /// The front camera as the Camera app uses it: the square sensor's full format (a 16:9 one was what `.photo`
+    /// gave: no framing turn, smaller files), framed 4:3 portrait or landscape.
+    private func useSquareSensor(_ d: AVCaptureDevice) {
+        guard #available(iOS 26.0, *) else { return }
+        func area(_ f: AVCaptureDevice.Format) -> Int {
+            f.supportedMaxPhotoDimensions.map { Int($0.width) * Int($0.height) }.max() ?? 0
+        }
+        let square = d.formats.filter { $0.isSmartFramingSupported && $0.supportedDynamicAspectRatios.count > 1 }
+        guard let f = square.max(by: { area($0) < area($1) }), (try? d.lockForConfiguration()) != nil else { return }
+        d.activeFormat = f
+        d.unlockForConfiguration()
+        applyFraming(d)
+    }
+
+    private func applyFraming(_ d: AVCaptureDevice) {
+        guard #available(iOS 26.0, *) else { return }
+        // Measured on the 17 Pro Max (2026-11-17), at the rotation coordinator's angle (0°: this sensor is mounted
+        // upright): 4:3 gives 3024×4032 frames (portrait), 3:4 gives 4032×3024 (landscape).
+        let want = frontLandscape ? "3x4" : "4x3"
+        guard let r = d.activeFormat.supportedDynamicAspectRatios.first(where: { $0.rawValue.hasSuffix(want) }),
+              (try? d.lockForConfiguration()) != nil else { return }
+        d.setDynamicAspectRatio(r) { [weak self] _, _ in self?.queue.async { self?.levelFront() } }
+        d.unlockForConfiguration()
+        let framings = d.smartFramingMonitor?.supportedFramings.map { "\($0.aspectRatio.rawValue)@\($0.zoomFactor)" } ?? []
+        NSLog("SpektraLab capture: front %@ framing, ProRAW %d, framings %@", want, output.isAppleProRAWSupported ? 1 : 0,
+              framings.joined(separator: " "))
     }
 
     private func applySize() {
@@ -426,6 +497,12 @@ final class CameraController: NSObject, @unchecked Sendable {
                     s.sizes = Array(Set(f.supportedMaxPhotoDimensions.map(Self.megapixels).filter { $0 >= 5 })).sorted()
                 }
                 s.proRAW = self.output.isAppleProRAWSupported
+                if #available(iOS 26.0, *), let d = self.input?.device, d.position == .front {
+                    s.turnsFraming = d.activeFormat.supportedDynamicAspectRatios.count > 1
+                    let want = self.frontLandscape ? "3x4" : "4x3"
+                    s.frontZooms = Array(Set((d.smartFramingMonitor?.supportedFramings ?? [])
+                        .filter { $0.aspectRatio.rawValue.hasSuffix(want) }.map { Double($0.zoomFactor) })).sorted()
+                }
                 s.bayer = self.bayerSupported
                 done.resume(returning: s)
             }
@@ -477,7 +554,15 @@ final class CameraController: NSObject, @unchecked Sendable {
                 let mode: AVCaptureDevice.FlashMode = flash == .on ? .on : flash == .auto ? .auto : .off
                 if self.output.supportedFlashModes.contains(mode) { settings.flashMode = mode }
                 if let connection = self.output.connection(with: .video) {
-                    connection.videoRotationAngle = Self.rotationAngle()
+                    let front = self.input?.device.position == .front
+                    connection.videoRotationAngle = front
+                        ? (self.frontRotation?.videoRotationAngleForHorizonLevelCapture ?? Self.rotationAngle())
+                        : Self.rotationAngle()
+                    // A selfie as it was seen in the viewfinder (the Camera app's default, 镜像前置镜头).
+                    if connection.isVideoMirroringSupported {
+                        connection.automaticallyAdjustsVideoMirroring = false
+                        connection.isVideoMirrored = front
+                    }
                 }
                 let id = settings.uniqueID
                 let zoom = Double(self.input?.device.videoZoomFactor ?? 1)

@@ -310,8 +310,8 @@ final class ViewModel: ObservableObject {
 
     /// The stocks, in the order the scrolling strip shows them.
     /// Films and papers by maker, then by name (upstream 2.4.1's `brandOrder`): every picker reads these.
-    var films: [Stock] { Stock.brandOrdered(catalog.films + catalog.slides) }
-    var papers: [Stock] { Stock.brandOrdered(catalog.papers) }
+    var films: [Stock] { Stock.ordered(catalog.films + catalog.slides) }
+    var papers: [Stock] { Stock.ordered(catalog.papers) }
 
     /// The editor's name for the look: "无胶片" or the film.
     var currentLookName: String { recipe.noFilm == true ? "无胶片" : currentFilmName }
@@ -1670,7 +1670,12 @@ final class ViewModel: ObservableObject {
     /// Pick an explicit gate, or automatic matching against the photograph.
     func setOverscanFormat(_ id: String) {
         guard id == FilmGateCatalog.automaticID || FilmGateCatalog.gate(id: id) != nil else { return }
-        edit { $0.overscanFormat = id }
+        // A gate is only seen with the film edge: picking one turns the edge on (with it off, a tap on a cine gauge
+        // changed nothing on screen — the owner read it as broken).
+        edit {
+            $0.overscanFormat = id
+            if id != FilmGateCatalog.automaticID { $0.filmBorderEnabled = true }
+        }
     }
 
     /// Which way the strip runs; re-crops the frame, never rotates the picture.
@@ -2698,11 +2703,13 @@ final class ViewModel: ObservableObject {
     /// (1.9 GB left) were killed in the full-size render. That is 90–100 bytes a pixel in all;
     /// 110 keeps a margin, which lands a 48 MP original at about 25 MP. A free developer account
     /// cannot ask for the larger memory limit.
-    static func exportLongEdgeCap(for data: Data) -> Int? {
+    /// `striped` false (a film edge: the engine's overscan cannot render in bands) costs about twice the memory a
+    /// pixel — shortcut: 220 bytes is an estimate, not measured; measure an unstriped 48 MP export to tighten it.
+    static func exportLongEdgeCap(for data: Data, striped: Bool = true) -> Int? {
         guard let size = ExportWriter.pixelSize(of: data) else { return nil }
         let pixels = Double(size.width) * Double(size.height)
         let budget = Double(os_proc_available_memory()) - 400 * 1_048_576
-        let affordable = max(budget, 0) / 110
+        let affordable = max(budget, 0) / (striped ? 110 : 220)
         guard pixels > affordable, affordable > 0 else { return nil }
         let long = Double(max(size.width, size.height))
         return max(1024, Int(long * (affordable / pixels).squareRoot()))
@@ -2769,7 +2776,7 @@ final class ViewModel: ObservableObject {
             let cropAspect = filmBorderEnabled ? filmCropAspect : nil
             let frameCrop = crop
             let gains = recipe.sceneBalance
-            let memoryCap = Self.exportLongEdgeCap(for: data)
+            let memoryCap = Self.exportLongEdgeCap(for: data, striped: !filmBorderEnabled)
             if let memoryCap { NSLog("SpektraLab export: memory caps the long edge at %d px", memoryCap) }
             let noFilm = recipe.noFilm == true
             var decoded: DecodedFrame? = noFilm ? nil : try await Task.detached(priority: .userInitiated) {
@@ -2791,7 +2798,8 @@ final class ViewModel: ObservableObject {
             exportDelta["output_cctf_encoding"] = .bool(true)
             // Engine 2.x: the striped executor renders the full-size frame band by band (bit-identical,
             // RFC-020 §6) and skips the disk checkpoint; unstriped, a 25 MP export was jetsam-killed mid-render.
-            exportDelta["striped"] = .bool(true)
+            // The film edge (overscan) is not rendered in bands yet (engine error -5): whole, with a smaller cap.
+            exportDelta["striped"] = .bool(!filmBorderEnabled)
             let openDelta = exportDelta
             let space = options.colorSpace
 
@@ -2974,7 +2982,7 @@ final class ViewModel: ObservableObject {
               let original = ExportWriter.pixelSize(of: originalData) else { return nil }
         var full = original
         // The decoder scales the source to the cap before the crop and the gate cut it.
-        if let cap = Self.exportLongEdgeCap(for: originalData) {
+        if let cap = Self.exportLongEdgeCap(for: originalData, striped: !filmBorderEnabled) {
             let k = Double(cap) / Double(max(original.width, original.height))
             full = (Int((Double(original.width) * k).rounded()), Int((Double(original.height) * k).rounded()))
         }
@@ -2987,7 +2995,7 @@ final class ViewModel: ObservableObject {
 
     /// The original's own pixel count when the memory cap makes the export smaller, else nil.
     var exportCappedFromMegapixels: Double? {
-        guard let originalData, Self.exportLongEdgeCap(for: originalData) != nil,
+        guard let originalData, Self.exportLongEdgeCap(for: originalData, striped: !filmBorderEnabled) != nil,
               let o = ExportWriter.pixelSize(of: originalData) else { return nil }
         return Double(o.width * o.height) / 1_000_000
     }

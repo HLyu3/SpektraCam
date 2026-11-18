@@ -133,6 +133,9 @@ struct StockCatalog: Sendable {
     func stock(_ id: String) -> Stock? { (films + papers + slides).first { $0.id == id } }
     func isMonochrome(_ id: String) -> Bool { stock(id)?.monochrome ?? false }
 
+    /// A slide (reversal) film is the picture itself: scanned, never printed (upstream `StockCatalog.isSlide`).
+    func isSlide(_ id: String) -> Bool { stock(id)?.type == .positive }
+
     /// Silver on silver, colour on colour. An unknown stock rules nothing out.
     func canPrint(film: String, on paper: String) -> Bool {
         guard let f = stock(film), let p = stock(paper) else { return true }
@@ -177,7 +180,8 @@ struct StockCatalog: Sendable {
         case "kodak_ektar_100": ["kodak_ultra_endura"]
         case let f where f.hasPrefix("fujifilm_") : ["fujifilm_crystal_archive_typeii"]
         case "kodak_gold_200", "kodak_ultramax_400": ["kodak_ektacolor_edge"]
-        default: []
+        // The rest: the paper the profile was made for (Verita 200D → 2383), as upstream's ownPaper does; a slide none.
+        default: StockCatalog.shared.stock(film).flatMap { $0.targetPrint }.map { [$0] } ?? []
         }
     }
 
@@ -262,6 +266,44 @@ extension Stock {
             let byBrand = order(a.brand, b.brand)
             return byBrand != .orderedSame ? byBrand == .orderedAscending : order(a.name, b.name) == .orderedAscending
         }
+    }
+
+    /// What kind of stock it is, as the pickers' headers name it (the default grouping since 2026-11-18; the owner
+    /// found the makers' runs harder to choose from).
+    var kind: String {
+        if support == .paper {
+            if monochrome { return "黑白相纸" }
+            return id.hasPrefix("kodak_23") ? "电影正片" : "彩色相纸"
+        }
+        if monochrome { return "黑白负片" }
+        if type == .positive { return "反转片" }
+        return isCine ? "电影负片" : "彩色负片"
+    }
+
+    private static let kinds = ["彩色负片", "反转片", "电影负片", "黑白负片", "彩色相纸", "电影正片", "黑白相纸"]
+
+    /// The pickers' order: by kind (default) or by maker, then by name. `SpektraLab.stockOrder` "kind" | "brand".
+    static let orderKey = "SpektraLab.stockOrder"
+    static var byKindOrder: Bool { (UserDefaults.standard.string(forKey: orderKey) ?? "kind") == "kind" }
+
+    static func ordered(_ stocks: [Stock]) -> [Stock] {
+        let named = brandOrdered(stocks)
+        guard byKindOrder else { return named }
+        let rank = { (s: Stock) in kinds.firstIndex(of: s.kind) ?? kinds.count }
+        return named.enumerated().sorted { a, b in
+            rank(a.element) != rank(b.element) ? rank(a.element) < rank(b.element) : a.offset < b.offset
+        }.map(\.element)
+    }
+
+    /// Ordered stocks in runs of one kind (or one maker), for the pickers' sections.
+    static func grouped(_ stocks: [Stock]) -> [(String, [Stock])] {
+        let byKind = byKindOrder
+        var out: [(String, [Stock])] = []
+        for s in ordered(stocks) {
+            let key = byKind ? s.kind : s.brand
+            if out.last?.0 == key { out[out.count - 1].1.append(s) } else { out.append((key, [s])) }
+        }
+        return out
     }
 
     /// Already brand-ordered stocks in runs of one maker, for the pickers' sections.

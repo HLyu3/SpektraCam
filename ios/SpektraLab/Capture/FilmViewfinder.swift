@@ -18,9 +18,23 @@ final class FilmViewfinderRenderer: NSObject, MTKViewDelegate, @unchecked Sendab
     private lazy var queue = device?.makeCommandQueue()
     private lazy var context: CIContext? = device.map { CIContext(mtlDevice: $0, options: [.cacheIntermediates: false]) }
 
+    /// Whether the newest frame from the camera is wider than tall (kept while frozen: the framing turn waits on it).
+    private(set) var newestIsLandscape = false
+    /// The front camera's framing turn, as Camera does it: the last picture held and blurred while the sensor
+    /// switches, then the live picture back as the blur clears (a black dip read as a flash).
+    private var frozen = false
+    private var clearsAt: CFTimeInterval = 0
+    private static let blurSigma = 22.0, clearing = 0.3
+
+    func beginTurn() { lock.lock(); frozen = true; lock.unlock() }
+    func endTurn() { lock.lock(); frozen = false; clearsAt = CACurrentMediaTime() + Self.clearing; lock.unlock() }
+
     func push(_ pixels: CVPixelBuffer) {
         let image = CIImage(cvPixelBuffer: pixels)
-        lock.lock(); frame = image; lock.unlock()
+        lock.lock()
+        newestIsLandscape = image.extent.width > image.extent.height
+        if !frozen { frame = image }
+        lock.unlock()
     }
 
     func setCube(_ data: Data?, size: Int) {
@@ -36,9 +50,15 @@ final class FilmViewfinderRenderer: NSObject, MTKViewDelegate, @unchecked Sendab
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
+    /// Draw the frames as they are, no film (the front camera's 实景: the system preview layer drew its square
+    /// sensor squashed; these frames are right).
+    var plain = false
+
     func draw(in view: MTKView) {
-        lock.lock(); let image = frame; let cube = cube; lock.unlock()
-        guard let image, let cube, let context, let queue,
+        lock.lock(); let image = frame; let cube = plain ? nil : cube; let frozen = frozen; let clearsAt = clearsAt; lock.unlock()
+        let left = clearsAt - CACurrentMediaTime()
+        let sigma = frozen ? Self.blurSigma : left > 0 ? Self.blurSigma * left / Self.clearing : 0
+        guard let image, plain || cube != nil, let context, let queue,
               let drawable = view.currentDrawable, let commands = queue.makeCommandBuffer() else { return }
         // Fill the view (as the preview layer's resizeAspectFill does), then the film's colours.
         let target = CGSize(width: view.drawableSize.width, height: view.drawableSize.height)
@@ -46,8 +66,11 @@ final class FilmViewfinderRenderer: NSObject, MTKViewDelegate, @unchecked Sendab
         var scaled = image.transformed(by: CGAffineTransform(scaleX: k, y: k))
         scaled = scaled.transformed(by: CGAffineTransform(translationX: (target.width - scaled.extent.width) / 2 - scaled.extent.minX,
                                                           y: (target.height - scaled.extent.height) / 2 - scaled.extent.minY))
-        cube.setValue(scaled, forKey: kCIInputImageKey)
-        guard let out = cube.outputImage else { return }
+        cube?.setValue(scaled, forKey: kCIInputImageKey)
+        guard var out = cube.map({ $0.outputImage }) ?? scaled else { return }
+        if sigma > 0.5 {
+            out = out.clampedToExtent().applyingGaussianBlur(sigma: sigma).cropped(to: CGRect(origin: .zero, size: target))
+        }
         context.render(out, to: drawable.texture, commandBuffer: commands,
                        bounds: CGRect(origin: .zero, size: target), colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
         commands.present(drawable)
@@ -60,6 +83,9 @@ struct FilmViewfinder: UIViewRepresentable {
     /// Off screen (the camera page kept a moment after it is left) it must not draw: an unseen Metal layer never
     /// gives its drawables back, and every draw then waited on the main thread for one — the app froze for seconds.
     var active = true
+    /// Black, not see-through, until it draws: on the front camera the system preview under it is squashed and
+    /// showed through as a second, ghost picture while the framing turned.
+    var opaque = false
 
     func makeUIView(context: Context) -> MTKView {
         let view = MTKView(frame: .zero, device: renderer.device)
@@ -77,5 +103,10 @@ struct FilmViewfinder: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: MTKView, context: Context) { view.isPaused = !active }
+    func updateUIView(_ view: MTKView, context: Context) {
+        view.isPaused = !active
+        view.isOpaque = opaque
+        view.backgroundColor = opaque ? .black : .clear
+        view.layer.isOpaque = opaque
+    }
 }

@@ -120,7 +120,6 @@ struct PhotoLibraryView: View {
     @State private var exportQuestion: [UUID]?
     @State private var exportSettingsOpen = false
     /// A narrow phone: the selection bar's two-photo actions show their icons only, so 粘贴 keeps its room.
-    @State private var narrowBar = false
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: dense ? 1 : 2, alignment: .top), count: min(max(columnCount, 1), 14))
@@ -913,9 +912,8 @@ struct PhotoLibraryView: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color.labCream)
                         .contentTransition(.numericText())
-                    Text(model.clipboardRecipe == nil
-                         ? "长按照片可复制配方"
-                         : "配方来源已灰显锁定")
+                    Text(model.clipboardRecipe.map { "已复制配方 · \(model.filmName(for: $0.filmID))" } ?? "长按照片可复制配方")
+                        .lineLimit(1)
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(Color.labCream.opacity(0.40))
                 }
@@ -934,54 +932,25 @@ struct PhotoLibraryView: View {
                 .buttonStyle(.plain)
             }
 
-            HStack(spacing: 9) {
+            // One row of equal tiles, icon over word, as Photos' toolbar (2026-11-17: mixed capsules and circles in one
+            // row squeezed 粘贴配方 until it was cut off).
+            HStack(spacing: 6) {
                 if selected.count == 2 {
                     Button {
                         let ids = model.library.map(\.id).filter { selected.contains($0) }
                         comparing = Comparing(ids: ids)
-                    } label: {
-                        Group {
-                            if narrowBar { Image(systemName: "rectangle.split.1x2").accessibilityLabel("对比") }
-                            else { Label("对比", systemImage: "rectangle.split.1x2") }
-                        }
-                            .font(.system(size: 12, weight: .semibold))
-                            .padding(.horizontal, 13)
-                            .frame(height: 46)
-                            .background(Color.white.opacity(0.08), in: Capsule())
-                            .foregroundStyle(Color.labCream.opacity(0.88))
-                    }
-                    .buttonStyle(.plain)
+                    } label: { BarTile(title: "对比", symbol: "rectangle.split.1x2") }
                     Button {
                         let ids = model.library.map(\.id).filter { selected.contains($0) }
                         // The wall is newest first; a strip reads left to right, oldest first.
                         pairing = PairSpec(left: ids[1], right: ids[0])
-                    } label: {
-                        Group {
-                            if narrowBar { Image(systemName: "rectangle.split.2x1").accessibilityLabel("做成双拼") }
-                            else { Label("做成双拼", systemImage: "rectangle.split.2x1") }
-                        }
-                            .font(.system(size: 12, weight: .semibold))
-                            .padding(.horizontal, 13)
-                            .frame(height: 46)
-                            .background(Color.white.opacity(0.08), in: Capsule())
-                            .foregroundStyle(Color.labCream.opacity(0.88))
-                    }
-                    .buttonStyle(.plain)
+                    } label: { BarTile(title: "双拼", symbol: "rectangle.split.2x1") }
                 }
                 if selected.count == 1, let id = selected.first {
-                    Button {
-                        copyRecipe(from: id)
-                    } label: {
-                        Label("复制配方", systemImage: "doc.on.doc")
-                            .font(.system(size: 12, weight: .semibold))
-                            .padding(.horizontal, 13)
-                            .frame(height: 46)
-                            .background(Color.white.opacity(0.08), in: Capsule())
-                            .foregroundStyle(Color.labCream.opacity(0.88))
-                    }
-                    .buttonStyle(.plain)
+                    Button { copyRecipe(from: id) } label: { BarTile(title: "复制配方", symbol: "doc.on.doc") }
                 }
-
+                Button { paste() } label: { BarTile(title: "粘贴配方", symbol: "doc.on.clipboard") }
+                    .disabled(selected.isEmpty || model.clipboardRecipe == nil)
                 if !model.savedRecipes.isEmpty {
                     recipeMenu {
                         let ids = selected
@@ -991,65 +960,19 @@ struct PhotoLibraryView: View {
                     }
                     .disabled(selected.isEmpty)
                 }
-
-                Button {
-                    paste()
-                } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: "doc.on.clipboard")
-                        Text(model.clipboardRecipe == nil ? "先复制一个配方" : "粘贴配方")
-                        if let recipe = model.clipboardRecipe {
-                            Text("· \(model.filmName(for: recipe.filmID))")
-                                .lineLimit(1)
-                                .font(.system(size: 10, weight: .medium))
-                                .opacity(0.62)
-                        }
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 46)
-                    .background(model.clipboardRecipe == nil
-                                ? Color.white.opacity(0.07)
-                                : Color.labRed.opacity(0.28),
-                                in: Capsule())
-                    .overlay {
-                        Capsule()
-                            .stroke(Color.white.opacity(model.clipboardRecipe == nil ? 0.05 : 0.16),
-                                    lineWidth: 1)
-                    }
-                    .foregroundStyle(model.clipboardRecipe == nil ? Color.white.opacity(0.42) : .white)
-                }
-                .buttonStyle(.plain)
-                .disabled(selected.isEmpty || model.clipboardRecipe == nil)
-
-                // 批量导出 (the selection only — an "everything edited" item was misread, the owner, 2026-11-17): each
-                // photo developed with its own look, saved to Photos with the export sheet's settings.
+                // 批量导出 (the selection only — an "everything edited" item was misread, the owner, 2026-11-17).
                 Button { exportQuestion = model.library.map(\.id).filter { selected.contains($0) } } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(width: 46, height: 46)
-                        .background(Color.white.opacity(0.08), in: Circle())
-                        .foregroundStyle(selected.isEmpty ? Color.labCream.opacity(0.35) : Color.labCream.opacity(0.88))
+                    BarTile(title: "导出", symbol: "square.and.arrow.up")
                 }
-                .buttonStyle(.plain)
                 .disabled(selected.isEmpty)
-                .accessibilityLabel("导出选中的照片")
-
                 Button {
                     deleteIDs = selected
                     showingDelete = true
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(width: 46, height: 46)
-                        .background(selected.isEmpty ? Color.white.opacity(0.08) : Color.red.opacity(0.22), in: Circle())
-                        .foregroundStyle(selected.isEmpty ? Color.labCream.opacity(0.35) : Color(red: 1, green: 0.55, blue: 0.5))
-                }
-                .buttonStyle(.plain)
+                } label: { BarTile(title: "删除", symbol: "trash", destructive: true) }
                 .disabled(selected.isEmpty)
             }
+            .buttonStyle(.plain)
         }
-        .onGeometryChange(for: Bool.self) { $0.size.width < 380 } action: { narrowBar = $0 }
         .padding(14)
         // A dark base under the glass: over bright photos the glass alone washed the buttons out.
         .background(Color.labInk.opacity(0.72), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -1066,7 +989,8 @@ struct PhotoLibraryView: View {
     /// Selection in the 系统相册 view: the picked photos are linked when an action needs them.
     private var photosSelectionBar: some View {
         let count = selectedAssets.count
-        return HStack(spacing: 9) {
+        return VStack(spacing: 11) {
+        HStack(spacing: 9) {
             Text(count == 0 ? "选择照片" : "已选 \(count) 张")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.labCream)
@@ -1084,8 +1008,10 @@ struct PhotoLibraryView: View {
                     .background(Color.white.opacity(0.16), in: Capsule())
             }
             .buttonStyle(.plain)
+        }
+        HStack(spacing: 6) {
             if count == 2 {
-                barAction("做成双拼", "rectangle.split.2x1") {
+                barAction("双拼", "rectangle.split.2x1") {
                     let ids = await model.linkAssets(selectedAssets)
                     if ids.count == 2 { pairing = PairSpec(left: ids[0], right: ids[1]) }
                 }
@@ -1110,17 +1036,18 @@ struct PhotoLibraryView: View {
                 if await model.deleteFromPhotos(selectedAssets) { selectedAssets.removeAll() }
             }
             .disabled(count == 0)
-            .opacity(count == 0 ? 0.4 : 1)
-            barAction(model.clipboardRecipe == nil ? "先复制配方" : "粘贴配方", "doc.on.clipboard") {
+            barAction("粘贴配方", "doc.on.clipboard") {
                 let ids = await model.linkAssets(selectedAssets)
                 await model.pasteRecipe(to: Set(ids))
                 selectedAssets.removeAll()
                 selecting = false
             }
             .disabled(count == 0 || model.clipboardRecipe == nil)
-            .opacity(count == 0 || model.clipboardRecipe == nil ? 0.4 : 1)
+        }
         }
         .padding(14)
+        // The same dark base as 底片's bar: on glass alone, bright photos under it washed the buttons out.
+        .background(Color.labInk.opacity(0.72), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .labGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .shadow(color: .black.opacity(0.36), radius: 26, y: 12)
         .padding(.horizontal, 12)
@@ -1140,23 +1067,13 @@ struct PhotoLibraryView: View {
                 }
             }
         } label: {
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: 14, weight: .semibold))
-                .frame(width: 46, height: 46)
-                .background(Color.white.opacity(0.08), in: Circle())
-                .foregroundStyle(Color.labCream.opacity(0.85))
+            BarTile(title: "套用配方", symbol: "wand.and.stars")
         }
-        .accessibilityLabel("套用配方")
     }
 
     private func barAction(_ title: String, _ symbol: String, _ run: @escaping @MainActor () async -> Void) -> some View {
         Button { Task { @MainActor in await run() } } label: {
-            Label(title, systemImage: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .padding(.horizontal, 12)
-                .frame(height: 42)
-                .background(Color.white.opacity(0.08), in: Capsule())
-                .foregroundStyle(Color.labCream.opacity(0.88))
+            BarTile(title: title, symbol: symbol, destructive: symbol == "trash")
         }
         .buttonStyle(.plain)
     }
@@ -1392,5 +1309,26 @@ struct SlideSelectRecognizer: UIGestureRecognizerRepresentable {
             while let s = v { if let scroll = s as? UIScrollView { return scroll }; v = s.superview }
             return nil
         }
+    }
+}
+
+/// One action of a selection bar: icon over word, every tile the same width (as Photos' toolbar); dimmed when off.
+private struct BarTile: View {
+    let title: String
+    let symbol: String
+    var destructive = false
+    @Environment(\.isEnabled) private var enabled
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: symbol).font(.system(size: 17, weight: .semibold))
+            Text(title).font(.system(size: 10.5, weight: .medium)).lineLimit(1).minimumScaleFactor(0.75)
+        }
+        .foregroundStyle(destructive ? Color(red: 1, green: 0.55, blue: 0.5) : Color.labCream)
+        .frame(maxWidth: .infinity, minHeight: 54)
+        .background(destructive && enabled ? Color.red.opacity(0.22) : Color.white.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .opacity(enabled ? 1 : 0.5)
+        .contentShape(Rectangle())
     }
 }

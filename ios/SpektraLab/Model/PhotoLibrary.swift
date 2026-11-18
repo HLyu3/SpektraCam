@@ -188,6 +188,8 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
         // silver paper no extended range, and the grade's filter pack, which the engine's table lacks.
         let catalog = StockCatalog.shared
         if catalog.isMonochrome(filmStock) { delta["grain_sublayers_active"] = .bool(false) }
+        // A slide is scanned, never printed, whatever the look says (upstream's rule; it was printed on paper here).
+        if catalog.isSlide(filmStock) { delta["scan_film"] = .bool(true) }
         // Less enlarger light prints brighter: print_exposure = 2^-stops (upstream `FilmParams.printExposure`).
         let brightness = pow(2.0, -(params[FilmParam.printBrightness.key] ?? 0))
         delta["print_exposure"] = .number(min(max(brightness, 0.05), 20))

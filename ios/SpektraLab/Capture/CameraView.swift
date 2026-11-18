@@ -69,6 +69,10 @@ struct CameraView: View {
     /// Single-frame RAW cannot zoom in the sensor (and refuses any digital zoom): only the lenses' own lengths.
     private var lensesOnly: Bool { chosen == .raw }
     @State private var front = false
+    /// The front camera framing landscape (its square sensor), and its zoom factor.
+    @State private var frontLandscape = false
+    @State private var frontZoom: Double = 1
+    @State private var turningFrame = false
     /// The opening: the viewfinder appears through an iris that opens once the camera runs, and sharpens as it does
     /// (it hid the beat between the page and the first frames that read as a stall).
     @State private var irisOpen = false
@@ -108,6 +112,7 @@ struct CameraView: View {
     /// What the roll prints on, under the strip.
     private var rollSubtitle: String {
         guard let look = model.rollRecipe(roll, paper: rollPaper) else { return "不冲洗 · 原始文件直接存进“照片”" }
+        if model.catalog.isSlide(look.filmStock) { return "反转片 · 直接扫描，不印放" }
         let paper = "相纸 · " + model.filmName(for: look.printStock)
         return roll.hasPrefix("recipe:") ? "配方 · \(model.filmName(for: look.filmStock)) · " + paper : paper
     }
@@ -115,18 +120,24 @@ struct CameraView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
-            viewfinder
+            // The viewfinder's place is always the 3:4 box; a landscape front-camera frame sits in its middle with black
+            // above and below, as in Camera (sized to itself, it jumped up and left a black band under it).
+            Color.black
+                .aspectRatio(3.0 / 4.0, contentMode: .fit)
                 .overlay {
-                    // Seven blades closing over the viewfinder, opening (and turning) as a lens's aperture does.
-                    ZStack {
-                        ApertureBlades(open: irisOpen ? 1 : 0)
-                            .fill(Color(white: 0.07), style: FillStyle(eoFill: true))
-                        ApertureBlades(open: irisOpen ? 1 : 0, edgesOnly: true)
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                    }
-                    .allowsHitTesting(false)
+                    viewfinder
+                        .overlay {
+                            // Seven blades closing over the viewfinder, opening (and turning) as a lens's aperture does.
+                            ZStack {
+                                ApertureBlades(open: irisOpen ? 1 : 0)
+                                    .fill(Color(white: 0.07), style: FillStyle(eoFill: true))
+                                ApertureBlades(open: irisOpen ? 1 : 0, edgesOnly: true)
+                                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                            }
+                            .allowsHitTesting(false)
+                        }
+                        .clipped()
                 }
-                .clipped()
             lensDial
             Spacer(minLength: 4)
             rollCarousel
@@ -147,6 +158,11 @@ struct CameraView: View {
         // Built once and kept (`MainTabs`): the camera runs only while the page is up.
         .task(id: active) {
             guard active else { camera.stop(); level.stop(); irisOpen = false; return }
+            // Every visit starts on the back camera (below), so the page's own front state starts over too: kept from the
+            // last visit, it showed the front camera's controls over the back camera.
+            front = false
+            frontLandscape = false
+            camera.setFrontLandscape(false)
             // HEIF was the default for a few hours of 2026-11-17: a phone that kept it gets RAW, once.
             if !UserDefaults.standard.bool(forKey: "SpektraLab.cameraFormatRawDefault") {
                 UserDefaults.standard.set(true, forKey: "SpektraLab.cameraFormatRawDefault")
@@ -369,8 +385,15 @@ struct CameraView: View {
             guard !Task.isCancelled, dragFrom == nil, !aeLocked else { return }
             withAnimation(.easeOut(duration: 0.4)) { focusPoint = nil }
         }
-        .overlay { if filmLook && !noFilm { FilmViewfinder(renderer: finder, active: active).allowsHitTesting(false) } }
-        .aspectRatio(3.0 / 4.0, contentMode: .fit)
+        // The front camera always draws through it (plain under 实景 / no film): the preview layer squashed its square sensor.
+        .overlay {
+            if (filmLook && !noFilm) || front {
+                FilmViewfinder(renderer: finder, active: active, opaque: front).allowsHitTesting(false)
+                    .onAppear { finder.plain = !(filmLook && !noFilm) }
+                    .onChange(of: filmLook && !noFilm) { _, film in finder.plain = !film }
+            }
+        }
+        .aspectRatio(front && frontLandscape ? 4.0 / 3.0 : 3.0 / 4.0, contentMode: .fit)
         // No pinch zoom (the owner, 2026-11-16): the lens stops (0.5 · 1 · 2 · 4 · 8, native or in-sensor) are where
         // the picture is best; finer framing is the editor's crop.
         .overlay(alignment: .topLeading) {
@@ -518,11 +541,65 @@ struct CameraView: View {
                 }
                 .padding(3)
                 .background(Color.white.opacity(0.07), in: Capsule())
+            } else if status.frontZooms.count > 1 {
+                // The front camera's framings, named against the tightest as 1× (wider is "zoomed out").
+                let top = status.frontZooms.last ?? 1
+                HStack(spacing: 2) {
+                    ForEach(status.frontZooms, id: \.self) { z in
+                        let on = abs(frontZoom - z) < 0.01
+                        Button {
+                            withAnimation(.snappy(duration: 0.25)) { frontZoom = z }
+                            camera.rampZoom(z)
+                        } label: {
+                            Text(String(format: "%.1f×", z / top).replacingOccurrences(of: ".0×", with: "×"))
+                                .font(.system(size: on ? 14 : 12, weight: .bold, design: .monospaced))
+                                .rotationEffect(.degrees(turn))
+                                .foregroundStyle(on ? Color.black : Color.labCream.opacity(0.8))
+                                .frame(minWidth: 44, minHeight: 40)
+                                .background(on ? Color.labRed : Color.clear, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(3)
+                .background(Color.white.opacity(0.07), in: Capsule())
             } else {
                 Text("前置").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            Color.clear.frame(width: 44, height: 44)
+            if front && status.turnsFraming {
+                // Portrait or landscape without turning the phone (the front camera's square sensor).
+                Button {
+                    // As Camera turns it: the last picture held and blurred, the box takes its new shape at once (an
+                    // animated box carried the grid and level along — a double picture), and the live picture comes
+                    // back, unblurring, once the sensor's frames have the new shape and its blend of old and new is over.
+                    guard !turningFrame else { return }
+                    turningFrame = true
+                    finder.beginTurn()
+                    var still = Transaction(); still.disablesAnimations = true
+                    withTransaction(still) { frontLandscape.toggle() }
+                    camera.setFrontLandscape(frontLandscape)
+                    let want = frontLandscape
+                    Task { @MainActor in
+                        for _ in 0..<40 where finder.newestIsLandscape != want {
+                            try? await Task.sleep(for: .milliseconds(25))
+                        }
+                        try? await Task.sleep(for: .milliseconds(450))
+                        finder.endTurn()
+                        turningFrame = false
+                    }
+                } label: {
+                    Image(systemName: frontLandscape ? "rectangle" : "rectangle.portrait")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.labCream)
+                        .frame(width: 44, height: 44)
+                        .background(Color.white.opacity(0.1), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(frontLandscape ? "横向取景，点按改为竖向" : "竖向取景，点按改为横向")
+            } else {
+                Color.clear.frame(width: 44, height: 44)
+            }
         }
         .foregroundStyle(Color.labCream)
         .padding(.horizontal, 12)
@@ -665,10 +742,10 @@ struct CameraView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.labCream)
                 // A film roll's paper is chosen here (the 相纸 chip) (the default paper, also in Settings); 推荐 marks its classic pairs.
-                if !roll.isEmpty, !roll.hasPrefix("recipe:"), !model.catalog.isMonochrome(roll) {
+                if !roll.isEmpty, !roll.hasPrefix("recipe:"), !model.catalog.isMonochrome(roll), !model.catalog.isSlide(roll) {
                     let recommended = StockCatalog.recommendedPapers(for: roll)
                     let film = roll
-                    PaperMenu(title: rollSubtitle,
+                    PaperMenu(film: film, title: rollSubtitle,
                               current: model.rollRecipe(roll, paper: rollPaper)?.printStock ?? "",
                               papers: model.papers.filter { !$0.monochrome }.map { PaperMenu.Item(id: $0.id, name: $0.name) },
                               recommended: recommended,
@@ -818,7 +895,7 @@ struct CameraView: View {
             Spacer()
             Button {
                 front.toggle()
-                if front, let f = camera.frontLens { camera.use(f.device) }
+                if front, let f = camera.frontLens { frontZoom = 1; camera.use(f.device) }
                 else { lens = nil; aim(focal) }      // back to the back camera at the focal length it had
             } label: {
                 Image(systemName: "arrow.triangle.2.circlepath")
@@ -1089,6 +1166,9 @@ private struct LevelOverlay: View {
 /// reloads), so the list is an opaque sheet.
 struct PaperMenu: View, @MainActor Equatable {
     struct Item: Equatable, Identifiable { let id: String; let name: String }
+    /// The roll it picks for: part of equality, or two films with the same paper line (every Fuji on Crystal
+    /// Archive) kept the first one's `pick`, and a paper picked for the second went to the first.
+    let film: String
     let title: String
     let current: String
     let papers: [Item]
@@ -1098,7 +1178,7 @@ struct PaperMenu: View, @MainActor Equatable {
     @State private var open = false
 
     static func == (a: PaperMenu, b: PaperMenu) -> Bool {
-        a.title == b.title && a.current == b.current && a.papers == b.papers && a.recommended == b.recommended
+        a.film == b.film && a.title == b.title && a.current == b.current && a.papers == b.papers && a.recommended == b.recommended
     }
 
     var body: some View {

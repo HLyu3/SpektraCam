@@ -1310,12 +1310,14 @@ struct StockBrowser: View {
     @Environment(\.dismiss) private var dismiss
     @State private var renaming: SavedRecipe?
     @State private var newName = ""
+    @AppStorage(Stock.orderKey) private var stockOrder = "kind"
 
     private var sections: [(String, [Stock])] {
-        // By maker (upstream 2.4.1): each tile still says what kind of film or paper it is.
-        if papers { return Stock.byBrand(model.papers) }
+        // By kind (default) or by maker — the 排列 button; `stockOrder` makes this view redraw when it changes.
+        _ = stockOrder
+        if papers { return Stock.grouped(model.papers) }
         let favourites = model.films.filter { model.favoriteFilms.contains($0.id) }
-        return ([("收藏", favourites)] + Stock.byBrand(model.films)).filter { !$0.1.isEmpty }
+        return ([("收藏", favourites)] + Stock.grouped(model.films)).filter { !$0.1.isEmpty }
     }
 
     /// A saved look: in the camera it becomes the roll, in the editor it goes on the photo.
@@ -1425,6 +1427,17 @@ struct StockBrowser: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Picker("排列", selection: $stockOrder) {
+                            Text("按类型").tag("kind")
+                            Text("按品牌").tag("brand")
+                        }
+                    } label: {
+                        Label(stockOrder == "kind" ? "按类型" : "按品牌", systemImage: "arrow.up.arrow.down")
+                            .labelStyle(.titleAndIcon)
+                    }
+                }
             }
         }
         .tint(Color.labRed)
