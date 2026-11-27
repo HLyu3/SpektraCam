@@ -1,5 +1,7 @@
 # Spektra Cam · SpektraLab 非官方 iOS 移植版
 
+**中文** | [English](README.en.md)
+
 **Spektra Cam 是 [SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（Mac 上的胶片冲洗软件）的非官方 iPhone 移植版。** 用的是同一个胶片物理引擎——胶片曝光、染料层、颗粒、光晕、放大机与相纸，一路算下来，而不是给照片套一张 LUT——并在 iPhone 上加了相机、观片台等功能。
 
 > 非官方：不是 SpektraLab 作者发布的 App。
@@ -26,8 +28,6 @@
 https://raw.githubusercontent.com/HLyu3/SpektraCam/main/source.json
 ```
 
-Add this source in SideStore / AltStore (Sources › ＋), install Spektra Cam from it, and update in place whenever a new version comes out.
-
 ### 或者：下载安装包
 
 到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.1.7-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
@@ -41,10 +41,11 @@ Add this source in SideStore / AltStore (Sources › ＋), install Spektra Cam f
 - **已在 iPhone 17 Pro Max 和 iPhone 14 Pro 上测试。** iOS 18 及以上的 iPhone 都能安装；其他机型没有实测，镜头焦段、拍摄尺寸、导出大小和 HDR 亮度可能不准。
 - 免费 Apple ID 的签名 7 天后过期，要重新安装。
 - IPA 里带了全部引擎资源，第一次打开不需要联网下载。
+- 语言：跟着手机的系统语言显示中文或英文；只想换这个 App 的语言，到「设置 › Spektra Cam › 首选语言」里选。
 
 ## 2.1.7 的变化（相对 2.1.6）
 
-- **中英双语 / Chinese and English**：界面跟着手机的系统语言显示中文或英文；只想换这个 App 的语言，到「设置 › Spektra Cam › 首选语言」里选。The app follows your iPhone's language; to change it for this app only, go to Settings › Spektra Cam › Language.
+- **中英双语**：整个 App（包括分享菜单里的提示）跟着手机的系统语言显示中文或英文；只想换这个 App 的语言，到「设置 › Spektra Cam › 首选语言」里选。
 
 ## 2.1.6 的变化（相对 2.1.5）
 
@@ -204,8 +205,7 @@ open ios/SpektraLab.xcodeproj
 
 ## 已知限制
 
-- 只在 iPhone 17 Pro Max 上测试过（见“下载与安装”）。
-
+- 只在 iPhone 17 Pro Max 和 iPhone 14 Pro 上测试过（见“下载与安装”）。
 - 只支持 iPhone；没有 iPad 布局。
 - 没有视频。
 - HDR 增益图最长 2048 px。
