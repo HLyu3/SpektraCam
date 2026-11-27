@@ -1,6 +1,16 @@
-# Spektra Cam · an unofficial iOS port of SpektraLab
+<p align="center"><img src="docs/icon.png" width="128" alt="Spektra Cam icon"></p>
 
-[中文](README.md) | **English**
+<h1 align="center">Spektra Cam</h1>
+
+<p align="center">Shoot on iPhone, develop with SpektraLab's physical film engine.</p>
+
+<p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
+
+<p align="center"><b>Current version:</b> 2.1.7 (Build 15) · <b>Requires:</b> iOS 18+</p>
+
+<p align="center"><img src="https://img.shields.io/badge/iOS-18%2B-1f6feb?style=flat-square" alt="iOS 18+"> <img src="https://img.shields.io/badge/UI-SwiftUI-f05138?style=flat-square" alt="UI SwiftUI"> <img src="https://img.shields.io/badge/Engine-SpektraLab%202.4.1-8e44ad?style=flat-square" alt="Engine SpektraLab 2.4.1"> <img src="https://img.shields.io/badge/Version-2.1.7-555555?style=flat-square" alt="Version 2.1.7"> <img src="https://img.shields.io/badge/License-GPL--3.0-2e7d32?style=flat-square" alt="License GPL-3.0"></p>
+
+<p align="center"><a href="../../releases/latest">Download</a> · <a href="#recommended-add-the-source-sidestore--altstore">Add the source</a> · <a href="#building-locally">Build locally</a></p>
 
 **Spektra Cam is an unofficial iPhone port of [SpektraLab](https://github.com/JamesQiu2005/SpektraLab), the Mac film-developing app.** It uses the same physical film engine — film exposure, dye layers, grain, halation, the enlarger and the paper, computed all the way through rather than a LUT laid over the photo — and adds a camera, a light table and more on the iPhone.
 

@@ -1,6 +1,16 @@
-# Spektra Cam · SpektraLab 非官方 iOS 移植版
+<p align="center"><img src="docs/icon.png" width="128" alt="Spektra Cam 图标"></p>
 
-**中文** | [English](README.en.md)
+<h1 align="center">Spektra Cam</h1>
+
+<p align="center">在 iPhone 上拍照，用 SpektraLab 的胶片物理引擎冲洗。</p>
+
+<p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
+
+<p align="center"><b>当前版本：</b>2.1.7（Build 15） · <b>系统要求：</b>iOS 18+</p>
+
+<p align="center"><img src="https://img.shields.io/badge/iOS-18%2B-1f6feb?style=flat-square" alt="iOS 18+"> <img src="https://img.shields.io/badge/UI-SwiftUI-f05138?style=flat-square" alt="UI SwiftUI"> <img src="https://img.shields.io/badge/%E5%BC%95%E6%93%8E-SpektraLab%202.4.1-8e44ad?style=flat-square" alt="引擎 SpektraLab 2.4.1"> <img src="https://img.shields.io/badge/Version-2.1.7-555555?style=flat-square" alt="Version 2.1.7"> <img src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF-GPL--3.0-2e7d32?style=flat-square" alt="许可 GPL-3.0"></p>
+
+<p align="center"><a href="../../releases/latest">下载最新版</a> · <a href="#推荐添加软件源sidestore--altstore">添加软件源</a> · <a href="#本地构建">本地构建</a></p>
 
 **Spektra Cam 是 [SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（Mac 上的胶片冲洗软件）的非官方 iPhone 移植版。** 用的是同一个胶片物理引擎——胶片曝光、染料层、颗粒、光晕、放大机与相纸，一路算下来，而不是给照片套一张 LUT——并在 iPhone 上加了相机、观片台等功能。
 
