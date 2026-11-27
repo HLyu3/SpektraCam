@@ -18,6 +18,18 @@
 
 ## 下载与安装
 
+### 推荐：添加软件源（SideStore / AltStore）
+
+在 SideStore 或 AltStore 的「Sources / 源」里点 ＋，粘贴下面的地址，然后在源里安装 Spektra Cam。以后有新版本，直接在 App 里点「更新」，不用再下载安装包。
+
+```
+https://raw.githubusercontent.com/HLyu3/SpektraCam/main/source.json
+```
+
+Add this source in SideStore / AltStore (Sources › ＋), install Spektra Cam from it, and update in place whenever a new version comes out.
+
+### 或者：下载安装包
+
 到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.1.7-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
 
 | 工具 | 做法 |

@@ -1,0 +1,73 @@
+{
+  "name": "Spektra Cam",
+  "identifier": "io.github.hlyu3.spektracam.source",
+  "subtitle": "胶片相机 · Film camera for iPhone",
+  "description": "Spektra Cam 的软件源：添加后在 SideStore / AltStore 里直接安装和更新。\nThe Spektra Cam source: add it to SideStore / AltStore to install and update in place.",
+  "iconURL": "https://raw.githubusercontent.com/HLyu3/SpektraCam/main/docs/icon.png",
+  "website": "https://github.com/HLyu3/SpektraCam",
+  "tintColor": "#EF9A30",
+  "featuredApps": [
+    "io.github.hlyu3.spektracam"
+  ],
+  "apps": [
+    {
+      "name": "Spektra Cam",
+      "bundleIdentifier": "io.github.hlyu3.spektracam",
+      "developerName": "HLyu3",
+      "subtitle": "胶片相机 · Physically based film camera",
+      "localizedDescription": "SpektraLab（Mac 胶片冲洗软件）的非官方 iPhone 版：用同一个胶片物理引擎冲洗照片——胶片曝光、染料层、颗粒、光晕、放大机与相纸一路算下来。带 ProRAW 相机、30 款胶片、暗房编辑、观片台，中英双语。\n\nAn unofficial iPhone port of SpektraLab, the Mac film-developing app: photos are developed by the same physical film engine — exposure, dye layers, grain, halation, enlarger and paper. ProRAW camera, 30 film stocks, darkroom editor, light table; Chinese and English.",
+      "iconURL": "https://raw.githubusercontent.com/HLyu3/SpektraCam/main/docs/icon.png",
+      "tintColor": "#EF9A30",
+      "category": "photo-video",
+      "screenshots": [
+        "https://raw.githubusercontent.com/HLyu3/SpektraCam/main/docs/screenshots/library.png",
+        "https://raw.githubusercontent.com/HLyu3/SpektraCam/main/docs/screenshots/editor.png",
+        "https://raw.githubusercontent.com/HLyu3/SpektraCam/main/docs/screenshots/camera.png",
+        "https://raw.githubusercontent.com/HLyu3/SpektraCam/main/docs/screenshots/lighttable.png",
+        "https://raw.githubusercontent.com/HLyu3/SpektraCam/main/docs/screenshots/recipes.png",
+        "https://raw.githubusercontent.com/HLyu3/SpektraCam/main/docs/screenshots/settings.png"
+      ],
+      "versions": [
+        {
+          "version": "2.1.7",
+          "buildVersion": "15",
+          "date": "2026-11-18",
+          "size": 22014018,
+          "minOSVersion": "18.0",
+          "downloadURL": "https://github.com/HLyu3/SpektraCam/releases/download/v2.1.7/SpektraCam-2.1.7-unsigned.ipa",
+          "localizedDescription": "中英双语：整个 App 跟着手机语言显示中文或英文。\nChinese and English: the whole app follows your iPhone's language."
+        },
+        {
+          "version": "2.1.6",
+          "buildVersion": "14",
+          "date": "2026-11-18",
+          "size": 21938006,
+          "minOSVersion": "18.0",
+          "downloadURL": "https://github.com/HLyu3/SpektraCam/releases/download/v2.1.6/SpektraCam-2.1.6-unsigned.ipa",
+          "localizedDescription": "前置相机用方形传感器（ProRAW、横竖拍、0.6×）；片边照片能导出；反转片直接扫描；胶片按类型排。\nFront camera on its square sensor (ProRAW, portrait/landscape, 0.6×); film-edge exports fixed; slides scanned; films grouped by type."
+        },
+        {
+          "version": "2.1.5",
+          "buildVersion": "13",
+          "date": "2026-11-17",
+          "size": 21918294,
+          "minOSVersion": "18.0",
+          "downloadURL": "https://github.com/HLyu3/SpektraCam/releases/download/v2.1.5/SpektraCam-2.1.5-unsigned.ipa",
+          "localizedDescription": "颜色和 Mac 版一致；拍完后台冲洗；进编辑更快；去掉底部导航栏。\nColour matches the Mac app; shots develop in the background; faster editor; no tab bar."
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [
+          "com.apple.security.application-groups",
+          "com.apple.developer.kernel.increased-memory-limit"
+        ],
+        "privacy": {
+          "NSCameraUsageDescription": "Spektra Cam 用相机拍照，拍下的照片会放进你的图库，按装好的胶卷冲洗。",
+          "NSPhotoLibraryAddUsageDescription": "Spektra Cam 需要保存你冲洗出的照片到相册。",
+          "NSPhotoLibraryUsageDescription": "来源设为“系统相册”时，Spektra Cam 直接读取相册里的原图来冲洗，不会改动它们。"
+        }
+      }
+    }
+  ],
+  "news": []
+}
