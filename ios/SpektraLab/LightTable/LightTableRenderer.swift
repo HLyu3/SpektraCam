@@ -312,7 +312,33 @@ final class LightTableRenderer: @unchecked Sendable {
               let enc = cb.makeRenderCommandEncoder(descriptor: pass(target, dark: scene.darkDesk)) else { return nil }
         encode(scene, Camera(centre: CGPoint(x: (x0 + x1) / 2, y: (y0 + y1) / 2), spanMM: CGSize(width: x1 - x0, height: y1 - y0), bias: -0.35), enc)
         enc.endEncoding()
-        return readBack(target, commandBuffer: cb)
+        return readBackHalf(target, commandBuffer: cb)
+    }
+
+    /// `readBack` for this renderer's own half-float target (`pixelFormat`): its pixels as an 8-bit Display P3 image,
+    /// anything past white (the EDR backlight) clipped to white. Commits `cb` and waits for it.
+    func readBackHalf(_ target: MTLTexture, commandBuffer cb: MTLCommandBuffer) -> CGImage? {
+        let w = target.width, h = target.height, rowBytes = w * 8
+        guard let out = device.makeBuffer(length: rowBytes * h, options: .storageModeShared),
+              let blit = cb.makeBlitCommandEncoder() else { return nil }
+        blit.copy(from: target, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                  sourceSize: MTLSize(width: w, height: h, depth: 1), to: out, destinationOffset: 0,
+                  destinationBytesPerRow: rowBytes, destinationBytesPerImage: rowBytes * h)
+        blit.endEncoding()
+        cb.commit()
+        cb.waitUntilCompleted()
+        guard cb.status == .completed,
+              let provider = CGDataProvider(data: Data(bytes: out.contents(), count: rowBytes * h) as CFData) else { return nil }
+        let info = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue | CGBitmapInfo.floatComponents.rawValue
+                                | CGBitmapInfo.byteOrder16Little.rawValue)
+        guard let half = CGImage(width: w, height: h, bitsPerComponent: 16, bitsPerPixel: 64, bytesPerRow: rowBytes,
+                                 space: CGColorSpace(name: CGColorSpace.extendedDisplayP3)!, bitmapInfo: info, provider: provider,
+                                 decode: nil, shouldInterpolate: true, intent: .defaultIntent),
+              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpace(name: CGColorSpace.displayP3)!,
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        ctx.draw(half, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()
     }
 
     /// One tile of an export (`LightTableExport`): the scene through `camera` into `target`, cleared

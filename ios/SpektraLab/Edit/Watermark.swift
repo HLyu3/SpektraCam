@@ -173,12 +173,19 @@ final class WatermarkShelf: ObservableObject {
 
 // MARK: - the preview overlay
 
-/// The marks over the canvas's picture (aspect-fit in `area`), as the export will draw them.
+/// The marks over the canvas's picture (aspect-fit in `area`), as the export will draw them. With `edit` set (the 水印
+/// tool open), each mark can be dragged, pinched and turned on the picture itself (upstream's on-canvas handles,
+/// simplified): the new place is measured again from the nearest corner, as the panel's sliders measure it.
 struct WatermarkOverlay: View {
     let placements: [WatermarkPlacement]
     let shelf: WatermarkShelf
     let picture: CGSize
     let area: CGSize
+    var edit: ((WatermarkPlacement) -> Void)? = nil
+
+    /// The placement a gesture started from (one mark at a time).
+    @State private var start: WatermarkPlacement?
+    @GestureState private var touching: UUID?
 
     var body: some View {
         let k = min(area.width / max(picture.width, 1), area.height / max(picture.height, 1))
@@ -186,7 +193,8 @@ struct WatermarkOverlay: View {
         ZStack(alignment: .topLeading) {
             ForEach(placements) { p in
                 if let mark = shelf.image(p.mark) {
-                    let f = p.frame(canvas: shown, aspect: Double(mark.width) / Double(max(mark.height, 1)))
+                    let aspect = Double(mark.width) / Double(max(mark.height, 1))
+                    let f = p.frame(canvas: shown, aspect: aspect)
                     Group {
                         if let fill = p.fill {
                             Rectangle().fill(fill == "black" ? Color.black : Color.white)
@@ -195,16 +203,65 @@ struct WatermarkOverlay: View {
                             Image(decorative: mark, scale: 1).resizable()
                         }
                     }
-                    .frame(width: f.size.width, height: f.size.height)
-                    .rotationEffect(.degrees(p.rotation))
                     .opacity(p.opacity)
+                    .frame(width: f.size.width, height: f.size.height)
+                    .overlay {
+                        if edit != nil {
+                            Rectangle()
+                                .strokeBorder(Color.labRed.opacity(touching == p.id ? 1 : 0.7),
+                                              style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                                .padding(-6)
+                        }
+                    }
+                    .contentShape(Rectangle().inset(by: -16))     // a small mark still takes a finger
+                    .rotationEffect(.degrees(p.rotation))
                     .position(f.center)
+                    .gesture(edit == nil ? nil : handles(p, canvas: shown))
                 }
             }
         }
         .frame(width: shown.width, height: shown.height)
         .frame(width: area.width, height: area.height)
-        .allowsHitTesting(false)
+        .allowsHitTesting(edit != nil)
+    }
+
+    /// Drag to move, pinch to size, two fingers to turn — together, like a photo in Photos' markup.
+    private func handles(_ p: WatermarkPlacement, canvas: CGSize) -> some Gesture {
+        let drag = DragGesture(minimumDistance: 0, coordinateSpace: .local)
+        let pinch = MagnifyGesture()
+        let turn = RotateGesture()
+        return SimultaneousGesture(SimultaneousGesture(drag, pinch), turn)
+            .updating($touching) { _, state, _ in state = p.id }
+            .onChanged { value in
+                let base = start ?? p
+                if start == nil { start = p }
+                let move = value.first?.first?.translation ?? .zero
+                let scale = value.first?.second?.magnification ?? 1
+                let angle = value.second?.rotation.degrees ?? 0
+                edit?(Self.moved(base, by: move, scale: scale, turn: angle, canvas: canvas))
+            }
+            .onEnded { _ in start = nil }
+    }
+
+    /// `p` moved by `move` points, its size × `scale`, turned by `turn` degrees, measured from its new nearest corner.
+    static func moved(_ p: WatermarkPlacement, by move: CGSize, scale: CGFloat, turn: Double, canvas: CGSize) -> WatermarkPlacement {
+        let s = Double(min(canvas.width, canvas.height))
+        guard s > 0 else { return p }
+        let w = Double(canvas.width), h = Double(canvas.height)
+        // The centre now, in points from the top-left, kept on the picture.
+        var cx = (p.isRight ? w - p.dx * s : p.dx * s) + Double(move.width)
+        var cy = (p.isBottom ? h - p.dy * s : p.dy * s) + Double(move.height)
+        cx = min(max(cx, 0), w); cy = min(max(cy, 0), h)
+        var q = p
+        let right = cx > w / 2, bottom = cy > h / 2
+        q.anchor = (bottom ? "b" : "t") + (right ? "r" : "l")
+        q.dx = (right ? w - cx : cx) / s
+        q.dy = (bottom ? h - cy : cy) / s
+        q.size = min(max(p.size * Double(scale), 0.03), 1)
+        var r = (p.rotation + turn).truncatingRemainder(dividingBy: 360)
+        if r > 180 { r -= 360 } else if r < -180 { r += 360 }
+        q.rotation = abs(r) < 2 ? 0 : r          // snaps level near 0°
+        return q
     }
 }
 

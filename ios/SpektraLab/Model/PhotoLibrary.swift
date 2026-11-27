@@ -176,7 +176,10 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
         // Grain and halation are sized against the frame: the film edge's gate decides it, else the format picker.
         delta["film_format_mm"] = .number(filmBorderEnabled ? gate.longEdgeMM : (filmFormatMM ?? 36))
         delta["overscan_active"] = .bool(filmBorderEnabled)
-        delta["overscan_format"] = .string(gate.id)
+        // The pair gate is the engine's half frame, exposed twice.
+        let pair = gate.id == FilmGateCatalog.halfPairID
+        delta["overscan_format"] = .string(pair ? "135_half" : gate.id)
+        delta["overscan_pair"] = .bool(pair && filmBorderEnabled)
         delta["overscan_mode"] = .string("strip")
         delta["overscan_gate"] = .string("auto")
         delta["overscan_holes"] = .string("white")

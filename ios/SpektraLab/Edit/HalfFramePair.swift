@@ -164,6 +164,8 @@ import SwiftUI
 struct PairSheet: View {
     @ObservedObject var model: ViewModel
     @State var spec: PairSpec
+    /// The pair photo being made again (its file replaced, its look and crop kept); nil = a new photo.
+    var replacing: UUID? = nil
     let done: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var working = false
@@ -210,14 +212,14 @@ struct PairSheet: View {
                 Button {
                     working = true
                     Task {
-                        let made = await model.makePair(spec)
+                        let made = await model.makePair(spec, replacing: replacing)
                         working = false
                         if made != nil { done(); dismiss() }
                     }
                 } label: {
                     HStack {
                         if working { ProgressView().tint(.white) }
-                        Text(working ? String(localized: "正在合成…") : String(localized: "生成双拼"))
+                        Text(working ? String(localized: "正在合成…") : replacing == nil ? String(localized: "生成双拼") : String(localized: "更新双拼"))
                     }
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 50)

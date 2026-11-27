@@ -324,6 +324,9 @@ final class ViewModel: ObservableObject {
         papers.first { $0.id == printStock }?.name ?? printStock
     }
 
+    /// The photo in the editor is a half-frame pair (its 片幅 row offers 半格双拼).
+    var editingIsPair: Bool { editingPhotoID.flatMap { id in library.first { $0.id == id } }?.pair != nil }
+
     var selectedGate: FilmGate {
         FilmGateCatalog.resolve(selection: overscanFormat, imageAspect: naturalAspect)
     }
@@ -2217,13 +2220,31 @@ final class ViewModel: ObservableObject {
         func fail(_ why: String) -> MTLTexture? { NSLog("SpektraLab original: FAILED %@", why); return nil }
         guard let originalData else { return fail("no original data") }
         guard let device = renderer?.device else { return fail("no canvas device") }
-        guard let src = CGImageSourceCreateWithData(originalData as CFData, nil) else { return fail("no image source") }
-        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
-                                        kCGImageSourceCreateThumbnailWithTransform: true,
-                                        kCGImageSourceThumbnailMaxPixelSize: 2048]
-        guard let whole = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary) else { return fail("no thumbnail") }
-        guard let space = Layer2Renderer.previewSpace as CGColorSpace?,     // the canvas's space
-              let image = crop.isIdentity ? whole : crop.render(whole, space: space),
+        guard let space = Layer2Renderer.previewSpace as CGColorSpace? else { return fail("no colour space") }
+        // ImageIO's quick thumbnail first; a RAW it cannot develop (nil, its tiny embedded preview, or black — a RAW
+        // shared in from another app's camera showed nothing) goes the way 无胶片 does: Core Image, then LibRaw.
+        let quick = CGImageSourceCreateWithData(originalData as CFData, nil).flatMap { src in
+            CGImageSourceCreateThumbnailAtIndex(src, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                                         kCGImageSourceCreateThumbnailWithTransform: true,
+                                                         kCGImageSourceThumbnailMaxPixelSize: 2048] as CFDictionary)
+        }
+        let isRAW = originalTypeHint?.conforms(to: .rawImage) == true
+        let usable = quick.flatMap { q -> CGImage? in
+            guard isRAW else { return q }
+            return max(q.width, q.height) >= 1024 && !ImageDecoder.isBlack(CIImage(cgImage: q)) ? q : nil
+        }
+        let picture: CGImage
+        if let usable {
+            guard let cut = crop.isIdentity ? usable : crop.render(usable, space: space) else { return fail("no crop") }
+            picture = cut
+        } else {
+            NSLog("SpektraLab original: ImageIO gave %@, developing it instead", quick == nil ? "nothing" : "a preview")
+            do {
+                picture = try Self.plainPicture(originalData, maxLongEdge: 2048, crop: crop.isIdentity ? nil : crop,
+                                                space: space, typeHint: originalTypeHint)
+            } catch { return fail("develop: \(error)") }
+        }
+        guard let image = Optional(picture),
               let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
                                       bytesPerRow: image.width * 4, space: space,
                                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return fail("no bitmap context") }
@@ -2552,7 +2573,7 @@ final class ViewModel: ObservableObject {
     /// Compose two library photographs into one half-frame piece and add it to the wall.
     /// Each is cut to an 18 × 24 hole, metered alone, and set beside the other.
     @discardableResult
-    func makePair(_ spec: PairSpec) async -> UUID? {
+    func makePair(_ spec: PairSpec, replacing: UUID? = nil) async -> UUID? {
         guard libraryBusy == nil,
               let left = library.first(where: { $0.id == spec.left }),
               let right = library.first(where: { $0.id == spec.right }) else { return nil }
@@ -2600,6 +2621,25 @@ final class ViewModel: ObservableObject {
                              Float(pow(2, PairComposer.meter(holes[1]) + spec.rightEV)))
                 return try PairComposer.heif(PairComposer.compose(holes[0], holes[1], gains: gains))
             }.value
+            // 编辑双拼: the same photo's file made again — its look, crop, favourite and place on the wall stay; its
+            // develops go, so the next view or open develops the new picture.
+            if let replacing, let index = library.firstIndex(where: { $0.id == replacing }) {
+                let photo = library[index]
+                try heif.write(to: originalURL(for: photo), options: .atomic)
+                if let size = ExportWriter.pixelSize(of: heif) {
+                    library[index].pixelWidth = size.width
+                    library[index].pixelHeight = size.height
+                    library[index].sourceAspect = Double(size.width) / Double(max(size.height, 1))
+                }
+                library[index].pair = spec
+                for url in [previewFrameURL(for: replacing), largeDevelopURL(for: replacing)] {
+                    try? FileManager.default.removeItem(at: url)
+                }
+                saveLibraryManifest()
+                queueDevelop(replacing)
+                libraryMessage = String(localized: "双拼已更新")
+                return replacing
+            }
             let pairs = library.filter { $0.pair != nil }.count
             let id = try await addPhoto(data: heif, name: String(format: String(localized: "双拼 %02d"), pairs + 1), typeHint: .heic)
             if let index = library.firstIndex(where: { $0.id == id }) {
@@ -2703,17 +2743,22 @@ final class ViewModel: ObservableObject {
     /// (1.9 GB left) were killed in the full-size render. That is 90–100 bytes a pixel in all;
     /// 110 keeps a margin, which lands a 48 MP original at about 25 MP. A free developer account
     /// cannot ask for the larger memory limit.
-    /// `striped` false (a film edge: the engine's overscan cannot render in bands) costs about twice the memory a
-    /// pixel — shortcut: 220 bytes is an estimate, not measured; measure an unstriped 48 MP export to tighten it.
+    /// `striped` false (a film edge: the engine's overscan cannot render in bands) costs more a pixel. Measured
+    /// 2026-11-27 on the 17 Pro Max: a 20.8 MP frame with the film edge used 2718 MB at its lowest — 137 bytes a source
+    /// pixel (the rebate adds ~50 % of picture); 165 keeps ~20 % in hand for gates with a wider rebate.
     static func exportLongEdgeCap(for data: Data, striped: Bool = true) -> Int? {
         guard let size = ExportWriter.pixelSize(of: data) else { return nil }
         let pixels = Double(size.width) * Double(size.height)
         let budget = Double(os_proc_available_memory()) - 400 * 1_048_576
-        let affordable = max(budget, 0) / (striped ? 110 : 220)
+        let affordable = max(budget, 0) / (striped ? 110 : 165)
         guard pixels > affordable, affordable > 0 else { return nil }
         let long = Double(max(size.width, size.height))
         return max(1024, Int(long * (affordable / pixels).squareRoot()))
     }
+
+    /// What the editor says when an export ends (a capsule for a few seconds).
+    struct ExportNotice: Equatable { let ok: Bool; let text: String; let id = UUID() }
+    @Published var exportNotice: ExportNotice?
 
     /// An export holds the engine: the editor is locked and renders wait until it is done.
     @Published private(set) var exporting = false
@@ -2767,6 +2812,14 @@ final class ViewModel: ObservableObject {
                   Int(os_proc_available_memory() >> 20))
         }
         stage(String(localized: "解码原图 · \(options.format.title) · \(options.colorSpace.title)"))
+        // The lowest free memory of the whole export (sampled every 20 ms): what the memory cap is measured from.
+        let watch = MemoryLowWater()
+        let startFree = Int(os_proc_available_memory() >> 20)
+        defer {
+            let low = watch.stop()
+            NSLog("SpektraLab export: memory start %d MB, lowest %d MB, used %d MB, %@", startFree, low, startFree - low,
+                  filmBorderEnabled ? "unstriped (film edge)" : "striped")
+        }
         var shareURL: URL?
         var reopened = false
 
@@ -2949,9 +3002,16 @@ final class ViewModel: ObservableObject {
         if let failure {
             state = .failed(failure)
             statusText = String(localized: "导出失败")
+            if !batchExporting {
+                withAnimation(.snappy) { exportNotice = ExportNotice(ok: false, text: String(localized: "导出失败：\(failure)")) }
+            }
         } else if let doneText {
             state = .ready
             statusText = doneText
+            // Said on the page once the modal goes (a share sheet says it itself): without it, the modal simply
+            // vanished and an export read as a crash (the owner, 2026-11-27).
+            // Not in a batch: that runs headless and says its own count on the wall.
+            if shareURL == nil, !batchExporting { withAnimation(.snappy) { exportNotice = ExportNotice(ok: true, text: doneText) } }
         }
         // Back to the sRGB preview session, the same way a film change does.
         // Without it the next preview would come from the full-size export
@@ -3295,4 +3355,21 @@ private struct PreviewFrame: @unchecked Sendable {
     let height: Int
     let elapsedMs: Double
     let progressID: String
+}
+
+/// The lowest `os_proc_available_memory()` seen between creation and `stop()`, in MB.
+final class MemoryLowWater: @unchecked Sendable {
+    private let lock = NSLock()
+    private var low = Int.max
+    private let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+    init() {
+        timer.schedule(deadline: .now(), repeating: .milliseconds(20))
+        timer.setEventHandler { [weak self] in
+            let free = Int(os_proc_available_memory() >> 20)
+            guard let self else { return }
+            self.lock.lock(); self.low = min(self.low, free); self.lock.unlock()
+        }
+        timer.resume()
+    }
+    func stop() -> Int { timer.cancel(); lock.lock(); defer { lock.unlock() }; return low }
 }

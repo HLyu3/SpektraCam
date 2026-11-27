@@ -73,6 +73,7 @@ enum FilmStripOrientation: String, CaseIterable, Identifiable, Sendable {
 
 enum FilmGateCatalog {
     static let automaticID = "auto"
+    static let halfPairID = "135_half_pair"
 
     /// The measured gates shipped by the engine. `135` is first because it is
     /// the one with real sprockets and a DX rebate; the 120 gates follow.
@@ -108,6 +109,10 @@ enum FilmGateCatalog {
                  longEdgeMM: 24.89, shortEdgeMM: 18.67, supportsDateBack: false, manualOnly: true),
         FilmGate(id: "65_5perf", title: String(localized: "65 mm 电影"), detail: String(localized: "5 齿孔 · 宽银幕"),
                  longEdgeMM: 52.63, shortEdgeMM: 23.01, supportsDateBack: false, filmWidthMM: 64.97, manualOnly: true),
+        // A half-frame pair (`Edit/HalfFramePair.swift`): two 18 × 24 frames one advance (19 mm) apart on one 135 strip —
+        // the engine's 135_half with `overscan_pair`. The pair's own shape, 37 × 24, so the crop leaves it whole.
+        FilmGate(id: FilmGateCatalog.halfPairID, title: String(localized: "半格双拼"), detail: String(localized: "两张半格 · 135 片边"),
+                 longEdgeMM: 37.0, shortEdgeMM: 24.0, supportsDateBack: false, manualOnly: true),
         FilmGate(id: "65_15perf", title: "IMAX", detail: String(localized: "65 mm · 15 齿孔 · 横向走片"),
                  longEdgeMM: 70.41, shortEdgeMM: 52.63, supportsDateBack: false, filmWidthMM: 64.97, manualOnly: true),
     ]
@@ -135,6 +140,9 @@ enum FilmGateCatalog {
         if abs(log(Double(source / square.aspect))) < 0.02 {
             return square
         }
+
+        // A half-frame pair is exactly 37 : 24 (3 % off 3 : 2, beyond the 2 % a match allows).
+        if let pair = gate(id: halfPairID), abs(log(Double(source / pair.aspect))) < 0.02 { return pair }
 
         let panoramas = gates.filter { $0.aspect >= 1.9 && !$0.manualOnly }
         if let panoramic = panoramas.min(by: {

@@ -33,6 +33,7 @@
 			sourceTree = "<group>";
 		};
 		B0CD24266E7DB1CB34C3C2FA /* Adjustments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Adjustments.swift"; sourceTree = "<group>"; };
+		F56B5ACED68A518C70A19BA7 /* AutoUpright.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AutoUpright.swift"; sourceTree = "<group>"; };
 		76DACEB24A36AEDCAB891359 /* CropScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CropScreen.swift"; sourceTree = "<group>"; };
 		656533944E85E5AD552CC3B3 /* CurveMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CurveMath.swift"; sourceTree = "<group>"; };
 		CED46D211B3CD4077F7D8B31 /* EditorDeck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorDeck.swift"; sourceTree = "<group>"; };
@@ -48,6 +49,7 @@
 			isa = PBXGroup;
 			children = (
 				B0CD24266E7DB1CB34C3C2FA /* Adjustments.swift */,
+				F56B5ACED68A518C70A19BA7 /* AutoUpright.swift */,
 				76DACEB24A36AEDCAB891359 /* CropScreen.swift */,
 				656533944E85E5AD552CC3B3 /* CurveMath.swift */,
 				CED46D211B3CD4077F7D8B31 /* EditorDeck.swift */,
@@ -203,6 +205,7 @@
 		A3683B4388735BD2619A86E7 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
 		8874395C8D41849932265430 /* ExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExportSheet.swift"; sourceTree = "<group>"; };
 		AC1103EAAEEF5ACAFDF57005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		A73F3D8048EF638075F1BDB5 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = "InfoPlist.xcstrings"; sourceTree = "<group>"; };
 		6D13D799C8E7F3A2036326BA /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = "Localizable.xcstrings"; sourceTree = "<group>"; };
 		08561BE9E56B23AE2089EC17 /* PhotoLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PhotoLibraryView.swift"; sourceTree = "<group>"; };
 		5536740621F6631B2197BCC3 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
@@ -226,6 +229,7 @@
 				A3683B4388735BD2619A86E7 /* ContentView.swift */,
 				8874395C8D41849932265430 /* ExportSheet.swift */,
 				AC1103EAAEEF5ACAFDF57005 /* Info.plist */,
+				A73F3D8048EF638075F1BDB5 /* InfoPlist.xcstrings */,
 				6D13D799C8E7F3A2036326BA /* Localizable.xcstrings */,
 				08561BE9E56B23AE2089EC17 /* PhotoLibraryView.swift */,
 				5536740621F6631B2197BCC3 /* SettingsView.swift */,
@@ -540,6 +544,7 @@
 		AB44C8CFF36B5CF8AEE7F90F /* CameraView.swift */ = {isa = PBXBuildFile; fileRef = 79CABA3BA4F03790402F16E4; };
 		B919C1A93DA578384525C954 /* FilmViewfinder.swift */ = {isa = PBXBuildFile; fileRef = B416C9C160B7ED1FE5400EA3; };
 		9B9CC2FC5A339A4BCC26E7D1 /* Adjustments.swift */ = {isa = PBXBuildFile; fileRef = B0CD24266E7DB1CB34C3C2FA; };
+		1D5F8339D48E14242DBE010A /* AutoUpright.swift */ = {isa = PBXBuildFile; fileRef = F56B5ACED68A518C70A19BA7; };
 		572A4EE3A49E4158F84E8784 /* CropScreen.swift */ = {isa = PBXBuildFile; fileRef = 76DACEB24A36AEDCAB891359; };
 		E0CBC3DA27261B658E36EFC8 /* CurveMath.swift */ = {isa = PBXBuildFile; fileRef = 656533944E85E5AD552CC3B3; };
 		9778111D94FFC466455766F8 /* EditorDeck.swift */ = {isa = PBXBuildFile; fileRef = CED46D211B3CD4077F7D8B31; };
@@ -721,6 +726,7 @@
 				AB44C8CFF36B5CF8AEE7F90F /* CameraView.swift */,
 				B919C1A93DA578384525C954 /* FilmViewfinder.swift */,
 				9B9CC2FC5A339A4BCC26E7D1 /* Adjustments.swift */,
+				1D5F8339D48E14242DBE010A /* AutoUpright.swift */,
 				572A4EE3A49E4158F84E8784 /* CropScreen.swift */,
 				E0CBC3DA27261B658E36EFC8 /* CurveMath.swift */,
 				9778111D94FFC466455766F8 /* EditorDeck.swift */,
@@ -896,6 +902,7 @@
 		};
 		B663863AD126A4768BAE9A7F /* Assets.xcassets */ = {isa = PBXBuildFile; fileRef = 89E16FC080E6CEAED03F1090; };
 		30D31A838BCFD72486198123 /* engine-assets.bin */ = {isa = PBXBuildFile; fileRef = 1B8D604DB29AAA97A51EA81A; };
+		7B72ED408F41C71746685D8C /* InfoPlist.xcstrings */ = {isa = PBXBuildFile; fileRef = A73F3D8048EF638075F1BDB5; };
 		3A8F79DA24F3BE7A8C9EEC44 /* Localizable.xcstrings */ = {isa = PBXBuildFile; fileRef = 6D13D799C8E7F3A2036326BA; };
 		C831EECBAB01524E02C71B42 /* app-resources */ = {
 			isa = PBXResourcesBuildPhase;
@@ -903,6 +910,7 @@
 			files = (
 				B663863AD126A4768BAE9A7F /* Assets.xcassets */,
 				30D31A838BCFD72486198123 /* engine-assets.bin */,
+				7B72ED408F41C71746685D8C /* InfoPlist.xcstrings */,
 				3A8F79DA24F3BE7A8C9EEC44 /* Localizable.xcstrings */
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -978,7 +986,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_DEBUG_DYLIB = NO;
@@ -988,7 +996,7 @@
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.7;
+				MARKETING_VERSION = 2.1.8;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
@@ -1012,14 +1020,14 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.7;
+				MARKETING_VERSION = 2.1.8;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
 				PRODUCT_NAME = ShareExtension;
@@ -1108,7 +1116,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1135,7 +1143,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 2.1.7;
+				MARKETING_VERSION = 2.1.8;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1168,7 +1176,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1192,7 +1200,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 2.1.7;
+				MARKETING_VERSION = 2.1.8;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = NO;

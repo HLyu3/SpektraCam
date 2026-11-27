@@ -45,6 +45,14 @@ struct EditTool: Identifiable {
 extension EditTool {
     @MainActor static func tools(in stage: EditStage) -> [EditTool] { all.filter { $0.stage == stage } }
 
+    /// Under 无胶片 the picture is the original as the system renders it: nothing of the lens, exposure, film or
+    /// paper reaches it — only the crop, the film picker (to choose one) and the finish (bar HDR, which needs a film).
+    static let noFilmTools: Set<String> = ["crop", "film", "light", "colour", "hsl", "curve", "balance", "mixer", "watermark"]
+
+    @MainActor static func tools(in stage: EditStage, noFilm: Bool) -> [EditTool] {
+        tools(in: stage).filter { !noFilm || noFilmTools.contains($0.id) }
+    }
+
     /// Sliders for these keys of `ParamCatalog`, as a tool's rows.
     @MainActor static func sliders(_ keys: [FilmParam], _ m: ViewModel) -> some View {
         ForEach(keys.compactMap { ParamCatalog.control(for: $0.key) }) { c in ParamRow(model: m, control: c) }
@@ -324,8 +332,13 @@ struct EditorDeck: View {
     @Binding var stage: EditStage
     @Binding var chosen: [EditStage: String]
 
-    private var tools: [EditTool] { EditTool.tools(in: stage) }
-    private var tool: EditTool? { tools.first { $0.id == chosen[stage] } ?? tools.first }
+    private var noFilm: Bool { model.recipe.noFilm == true }
+    private var tools: [EditTool] { EditTool.tools(in: current, noFilm: noFilm) }
+    /// The stages with something to do: under 无胶片 镜头 · 曝光 · 相纸 go (nothing of them reaches the picture).
+    private var stages: [EditStage] { EditStage.allCases.filter { !EditTool.tools(in: $0, noFilm: noFilm).isEmpty } }
+    /// The stage shown: a hidden one (left there by another photo) reads as the film.
+    private var current: EditStage { stages.contains(stage) ? stage : .film }
+    private var tool: EditTool? { tools.first { $0.id == chosen[current] } ?? tools.first }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -338,6 +351,10 @@ struct EditorDeck: View {
             .id(tool?.id)
             stageRow
         }
+        // Turning 无胶片 on while on a stage it hides: back to the film, where it is turned off again.
+        .onChange(of: noFilm) { _, on in
+            if on, !stages.contains(stage) { withAnimation(.easeOut(duration: 0.15)) { stage = .film } }
+        }
         .labGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
@@ -349,7 +366,7 @@ struct EditorDeck: View {
                 HStack(spacing: 4) {
                     ForEach(tools) { t in
                         let on = t.id == tool?.id
-                        Button { chosen[stage] = t.id } label: {
+                        Button { chosen[current] = t.id } label: {
                             HStack(spacing: 3) {
                                 Text(t.title)
                                 if t.modified(model) { Circle().fill(Color.labRed).frame(width: 4, height: 4) }
@@ -384,9 +401,9 @@ struct EditorDeck: View {
 
     private var stageRow: some View {
         HStack(spacing: 0) {
-            ForEach(EditStage.allCases) { s in
-                let on = s == stage
-                let moved = EditTool.tools(in: s).contains { $0.modified(model) }
+            ForEach(stages) { s in
+                let on = s == current
+                let moved = EditTool.tools(in: s, noFilm: noFilm).contains { $0.modified(model) }
                 Button { withAnimation(.easeOut(duration: 0.15)) { stage = s } } label: {
                     VStack(spacing: 3) {
                         Image(systemName: s.symbol)
@@ -507,6 +524,13 @@ struct StockPanel: View {
         if papers && model.recipe.noFilm == true {
             // 无胶片 is not printed: no paper to choose.
             Text(String(localized: "无胶片：不经过相纸。选一卷胶片后，这里可以换相纸。"))
+                .font(.footnote)
+                .foregroundStyle(Color.labCream.opacity(0.6))
+                .frame(maxWidth: .infinity, minHeight: 120)
+                .padding(.horizontal, 14)
+        } else if papers && model.catalog.isSlide(model.recipe.filmStock) {
+            // A slide is scanned, never printed (as the Mac app): no paper to choose.
+            Text(String(localized: "反转片直接扫描，不印在相纸上，所以这里没有相纸可选。换一卷负片后可以选相纸。"))
                 .font(.footnote)
                 .foregroundStyle(Color.labCream.opacity(0.6))
                 .frame(maxWidth: .infinity, minHeight: 120)

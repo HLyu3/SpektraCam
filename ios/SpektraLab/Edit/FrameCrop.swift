@@ -21,8 +21,16 @@ struct FrameCrop: Codable, Equatable, Sendable {
     /// manifests written before them decode.
     var turns: Int? = nil
     var mirrored: Bool? = nil
+    /// Perspective (keystone) correction, −1…1, applied FIRST, before the straighten: `keystoneV` widens the top
+    /// (positive) or the bottom — converging verticals of a building made upright —, `keystoneH` the left or the right.
+    /// Optional so older manifests decode; nil = none.
+    var keystoneV: Double? = nil
+    var keystoneH: Double? = nil
 
     static let maxAngle = 45.0
+    /// The strongest keystone: at ±1 one edge is drawn 1/(1−0.4) ≈ 1.7× the other.
+    static let keystoneStrength = 0.4
+    var hasKeystone: Bool { (keystoneV ?? 0) != 0 || (keystoneH ?? 0) != 0 }
     static let minSide = 0.08
 
     enum Aspect: String, Codable, CaseIterable, Sendable, Identifiable {
@@ -40,7 +48,9 @@ struct FrameCrop: Codable, Equatable, Sendable {
         }
     }
 
-    var isIdentity: Bool { cx == 0.5 && cy == 0.5 && width == 1 && height == 1 && angle == 0 && !isOriented }
+    var isIdentity: Bool {
+        cx == 0.5 && cy == 0.5 && width == 1 && height == 1 && angle == 0 && !isOriented && !hasKeystone
+    }
     var quarterTurns: Int { ((turns ?? 0) % 4 + 4) % 4 }
     var isOriented: Bool { quarterTurns != 0 || mirrored == true }
 
@@ -110,7 +120,85 @@ struct FrameCrop: Codable, Equatable, Sendable {
     func sourcePoint(_ v: CGPoint, in source: CGSize) -> CGPoint {
         let a = angle * .pi / 180, c = cos(a), s = sin(a)
         let dx = v.x - source.width / 2, dy = v.y - source.height / 2
-        return CGPoint(x: source.width / 2 + c * dx + s * dy, y: source.height / 2 - s * dx + c * dy)
+        return unwarp(CGPoint(x: source.width / 2 + c * dx + s * dy, y: source.height / 2 - s * dx + c * dy), in: source)
+    }
+
+    /// A point of the keystone-corrected picture back on the photograph (both in source pixels). The correction is a
+    /// projective map about the centre, in coordinates −1…1 across each side: shown (u, v) comes from
+    /// (u, v) / (1 − h·u − v·v'), h and v the two keystones × `keystoneStrength`. Far outside the picture: a point off it.
+    func unwarp(_ q: CGPoint, in source: CGSize) -> CGPoint {
+        guard hasKeystone else { return q }
+        let hw = source.width / 2, hh = source.height / 2
+        let u = (q.x - hw) / hw, v = (q.y - hh) / hh
+        let d = 1 - (keystoneH ?? 0) * Self.keystoneStrength * u - (keystoneV ?? 0) * Self.keystoneStrength * v
+        guard d > 0.05 else { return CGPoint(x: -1e9, y: -1e9) }
+        return CGPoint(x: hw + u / d * hw, y: hh + v / d * hh)
+    }
+
+    /// `image` with only the keystone correction, at its own size (the crop page's picture).
+    func keystoned(_ image: CGImage, space: CGColorSpace) -> CGImage? {
+        let (w, h) = (image.width, image.height)
+        guard let inCtx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: space,
+                                    bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+              let outCtx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: space,
+                                     bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+              let inData = inCtx.data, let outData = outCtx.data else { return nil }
+        inCtx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        // The crop page redraws this while a slider moves: plain Float arithmetic, nearest pixel, no per-pixel calls
+        // (sampling through `sourcePoint` took long enough that a drag queued redraws and none landed).
+        nonisolated(unsafe) let src = inData.assumingMemoryBound(to: UInt32.self)
+        nonisolated(unsafe) let dst = outData.assumingMemoryBound(to: UInt32.self)
+        let kh = Float((keystoneH ?? 0) * Self.keystoneStrength), kv = Float((keystoneV ?? 0) * Self.keystoneStrength)
+        let hw = Float(w) / 2, hh = Float(h) / 2
+        DispatchQueue.concurrentPerform(iterations: h) { y in
+            let v = (Float(y) + 0.5 - hh) / hh
+            for x in 0..<w {
+                let u = (Float(x) + 0.5 - hw) / hw
+                let d = 1 - kh * u - kv * v
+                var px: UInt32 = 0xFF00_0000                       // off the photograph: black
+                if d > 0.05 {
+                    let sx = Int(hw + u / d * hw), sy = Int(hh + v / d * hh)
+                    if sx >= 0, sy >= 0, sx < w, sy < h { px = src[sy * w + sx] }
+                }
+                dst[y * w + x] = px
+            }
+        }
+        return outCtx.makeImage()
+    }
+
+    /// Draws `image` through this crop by resampling each output pixel (bilinear, RGBA8): the way a keystone, which
+    /// no affine context transform can draw, is rendered.
+    private func sampled(_ image: CGImage, space: CGColorSpace) -> CGImage? {
+        let (w, h) = (image.width, image.height)
+        let source = CGSize(width: w, height: h)
+        let out = outputSize(source: source), r = rect(in: source)
+        guard let inCtx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: space,
+                                    bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+              let outCtx = CGContext(data: nil, width: out.width, height: out.height, bitsPerComponent: 8,
+                                     bytesPerRow: out.width * 4, space: space,
+                                     bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+              let inData = inCtx.data, let outData = outCtx.data else { return nil }
+        inCtx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))   // memory's first row is the top
+        nonisolated(unsafe) let src = inData.assumingMemoryBound(to: UInt8.self)
+        nonisolated(unsafe) let dst = outData.assumingMemoryBound(to: UInt8.self)
+        let ow = out.width, crop = self
+        DispatchQueue.concurrentPerform(iterations: out.height) { oy in
+            for ox in 0..<ow {
+                let p = crop.sourcePoint(CGPoint(x: r.minX + CGFloat(ox) + 0.5, y: r.minY + CGFloat(oy) + 0.5), in: source)
+                let fx = min(max(Float(p.x) - 0.5, 0), Float(w - 1)), fy = min(max(Float(p.y) - 0.5, 0), Float(h - 1))
+                let x0 = Int(fx), y0 = Int(fy), x1 = min(x0 + 1, w - 1), y1 = min(y0 + 1, h - 1)
+                let tx = fx - Float(x0), ty = fy - Float(y0)
+                let o = (oy * ow + ox) * 4
+                for k in 0..<3 {
+                    let a = Float(src[(y0 * w + x0) * 4 + k]), b = Float(src[(y0 * w + x1) * 4 + k])
+                    let c = Float(src[(y1 * w + x0) * 4 + k]), d = Float(src[(y1 * w + x1) * 4 + k])
+                    let top = a + (b - a) * tx, bottom = c + (d - c) * tx
+                    dst[o + k] = UInt8(min(max((top + (bottom - top) * ty).rounded(), 0), 255))
+                }
+                dst[o + 3] = 255
+            }
+        }
+        return outCtx.makeImage()
     }
 
     /// Every corner of the rectangle is on the photograph.
@@ -143,6 +231,21 @@ struct FrameCrop: Codable, Equatable, Sendable {
 
     /// Draws `image` (the uncropped photograph at any size) through this crop.
     func render(_ image: CGImage, space: CGColorSpace) -> CGImage? {
+        if hasKeystone {
+            var flat = self; flat.turns = nil; flat.mirrored = nil
+            guard let cut = flat.sampled(image, space: space) else { return nil }
+            guard isOriented, let ctx = CGContext(data: nil, width: cut.width, height: cut.height, bitsPerComponent: 8,
+                                                  bytesPerRow: cut.width * 4, space: space,
+                                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+                  let data = ctx.data?.assumingMemoryBound(to: UInt32.self) else { return cut }
+            ctx.draw(cut, in: CGRect(x: 0, y: 0, width: cut.width, height: cut.height))
+            let t = quarterTurns, (ow, oh) = t % 2 == 0 ? (cut.width, cut.height) : (cut.height, cut.width)
+            guard let turned = CGContext(data: nil, width: ow, height: oh, bitsPerComponent: 8, bytesPerRow: ow * 4,
+                                         space: space, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+                  let to = turned.data?.assumingMemoryBound(to: UInt32.self) else { return nil }
+            Self.orient(data, width: cut.width, height: cut.height, channels: 1, turns: t, mirrored: mirrored == true, into: to)
+            return turned.makeImage()
+        }
         let source = CGSize(width: image.width, height: image.height)
         let out = outputSize(source: source), r = rect(in: source)
         guard let ctx = CGContext(data: nil, width: out.width, height: out.height, bitsPerComponent: 8,
@@ -190,13 +293,15 @@ extension DecodedFrame {
         guard !crop.isIdentity else { return self }
         let source = CGSize(width: width, height: height)
         let out = crop.outputSize(source: source), r = crop.rect(in: source)
-        if crop.angle == 0 {
+        if crop.angle == 0 && !crop.hasKeystone {
             let x = min(max(Int(r.minX.rounded()), 0), width - 1), y = min(max(Int(r.minY.rounded()), 0), height - 1)
             return cropped(to: (x, y, min(out.width, width - x), min(out.height, height - y)))
         }
         let a = crop.angle * .pi / 180, c = Float(cos(a)), s = Float(sin(a))
         let (w, h, ow, oh) = (width, height, out.width, out.height)
         let halfW = Float(w) / 2, halfH = Float(h) / 2
+        let kh = Float((crop.keystoneH ?? 0) * FrameCrop.keystoneStrength), kv = Float((crop.keystoneV ?? 0) * FrameCrop.keystoneStrength)
+        let keystone = crop.hasKeystone
         let originX = Float(r.minX) + 0.5 - halfW, originY = Float(r.minY) + 0.5 - halfH
         var output = [Float](repeating: 0, count: ow * oh * 3)
         pixels.withUnsafeBufferPointer { src in
@@ -210,8 +315,14 @@ extension DecodedFrame {
                     var o = to + oy * ow * 3
                     for ox in 0..<ow {
                         let dx = originX + Float(ox)
-                        let fx = min(max(halfW + c * dx + s * dy - 0.5, 0), Float(w - 1))
-                        let fy = min(max(halfH - s * dx + c * dy - 0.5, 0), Float(h - 1))
+                        var qx = c * dx + s * dy, qy = -s * dx + c * dy       // from the centre
+                        if keystone {                                         // `FrameCrop.unwarp`, inline
+                            let u = qx / halfW, v = qy / halfH
+                            let d = max(1 - kh * u - kv * v, 0.05)
+                            qx = u / d * halfW; qy = v / d * halfH
+                        }
+                        let fx = min(max(halfW + qx - 0.5, 0), Float(w - 1))
+                        let fy = min(max(halfH + qy - 0.5, 0), Float(h - 1))
                         let x0 = Int(fx), y0 = Int(fy)
                         let x1 = min(x0 + 1, w - 1), y1 = min(y0 + 1, h - 1)
                         let tx = fx - Float(x0), ty = fy - Float(y0)

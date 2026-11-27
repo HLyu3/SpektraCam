@@ -5,6 +5,8 @@
 //  转 90° · 拉近 · 拿走.
 
 import SwiftUI
+import UniformTypeIdentifiers
+import ImageIO
 
 extension ViewModel {
     /// Every photo of the library as the light table reads it.
@@ -322,6 +324,8 @@ struct LightTablePane: View {
                     }
                     Button { table?.fit() } label: { Label(String(localized: "适合屏幕"), systemImage: "arrow.down.right.and.arrow.up.left") }
                 } label: { Label(String(localized: "灯箱"), systemImage: "rectangle.portrait") }
+                Button { exportTable() } label: { Label(String(localized: "导出观片台…"), systemImage: "square.and.arrow.up") }
+                    .disabled(count == 0)
                 Divider()
                 Group {
                 Button { arrange(String(localized: "排整齐")) { $0.tidyUp($0.model.order) } } label: { Label(String(localized: "排整齐"), systemImage: "square.grid.3x3") }
@@ -574,6 +578,19 @@ struct LightTablePane: View {
     }
 
     /// Films back to their size before a pinch: these, or all.
+    /// The whole table as one picture (4096 px on its long side, Display P3 JPEG), handed to the share sheet: save it
+    /// to Photos, AirDrop it, send it. Upstream's Poster / Contact Sheet export, as one plain picture.
+    private func exportTable() {
+        guard let table, let image = table.exportPicture(longEdge: 4096) else { return }
+        let stamp = Date().formatted(.iso8601.year().month().day())
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Spektra Cam \(String(localized: "观片台")) \(stamp).jpg")
+        try? FileManager.default.removeItem(at: url)
+        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: 0.92] as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { return }
+        ShareController.present(url: url) { try? FileManager.default.removeItem(at: url) }
+    }
+
     private func resetSizes(_ ids: [UUID]? = nil) {
         model.resetLightTableScales(ids)
         table?.sync(model.lightTableFrames)

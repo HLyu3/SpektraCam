@@ -126,6 +126,10 @@ struct EditorView: View {
     @State private var hiddenError: String?
     @State private var stage: EditStage = .film
     @State private var chosenTool: [EditStage: String] = [:]
+    /// The 水印 tool is open (finish stage): its marks can be moved on the picture.
+    private var editingMarks: Bool {
+        stage == .finish && chosenTool[.finish] == "watermark"
+    }
     @State private var immersive = false
     @State private var zoom: CGFloat = 1
     @State private var savedZoom: CGFloat = 1
@@ -237,6 +241,28 @@ struct EditorView: View {
                 .transition(.opacity)
                 .zIndex(10)
                 .accessibilityAddTraits(.isModal)
+            }
+
+            if let notice = model.exportNotice {
+                Label(notice.text, systemImage: notice.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(notice.ok ? Color.labCream : Color(red: 1, green: 0.6, blue: 0.5))
+                    .lineLimit(2)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 11)
+                    .background(Color.labInk.opacity(0.85), in: Capsule())
+                    .labGlass(in: Capsule())
+                    .padding(.horizontal, 24)
+                    .padding(.top, 64)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(11)
+                    .task(id: notice.id) {
+                        try? await Task.sleep(for: .seconds(notice.ok ? 2.5 : 5))
+                        withAnimation(.easeOut(duration: 0.25)) { if model.exportNotice?.id == notice.id { model.exportNotice = nil } }
+                    }
+                    .sensoryFeedback(notice.ok ? .success : .error, trigger: notice.id)
+                    .accessibilityAddTraits(.isStaticText)
             }
 
             if copyToast {
@@ -459,12 +485,20 @@ struct EditorView: View {
                             if let marks = model.recipe.watermarks, zoom <= 1, !model.showingOriginal,
                                let t = model.renderedTexture {
                                 WatermarkOverlay(placements: marks, shelf: model.watermarkShelf,
-                                                 picture: CGSize(width: t.width, height: t.height), area: proxy.size)
+                                                 picture: CGSize(width: t.width, height: t.height), area: proxy.size,
+                                                 edit: editingMarks ? { p in
+                                                     model.edit { r in
+                                                         var list = r.watermarks ?? []
+                                                         if let i = list.firstIndex(where: { $0.id == p.id }) { list[i] = p }
+                                                         r.watermarks = list
+                                                     }
+                                                 } : nil)
                             }
                         }
-                        .simultaneousGesture(imageGestures)
+                        // With the 水印 tool open the marks take the fingers: the picture's own zoom and hold stand down.
+                        .simultaneousGesture(imageGestures, including: editingMarks ? .subviews : .all)
                         .simultaneousGesture(pictureTapGesture)
-                        .simultaneousGesture(compareGesture)
+                        .simultaneousGesture(compareGesture, including: editingMarks ? .subviews : .all)
                         .onChange(of: comparing) { _, on in
                             if !on { compareEndedAt = Date() }
                             model.setShowingOriginal(on)
@@ -1077,7 +1111,8 @@ struct FilmEffectsSheet: View {
                     gateChip(id: FilmGateCatalog.automaticID,
                              title: String(localized: "自动"),
                              detail: model.selectedGate.title)
-                    ForEach(FilmGateCatalog.gates.filter { !$0.manualOnly || $0.id == "135_sprocket" }) { gate in
+                    ForEach(FilmGateCatalog.gates.filter { !$0.manualOnly || $0.id == "135_sprocket"
+                        || ($0.id == FilmGateCatalog.halfPairID && model.editingIsPair) }) { gate in
                         gateChip(id: gate.id, title: gate.title, detail: gate.detail)
                     }
                 }
@@ -1089,7 +1124,7 @@ struct FilmEffectsSheet: View {
                 .foregroundStyle(.secondary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
-                    ForEach(FilmGateCatalog.gates.filter { $0.manualOnly && $0.id != "135_sprocket" }) { gate in
+                    ForEach(FilmGateCatalog.gates.filter { $0.manualOnly && $0.id != "135_sprocket" && $0.id != FilmGateCatalog.halfPairID }) { gate in
                         gateChip(id: gate.id, title: gate.title, detail: gate.detail)
                     }
                 }

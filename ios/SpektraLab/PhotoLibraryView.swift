@@ -85,6 +85,8 @@ struct PhotoLibraryView: View {
     @State private var slide: SlideRun?
     private struct SlideRun { var order: [UUID]; var anchor: Int; var adding: Bool; var base: Set<UUID> }
     @State private var pairing: PairSpec?
+    /// The pair photo `pairing` remakes (编辑双拼), nil for a new pair.
+    @State private var pairReplacing: UUID?
     /// 查看: the photo tapped, and the wall's order to swipe through.
     private struct Viewing: Identifiable { let id: UUID; let ids: [UUID] }
     @State private var viewing: Viewing?
@@ -225,7 +227,8 @@ struct PhotoLibraryView: View {
             if phase == .active { model.pruneDeletedAssets() }
         }
         .sheet(item: $pairing) { spec in
-            PairSheet(model: model, spec: spec) { selected.removeAll() }
+            PairSheet(model: model, spec: spec, replacing: pairReplacing) { selected.removeAll() }
+                .onDisappear { pairReplacing = nil }
         }
         .animation(.snappy(duration: 0.22), value: model.libraryMessage)
         .animation(.easeInOut(duration: 0.18), value: model.libraryBusy)
@@ -750,6 +753,15 @@ struct PhotoLibraryView: View {
                             model.toggleFavorite(photo.id)
                         } label: {
                             Label(photo.favorite ? String(localized: "取消收藏") : String(localized: "收藏"), systemImage: photo.favorite ? "heart.slash" : "heart")
+                        }
+                        // A pair whose two pictures are still here can be made again: places, exposures, which is first.
+                        if let spec = photo.pair,
+                           model.library.contains(where: { $0.id == spec.left }),
+                           model.library.contains(where: { $0.id == spec.right }) {
+                            Button {
+                                pairReplacing = photo.id
+                                pairing = spec
+                            } label: { Label(String(localized: "编辑双拼"), systemImage: "rectangle.split.2x1") }
                         }
                         recipeButtons(photo)
                         Divider()

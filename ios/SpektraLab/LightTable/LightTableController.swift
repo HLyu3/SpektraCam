@@ -1219,6 +1219,18 @@ final class LightTableController {
         return (scene(), loupeDraw())
     }
 
+    /// The whole light box as a picture, `longEdge` pixels on its long side (the 导出 item): the films as they lie, the
+    /// pad lit at plain white (no EDR boost), a little desk round it. Nil without the GPU.
+    func exportPicture(longEdge: Double) -> CGImage? {
+        guard let renderer else { return nil }
+        var s = scene()
+        s.glow = 1
+        let half = model.half, m = 0.04 * max(half.width, half.height)
+        let (x0, x1, y0, y1) = (-half.width - m, half.width + m, -half.height - m, half.height + m)
+        let px = (x1 - x0) >= (y1 - y0) ? longEdge : longEdge * (x1 - x0) / (y1 - y0)
+        return renderer.picture(s, x0: x0, y0: y0, x1: x1, y1: y1, px: px)
+    }
+
     private func scene() -> LightTableRenderer.Scene {
         var films: [LightTableRenderer.Film] = []
         films.reserveCapacity(drawn.count)

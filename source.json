@@ -29,6 +29,15 @@
       ],
       "versions": [
         {
+          "version": "2.1.8",
+          "buildVersion": "16",
+          "date": "2026-11-27",
+          "size": 22103012,
+          "minOSVersion": "18.0",
+          "downloadURL": "https://github.com/HLyu3/SpektraCam/releases/download/v2.1.8/SpektraCam-2.1.8-unsigned.ipa",
+          "localizedDescription": "透视校正与「自动」扶正；观片台导出成一张图；双拼可再编辑、可加半格片边；水印直接在照片上拖动；无胶片时只留用得上的工具；权限弹窗有英文；导出完成会提示。\nPerspective correction with Auto; light table export; editable half-frame pairs with a pair film edge; watermarks moved on the photo; No Film shows only the tools that apply; English permission prompts; an export-done notice."
+        },
+        {
           "version": "2.1.7",
           "buildVersion": "15",
           "date": "2026-11-18",

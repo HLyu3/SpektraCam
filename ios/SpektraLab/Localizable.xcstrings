@@ -1468,6 +1468,22 @@
         }
       }
     },
+    "两张半格 · 135 片边": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Two half frames · 135 film edge"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "两张半格 · 135 片边"
+          }
+        }
+      }
+    },
     "两格各自测光，先拉到中灰，这里再各自加减。双击标题归零。": {
       "localizations": {
         "en": {
@@ -3164,6 +3180,22 @@
         }
       }
     },
+    "双拼已更新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pair updated"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双拼已更新"
+          }
+        }
+      }
+    },
     "反转片": {
       "localizations": {
         "en": {
@@ -3192,6 +3224,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "反转片 · 直接扫描，不印放"
+          }
+        }
+      }
+    },
+    "反转片直接扫描，不印在相纸上，所以这里没有相纸可选。换一卷负片后可以选相纸。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A slide is scanned directly, never printed on paper, so there is no paper to choose here. Load a negative film to choose a paper."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反转片直接扫描，不印在相纸上，所以这里没有相纸可选。换一卷负片后可以选相纸。"
           }
         }
       }
@@ -3245,6 +3293,7 @@
       }
     },
     "取景": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -3836,6 +3885,22 @@
         }
       }
     },
+    "垂直透视": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertical"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "垂直透视"
+          }
+        }
+      }
+    },
     "基于 SpektraLab 引擎（JamesQiu2005/SpektraLab）与它的 iOS 社区移植版（Minerchu/SpektraLab-iOS），GPL-3。胶片和相纸特性文件来自 Andrea Volpato 的 spektrafilm（CC BY-SA 4.0）。": {
       "localizations": {
         "en": {
@@ -4392,6 +4457,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "导出失败"
+          }
+        }
+      }
+    },
+    "导出失败：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export failed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出失败：%@"
+          }
+        }
+      }
+    },
+    "导出观片台…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Light Table…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出观片台…"
           }
         }
       }
@@ -5020,6 +5117,22 @@
         }
       }
     },
+    "已经是正的了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already straight"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已经是正的了"
+          }
+        }
+      }
+    },
     "已裁剪 · 拉直 %.1f°": {
       "localizations": {
         "en": {
@@ -5437,6 +5550,7 @@
       }
     },
     "快门": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -6429,6 +6543,7 @@
       }
     },
     "放大": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -6493,6 +6608,7 @@
       }
     },
     "效果": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -7180,6 +7296,22 @@
         }
       }
     },
+    "更新双拼": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Pair"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新双拼"
+          }
+        }
+      }
+    },
     "替换会把旧的移到“最近删除”。": {
       "localizations": {
         "en": {
@@ -7724,6 +7856,22 @@
         }
       }
     },
+    "正在找线…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finding lines…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在找线…"
+          }
+        }
+      }
+    },
     "正在更新缩略图…": {
       "localizations": {
         "en": {
@@ -7896,6 +8044,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "水平仪"
+          }
+        }
+      }
+    },
+    "水平透视": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontal"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水平透视"
+          }
+        }
+      }
+    },
+    "没找到可以对齐的直线": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No straight lines to align to"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没找到可以对齐的直线"
           }
         }
       }
@@ -9608,6 +9788,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "编辑"
+          }
+        }
+      }
+    },
+    "编辑双拼": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Pair"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑双拼"
           }
         }
       }

@@ -1,0 +1,54 @@
+{
+  "sourceLanguage": "zh-Hans",
+  "strings": {
+    "NSCameraUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spektra Cam uses the camera to take photos; they go into your library and are developed with the loaded film."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spektra Cam 用相机拍照，拍下的照片会放进你的图库，按装好的胶卷冲洗。"
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryAddUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spektra Cam saves the photos you develop to your photo library."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spektra Cam 需要保存你冲洗出的照片到相册。"
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With the source set to “System Library”, Spektra Cam reads the originals in your library to develop them, without changing them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源设为“系统相册”时，Spektra Cam 直接读取相册里的原图来冲洗，不会改动它们。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

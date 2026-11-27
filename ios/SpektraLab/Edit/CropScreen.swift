@@ -17,6 +17,13 @@ struct CropScreen: View {
     @State private var turnLag: Double = 0
     @State private var turnScale: CGFloat = 1
     @State private var stageArea: CGSize = .zero
+    /// The picture with the keystone drawn in (the crop's turn and straighten are the stage's own); nil = none.
+    @State private var keystoned: UIImage?
+    /// The picture at most 1000 px, made once for those redraws.
+    @State private var small: CGImage?
+    /// 自动 running, and what it said when it found nothing.
+    @State private var autoBusy = false
+    @State private var autoNote: String?
 
     init(image: UIImage, onDone: @escaping (FrameCrop) -> Void, onCancel: @escaping () -> Void, crop: FrameCrop) {
         self.image = image; self.onDone = onDone; self.onCancel = onCancel
@@ -36,6 +43,49 @@ struct CropScreen: View {
     private var source: CGSize { CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale) }
 
     var body: some View {
+        content
+            .overlay(alignment: .top) {
+                if let autoNote {
+                    Text(autoNote)
+                        .font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 14).frame(height: 34)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.top, 64)
+                        .transition(.opacity)
+                        .allowsHitTesting(false)
+                }
+            }
+            // The keystoned picture, redrawn (small, off the main thread) as the sliders move.
+            .task(id: "\(crop.keystoneV ?? 0)|\(crop.keystoneH ?? 0)") {
+                var warp = FrameCrop(); warp.keystoneV = crop.keystoneV; warp.keystoneH = crop.keystoneH
+                guard warp.hasKeystone else { keystoned = nil; return }
+                // A moving slider: only the value it rests on for a moment is drawn.
+                try? await Task.sleep(for: .milliseconds(40))
+                guard !Task.isCancelled else { return }
+                if small == nil { small = image.cgImage.flatMap { Self.shrunk($0, to: 1000) } }
+                guard let small else { return }
+                let made = await Task.detached(priority: .userInitiated) {
+                    warp.keystoned(small, space: CGColorSpace(name: CGColorSpace.displayP3)!)
+                }.value
+                if !Task.isCancelled, let made { keystoned = UIImage(cgImage: made) }
+            }
+    }
+
+    /// `image` no longer than `edge` pixels.
+    nonisolated private static func shrunk(_ image: CGImage, to edge: Int) -> CGImage? {
+        let long = max(image.width, image.height)
+        guard long > edge else { return image }
+        let k = Double(edge) / Double(long)
+        let w = max(1, Int(Double(image.width) * k)), h = max(1, Int(Double(image.height) * k))
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: image.colorSpace ?? CGColorSpace(name: CGColorSpace.displayP3)!,
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
             HStack {
                 Button(String(localized: "取消"), action: onCancel)
@@ -102,7 +152,7 @@ struct CropScreen: View {
         let viewBox = CGRect(x: m.origin.x + box.minX * m.s, y: m.origin.y + box.minY * m.s,
                              width: box.width * m.s, height: box.height * m.s)
         return ZStack(alignment: .topLeading) {
-            Image(uiImage: image)
+            Image(uiImage: keystoned ?? image)
                 .resizable()
                 .frame(width: source.width * m.s, height: source.height * m.s)
                 .rotationEffect(.degrees(crop.angle))
@@ -291,8 +341,14 @@ struct CropScreen: View {
                    in: -FrameCrop.maxAngle...FrameCrop.maxAngle)
                 .tint(Color.labRed)
 
+            // Perspective: a building's converging verticals (垂直) or a wall seen from the side (水平) made square.
+            keystoneRow(String(localized: "垂直透视"), value: crop.keystoneV ?? 0) { setKeystone(v: $0, h: crop.keystoneH ?? 0) }
+            keystoneRow(String(localized: "水平透视"), value: crop.keystoneH ?? 0) { setKeystone(v: crop.keystoneV ?? 0, h: $0) }
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
+                    chip(autoBusy ? String(localized: "正在找线…") : String(localized: "自动"), symbol: "wand.and.stars", on: false, action: autoUpright)
+                        .disabled(autoBusy)
                     chip("", symbol: "rotate.left", on: false, action: turnLeft)
                     chip("", symbol: "arrow.left.and.right.righttriangle.left.righttriangle.right", on: false, action: mirror)
                     ForEach(FrameCrop.Aspect.allCases) { a in
@@ -337,6 +393,49 @@ struct CropScreen: View {
     }
 
     /// Straighten as seen: a mirror turns it the other way.
+    private func keystoneRow(_ title: String, value: Double, set: @escaping (Double) -> Void) -> some View {
+        HStack(spacing: 10) {
+            Text(title).font(.footnote).frame(width: 64, alignment: .leading)
+            Slider(value: Binding(get: { value }, set: { set(($0 * 100).rounded() / 100) }), in: -1...1)
+                .tint(Color.labRed)
+            Text(String(format: "%+.0f", value * 100))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(value == 0 ? Color.secondary : Color.labCream)
+                .frame(width: 36, alignment: .trailing)
+                .onTapGesture(count: 2) { set(0) }
+        }
+    }
+
+    /// 自动: straighten and perspective from the picture's straight lines (`AutoUpright`), then the box fitted to it.
+    private func autoUpright() {
+        autoBusy = true
+        let turns = crop.quarterTurns
+        if small == nil { small = image.cgImage.flatMap { Self.shrunk($0, to: 1000) } }
+        guard let picture = small else { autoBusy = false; return }
+        Task {
+            let fit = await Task.detached(priority: .userInitiated) { AutoUpright.fit(picture, turns: turns) }.value
+            autoBusy = false
+            guard let fit, fit.angle != 0 || fit.keystoneV != 0 || fit.keystoneH != 0 else {
+                withAnimation { autoNote = fit == nil ? String(localized: "没找到可以对齐的直线") : String(localized: "已经是正的了") }
+                try? await Task.sleep(for: .seconds(2))
+                withAnimation { autoNote = nil }
+                return
+            }
+            var next = crop
+            next.angle = fit.angle
+            next.keystoneV = fit.keystoneV == 0 ? nil : fit.keystoneV
+            next.keystoneH = fit.keystoneH == 0 ? nil : fit.keystoneH
+            withAnimation(.easeOut(duration: 0.2)) { crop = next.fitted(in: source) }
+        }
+    }
+
+    private func setKeystone(v: Double, h: Double) {
+        var next = crop
+        next.keystoneV = abs(v) < 0.005 ? nil : v
+        next.keystoneH = abs(h) < 0.005 ? nil : h
+        crop = next.fitted(in: source)
+    }
+
     private var shownAngle: Double { flip ? -crop.angle : crop.angle }
 
     private func setAngle(_ a: Double) {
