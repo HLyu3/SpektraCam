@@ -10,13 +10,19 @@
 
 <p align="center"><img src="https://img.shields.io/badge/iOS-18%2B-1f6feb?style=flat-square" alt="iOS 18+"> <img src="https://img.shields.io/badge/UI-SwiftUI-f05138?style=flat-square" alt="UI SwiftUI"> <img src="https://img.shields.io/badge/Engine-SpektraLab%202.4.1-8e44ad?style=flat-square" alt="Engine SpektraLab 2.4.1"> <img src="https://img.shields.io/badge/Version-2.1.7-555555?style=flat-square" alt="Version 2.1.7"> <img src="https://img.shields.io/badge/License-GPL--3.0-2e7d32?style=flat-square" alt="License GPL-3.0"></p>
 
-<p align="center"><a href="../../releases/latest">Download</a> · <a href="#recommended-add-the-source-sidestore--altstore">Add the source</a> · <a href="#building-locally">Build locally</a></p>
+<p align="center"><a href="../../releases/latest">Download</a> · <a href="#installation">Install guide</a> · <a href="#5-add-the-spektra-cam-source">Source</a> · <a href="#building-from-source">Build from source</a></p>
 
-**Spektra Cam is an unofficial iPhone port of [SpektraLab](https://github.com/JamesQiu2005/SpektraLab), the Mac film-developing app.** It uses the same physical film engine — film exposure, dye layers, grain, halation, the enlarger and the paper, computed all the way through rather than a LUT laid over the photo — and adds a camera, a light table and more on the iPhone.
+**Spektra Cam is an unofficial iPhone port of [SpektraLab](https://github.com/JamesQiu2005/SpektraLab), the Mac film-developing app.** It uses the same physical film engine — film exposure, dye layers, grain, halation, the enlarger and the paper, computed all the way through rather than a LUT laid over the photo — and adds a camera, a light table and more on the iPhone. It started from the iOS community port [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS) 1.2.0 and has since been redesigned and greatly extended. Original credits and upstream links are kept; it is not an official SpektraLab app.
 
-> Unofficial: this is not an app published by the author of SpektraLab.
-> The film engine comes from [JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab) (this version uses engine 2.4.1);
-> the starting point was its iOS community port [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS) 1.2.0, since redesigned and greatly extended.
+If the project helps you, a **Star** is welcome; found a problem or have an idea? Open an [Issue](../../issues).
+
+## Status
+
+- Current version **2.1.7 (Build 15)**, distributed as an unsigned IPA in GitHub Releases and installed by self-signing with SideStore; or add the [source](#5-add-the-spektra-cam-source) and update from inside SideStore.
+- The film engine is upstream SpektraLab **2.4.1**: the same RAW develops to the same colour in the Mac app and in Spektra Cam (compared photo by photo).
+- Done: camera (ProRAW / single-frame RAW / HEIF, the iPhone 17 square front camera), a darkroom editor in the order light travels, 30 films and 7 papers, film edges and cine gauges, HDR, light table, recipe library, batch export, Chinese and English.
+- Tested on iPhone 17 Pro Max (iOS 27) and iPhone 14 Pro (iOS 26.5); other models install fine, but focal lengths, capture sizes, export sizes and HDR brightness are unverified there.
+- What changed in each version: see [Releases](../../releases).
 
 ## Screenshots
 
@@ -26,162 +32,187 @@
 | **Light Table** | **Settings** | **Recipes and Films** |
 | <img src="docs/screenshots/lighttable.png" width="240"> | <img src="docs/screenshots/settings.png" width="240"> | <img src="docs/screenshots/recipes.png" width="240"> |
 
-Screenshots of 2.1.7 on an iPhone 17 Pro Max (taken 2026-11-27, Chinese interface). The app is in Chinese and English and follows your iPhone's language.
+Screenshots of 2.1.7 on an iPhone 17 Pro Max (taken 2026-11-27, Chinese interface; the app also runs in English).
 
-## Download and install
+## Features
 
-### Recommended: add the source (SideStore / AltStore)
+- **Camera**: ProRAW, single-frame RAW (no multi-frame merging or noise reduction), HEIF; focal lengths per lens (13 / 24 / 48 / 100 / 200 mm on an iPhone 17 Pro Max); the film's colour live in the viewfinder; manual shutter, ISO, exposure compensation and colour temperature; tap to focus, drag for exposure, long-press to lock; level, grid, histogram; the Camera Control and volume buttons as shutter.
+- **Front camera**: the iPhone 17's square front sensor — portrait or landscape without turning the phone, 0.6× and 1×, ProRAW.
+- **Rolls**: load a film, a recipe or “No film” (the original straight to Photos); the paper follows the roll and the recommended paper you pick is remembered; shots develop in the background without blocking you.
+- **Editor**: tools in the order light travels — Frame · Lens · Exposure · Film · Paper · Finish; crop, straighten, rotate, flip; white-balance eyedropper; decode curve; global undo / redo; hold to see the original.
+- **Films and papers**: 30 films (colour negative, slide, cine negative, B&W negative) and 7 papers, by type or by brand; B&W films on Multigrade paper grades 00–5; slides scanned directly; a film comparison grid shows every film at once.
+- **Effects**: film edge, sprockets and date back, cine gauges (Super 8 / 16, 35 mm, 65 mm, IMAX); light leaks and edge burn, diffusion filters, lens character (swirl, Petzval, vintage, toy), anti-halation removal.
+- **Finish**: light, colour, HSL, curves, colour balance with four wheels, channel mixer, watermarks; **HDR**: brighter than white on HDR screens, exports carry a gain map.
+- **Negatives (library)**: develop straight from the system library (no copy) or import into the app; RAW from every maker (LibRaw fallback), a card's whole DCIM folder, sharing from Photos; grouped by day, pinch to zoom, filters and sorting; slide-to-select, copy and paste recipes, half-frame pairs, side-by-side compare; cull and batch export.
+- **Light Table**: photos laid on a light box at their negative's real size in millimetres; EDR backlight, lamp, loupe (hold to lean in to 8×), full-screen slideshow.
+- **Export**: JPEG / 10-bit HEIF / 16-bit TIFF / PNG in sRGB / Display P3 / Adobe RGB / ProPhoto, three presets; size capped by memory — 48 MP exports at full size (about 31 MP with the film edge on).
 
-In SideStore or AltStore, open Sources, tap ＋ and paste the address below, then install Spektra Cam from the source. When a new version comes out, just tap Update in the app — no IPA to download.
+## How it works
+
+Spektra Cam is not a filter app. Every photo is developed from scratch by the SpektraLab engine (C++ / Metal, on the iPhone's GPU):
+
+1. **Decode**: RAW is decoded by Core Image into scene-linear ProPhoto data with exactly the Mac app's settings; RAWs Core Image can't read go to LibRaw.
+2. **Film exposure**: scene light becomes the exposure of three emulsion layers by the film's spectral sensitivity, then dye density by its characteristic curves; grain, halation and coupler inhibition are computed here at their physical size (micrometres).
+3. **Printing**: the enlarger's light passes through the negative onto the paper, which is developed again for the final colour and tone; a slide skips this and is scanned.
+4. **Finish**: brightness, colour, curves and other adjustments (Layer 2) run again on the GPU over the developed print — no re-developing needed.
+
+Film and paper data come from the measured profiles of [spektrafilm](https://github.com/andreavolpato/spektrafilm).
+
+## Compared with SpektraLab for Mac
+
+| | Spektra Cam | SpektraLab (Mac) |
+|---|---|---|
+| Device | iPhone | Mac |
+| Developing engine | The same engine (2.4.1), same colour | The original |
+| Shooting | Built-in film camera with a live film viewfinder | Develops existing photos |
+| Light table | Yes, with EDR backlight and loupe | Yes |
+| Full-size film-edge export | Limited by the phone's memory, about 31 MP | Full size |
+| Distribution | Unofficial, GitHub, self-signed install | Official |
+
+### Which to use
+
+- Shooting on iPhone and want the film look right away: Spektra Cam.
+- Processing many photos on a computer, or need full-size film-edge prints: the Mac app.
+- Both develop the same, so you can shoot and look on the iPhone and refine on the Mac later.
+
+## Strengths and limitations
+
+Strengths:
+
+- The same physical engine as the Mac app, not a LUT: changing film, paper or exposure behaves like real film.
+- Camera, editor and light table all on the phone; no computer needed.
+- Photos, recipes and thumbnails stay on the iPhone; nothing is uploaded.
+- Develops photos in your system library directly, without copying or changing the originals.
+
+Limitations:
+
+- Requires iOS 18.0, iPhone only, no iPad layout. Before iOS 26 the interface uses a frosted material instead of Liquid Glass.
+- No video.
+- With the film edge on, exports top out at about 31 MP (the engine can't render the film edge in bands yet, and a whole render is limited by the phone's memory).
+- HDR gain maps are at most 2048 px.
+- Sigma Foveon (X3F) and GoPro GPR RAW are not supported; import says so.
+- Photos shared from the share menu are imported the next time the app opens (a share extension can't open its app).
+- No launching from the Camera Control on the Lock Screen (it needs a Lock Screen extension SideStore can't sign; the code is kept for later).
+- SideStore's free signing is bound by Apple's seven-day refresh and limits on apps and App IDs; Spektra Cam uses 2 App IDs (the app and the share extension).
+
+## Before you install
+
+The free route: **iLoader + SideStore (Stable) + LocalDevVPN + Spektra Cam**.
+
+You need:
+
+- An iPhone on iOS 18 or later with a passcode set.
+- A Mac, Windows or Linux computer, only for installing SideStore the first time.
+- A USB cable that carries data.
+- An Apple Account; a free one is fine.
+- Wi-Fi. SideStore needs Wi-Fi and LocalDevVPN connected together to install or refresh apps.
+
+Get each tool from its official source:
+
+| Tool | Installed on | Get it from |
+|---|---|---|
+| iLoader | Computer | [iloader.app](https://iloader.app) |
+| SideStore | iPhone, installed by iLoader | [SideStore docs](https://docs.sidestore.io) |
+| LocalDevVPN | iPhone | App Store |
+| Spektra Cam | iPhone, installed by SideStore | This repository's source or [Releases](../../releases/latest) |
+
+Spektra Cam is not on the App Store or TestFlight. Don't use IPAs from unknown mirrors; they may have been repackaged.
+
+## Installation
+
+### 1. Install LocalDevVPN on the iPhone
+
+1. Install LocalDevVPN from the App Store (it isn't in the China region store; use another region's account).
+2. Open it, tap **Connect**, allow the VPN configuration and enter your passcode.
+3. Check that it shows connected.
+
+Despite the name it doesn't change your public IP or proxy traffic; it only lets SideStore reach services on the iPhone itself. Turning it on disconnects other proxies or VPNs; you can turn it off after installing or refreshing.
+
+### 2. Install SideStore with iLoader
+
+1. Install iLoader on the computer.
+2. Connect and unlock the iPhone; if asked “Trust This Computer?”, choose Trust and enter your passcode.
+3. Open iLoader and check that the iPhone is listed. If not, try another cable and make sure Finder, iTunes or Apple Devices sees the phone.
+4. Sign in with your Apple Account in iLoader and enter the two-factor code.
+5. Select the iPhone and click **Install SideStore (Stable)** — the stable release, not another build.
+6. Wait for signing and installation to finish; don't unplug the cable.
+
+If iLoader asks whether to revoke existing certificates, check first whether this Apple Account signs apps for other sideloading tools; revoking can stop those apps from opening.
+
+### 3. Trust the developer and turn on Developer Mode
+
+1. Open Settings › General › VPN & Device Management, choose your Apple Account under Developer App and tap Trust.
+2. Open Settings › Privacy & Security › Developer Mode and turn it on.
+3. Restart when asked, unlock, and confirm once more.
+
+Developer Mode doesn't need the paid Apple Developer Program; every app installed with SideStore needs it. If Apple says the account has no development team, sign in at [developer.apple.com/register](https://developer.apple.com/register) and accept the agreement — it's free.
+
+### 4. Refresh SideStore once
+
+1. Connect to Wi-Fi and turn on LocalDevVPN.
+2. Open SideStore and sign in with the same Apple Account you used in iLoader.
+3. Go to **My Apps** and tap **7 DAYS** next to SideStore to refresh it once.
+4. If asked to create a new certificate, follow the prompts.
+
+Once this refresh succeeds, SideStore is fully set up and you won't need the computer again.
+
+### 5. Add the Spektra Cam source
+
+1. In SideStore, open **Sources** and tap **＋** at the top right.
+2. Paste this address and confirm:
 
 ```
 https://raw.githubusercontent.com/HLyu3/SpektraCam/main/source.json
 ```
 
-### Or: download the IPA
+With the source added, SideStore shows an Update in **My Apps** whenever a new version comes out; one tap updates it, no IPA to download.
 
-Download `SpektraCam-2.1.7-unsigned.ipa` from **[Releases](../../releases/latest)**. The IPA is not signed; sign it with your own Apple ID:
+### 6. Install Spektra Cam
 
-| Tool | How |
-|---|---|
-| SideStore / AltStore / Sideloadly | Choose the IPA and sign it with your own Apple ID |
-| Xcode | Build it as in “Building locally” below and pick your Personal Team under Signing |
+1. Make sure Wi-Fi and LocalDevVPN are both connected.
+2. In SideStore's **Sources**, open the Spektra Cam source and tap **FREE** next to Spektra Cam.
+3. Wait for SideStore to sign and install it; keep SideStore open and stay on Wi-Fi and LocalDevVPN.
+4. Check that the Spektra Cam icon is on the Home Screen.
 
-- Requires **iOS 18.0** (iPhone XS / XR and later), iPhone only. Before iOS 26 the interface uses a frosted material instead of Liquid Glass.
-- **Tested on iPhone 17 Pro Max and iPhone 14 Pro.** Any iPhone on iOS 18 or later can install it; other models are untested, and lens focal lengths, capture sizes, export sizes and HDR brightness may be off.
-- A free Apple ID's signature expires after 7 days; reinstall then.
-- The IPA carries all engine resources; the first launch needs no download.
-- Language: the app follows your iPhone's language (Chinese or English). To change it for this app only, go to Settings › Spektra Cam › Language.
+**Without the source**: download `SpektraCam-2.1.7-unsigned.ipa` from [Releases](../../releases/latest), save it to the Files app first, then in SideStore's **My Apps** tap **＋** and pick it from Files. Don't install by pasting the IPA's download link; some SideStore versions then fail with a Bundle ID mismatch.
 
-## What's new in 2.1.7 (since 2.1.6)
+## First launch
 
-- **Chinese and English**: the whole app, including the share sheet's messages, follows your iPhone's language.
+- Allow the camera and Photos: the camera to shoot; Photos to save prints and to develop photos from your library. With “Limited” access you can change it any time under Settings › Photo Access in the app.
+- The first launch prepares the engine's resources for a few seconds; no internet needed.
+- The shutter button at the bottom opens the camera and the button at the top right the light table; tap a photo to view it and “Edit” to open the darkroom.
+- The app follows your iPhone's language (Chinese or English); to change it for this app only, go to Settings › Spektra Cam › Language.
 
-## What's new in 2.1.6 (since 2.1.5)
+## Updating Spektra Cam
 
-- **Front camera**: uses the iPhone 17's square front sensor (as the Camera app does) with ProRAW; portrait or landscape without turning the phone, 0.6× and 1× framings; upright, mirrored shots; no more squashed viewfinder; the framing turn blurs across instead of ghosting.
-- **Film-edge photos export again**: photos with the film edge on (cine gauges included) failed to export.
-- **Slides are scanned**: Ektachrome, Kodachrome, Provia and Velvia are no longer printed on paper, as in the Mac app.
-- **Films and papers by type**: colour negative / slide / cine negative / B&W negative; switch back to by-brand at the top left of the All page.
-- Picking a cine gauge turns the film edge on; the camera's paper button follows the loaded roll; Verita 200D has a recommended paper; the selection bar is one row of equal buttons.
+- **With the source**: when **My Apps** in SideStore shows an Update, connect Wi-Fi and LocalDevVPN and tap it.
+- **With an IPA**: download the new IPA and install it over the old one with SideStore.
 
-## What's new in 2.1.5 (since 2.1.4)
+Don't delete the old app first: deleting it erases the photos, recipes and settings in its library.
 
-- **Matches the Mac app**: RAW decoding as the Mac app does it (iPhone RAW shadows no longer crushed); camera shots meter “Protect highlights”, imports “Balanced” as on the Mac; “Auto placement” no longer errors when turned on.
-- **Camera**: ProRAW 12 MP by default; shots develop in the background in the app with progress on the wall, no longer saved to Photos automatically and never blocking you; developed photos open instantly in the viewer and editor.
-- **Faster**: the editor opens in about 0.45 s instead of about 2 s; leaving the editor without changes no longer re-develops. The develop cache shows its size in Settings › Develop and is cleared after 14 days unviewed by default.
-- **Navigation**: no tab bar; Negatives is home — the shutter button at the bottom raises the camera, the button at the top right pushes in the light table; switching back and forth quickly no longer freezes.
-- **Negatives**: tiles fill the screen width and are larger; the tiles' ⋯ is gone (the long-press menu has it all); pasting a recipe keeps a shot's own exposure compensation.
+## Refreshing SideStore
 
-## What's new in 2.1.4 (since 2.1.3)
+Apps signed with a free Apple Account expire after seven days. As long as SideStore itself hasn't expired, renew on the iPhone, no computer needed:
 
-- **Negatives**: a tap opens the viewer first (swipe, zoom, hold for the original; “Edit” opens the editor); compare two photos; batch export (it says which were exported before); recommended export settings.
-- **Camera**: opens faster with an aperture opening; 44 pt buttons, tighter on narrow phones; steadier tap to focus.
-- **Light Table**: 3072 px sharp versions; the loupe draws a top-down loupe at your finger, hold for an 8× full-screen lens; long-presses no longer trigger it while it is off.
+1. Connect to Wi-Fi and turn on LocalDevVPN.
+2. Open SideStore and go to **My Apps**.
+3. Tap **Refresh All**, or the days left next to each app.
+4. Wait until SideStore and Spektra Cam have both refreshed.
 
-## What's new in 2.1.3 (since 2.1.2)
+Refreshing only extends the signature; it never deletes Spektra Cam's photos or recipes. If SideStore itself has expired it can't open or renew itself: connect to the computer, reinstall SideStore over itself with iLoader, then refresh the apps on the phone.
 
-- Runs on iOS 18 and later.
-- Fixes 2.1.1 / 2.1.2 shipping stale engine resources: Portra 160 / 400 NC and VC no longer print too cyan.
-- Shoots RAW by default (ProRAW on Pro models, single-frame RAW on others); the format page spells out HEIF's drawbacks and warns when HEIF is used with a film.
-- Auto-develop after shooting is off by default.
+The seven-day limit and the limits on apps and App IDs are Apple's rules for free accounts, not Spektra Cam's.
 
-## What's new in 2.1.2 (since 2.1.1)
+## Troubleshooting
 
-**Camera**
-- Tap to focus: focus and exposure follow the point you tap; smoother lens moves. The focus box lands, dims and fades as in the Camera app.
-- New installs default to HEIF 48 MP; the roll shelf comes with a “Portra 400 · Professional Portra” combination.
+- **SideStore says there's no Wi-Fi or LocalDevVPN**: make sure both are connected, turn off other DNS, proxy or VPN tools, then restart LocalDevVPN and SideStore.
+- **A SideStore install hangs**: reopen SideStore, clear its cache, switch the Anisette server or restart the iPhone; if it still fails, re-place the pairing file with iLoader or reinstall SideStore.
+- **Not enough App IDs**: a free account can register at most 10 App IDs in seven days, and Spektra Cam needs 2. Wait for old ones to expire, or check SideStore's App IDs page.
+- **SideStore's pairing file stopped working**: an iOS update or a restore can invalidate it. Connect to the computer, remove the old pairing in iLoader, trust again, and put the new pairing file into SideStore.
+- **The app keeps saying “The engine is still getting ready”**: the install is incomplete. Reinstall from the source or Releases (this clears the library — export what you want to keep first).
+- **Exports are smaller than the original**: when full-size developing doesn't fit in memory the export is scaled down; with the film edge on, the most is about 31 MP. The export page shows the real size.
 
-**Editor**
-- **White-balance eyedropper** (Exposure › White balance): tap something grey or white to correct a cast before the film is exposed; works on any format.
-- **Film comparison grid** (Film › Compare): this photo developed small on every film; tap one to use it.
-
-## What's new in 2.1.1 (since 2.1.0)
-
-**Engine upgraded to SpektraLab 2.4.1**
-- New films: Portra 160 NC / 160 VC / 400 NC / 400 VC (VC prints on Portra Endura by default).
-- Light leaks gain “Edge burn”, with a random position or back to the camera body's position.
-- The film edge gains cine gauges: Super 8, Super 16, 35 mm 4-perf, 65 mm 5 / 15-perf, and 135 exposed across the sprockets.
-- Films and papers listed by brand.
-
-**Editor**
-- The crop page works like Photos: the box stays still, drag and pinch the photo; new rotate left 90° and flip horizontal.
-- Colour balance becomes four colour wheels (global, shadows, midtones, highlights).
-- New **channel mixer** and **watermarks** (a PNG logo or text in any corner, with size, margin, opacity, rotation and colour; carried by exports, thumbnails and the light table).
-- The editor's ⋯ menu can show a histogram.
-
-**Camera and negatives**
-- The capture format is an explained page: HEIF (everyday), ProRAW (when it matters), RAW (single frame, only in good light), each with its use and file size.
-- After copying a recipe, long-press any photo to paste or clear it; the source photo is no longer locked.
-
-## What's new in 2.1.0 (since 2.0.0)
-
-**Camera**
-- **Paper follows the roll**: a roll prints on its recommended paper (Portra 400 → Portra Endura, cine film → 2383); change it with the “Paper” button under the roll name, and the recommended paper you pick is remembered. The editor follows the same rule, so later developing matches.
-- **Favourite combinations**: ☆ next to the roll name saves “film + paper” as a combination at the front of the roll shelf.
-- **Exposure as in the Camera app**: tap to focus, drag up and down to set exposure (the sun slider), long-press to lock focus and exposure (AE/AF Lock).
-- Single-frame RAW is shot 1 stop under to keep highlights; the film's metering brings it back when developing.
-- The Camera Control and the volume buttons act as the shutter on the camera page.
-- Focal-length buttons show zoom factors (0.5 · 1× · 2 · 4 · 8) or focal lengths; they turn upright when the phone is held sideways; the paper shows under the roll.
-- Shots taken with “No film” go only to the system photo library, not to Negatives.
-
-**Import and RAW**
-- **RAW from every maker**: when the system can't read a RAW, gives only its small embedded preview or decodes it black, LibRaw takes over; old bodies without an as-shot white balance (e.g. Mamiya ZD) use the camera's daylight balance. Tested with samples in 22 formats: Canon CR3 / CR2 / CRW, Nikon NEF (incl. Z 8 high-efficiency), Sony ARW, Fujifilm RAF, Panasonic RW2, Olympus ORF, Pentax PEF, Leica DNG / RWL, Hasselblad 3FR, Phase One IIQ, Leaf MOS, Mamiya MEF, Samsung SRW, Kodak DCR, Minolta MRW, Epson ERF, DJI and iPhone DNG.
-- **Spektra Cam in Photos' share menu**: share photos to it and they are imported the next time the app opens (RAW + JPEG keeps the RAW).
-- Imported photos start as “No film” (the original); choose a film when you want to develop.
-- “Imported before” only counts photos still in Negatives: delete one and it can be imported again; when everything was imported before you can choose “Import Again”.
-- Import failures list each file and why; RAW thumbnails are made one by one after the import.
-- Settings shows and changes photo access (also when only some photos were allowed).
-
-**Editor**
-- **Preview in Display P3**: the editor, thumbnails, slides and exported prints match (the preview used to be sRGB and greyer than the print).
-- **No film**: the first item under Film shows the original (RAW with the system's or LibRaw's default decode); finishing and crop still work.
-- **Slide HDR**: slides get a per-pixel gain from two engine renders; brighter on HDR screens, and JPEG / HEIF exports carry a gain map.
-
-**Negatives**
-- Select by **sliding sideways** as in Photos, auto-scrolling at the edges; Select All / Deselect All.
-- Cull is a button of its own; date headers are floating capsules.
-
-**Light Table**
-- Photos are laid out at their negative's real size by default, or at 5-inch print size; pinch a selected photo to resize it alone, one tap back to its size.
-- Stacked photos cover each other; the bottom bar has the film tray, lamp and loupe — tap from the tray or drag onto the table.
-- Long-press for an immersive big lens (clear of your finger, the rest darkened); a 2048 px sharp version is developed when you zoom; slides can be pinched.
-
-## 2.0.0: changes from the community port 1.2.0
-
-**Interface: the darkroom**
-- New name, new icon; a new palette (graphite, paper white, safelight amber) and a film-grain background.
-- Three places: **Negatives** (library) · **Camera** · **Light Table**.
-
-**Negatives (library)**
-- One-tap filters (shot / imported / favourites / graded / RAW / pairs / film), sorted by date taken, date added or film.
-- Grouped by day; pinch like Photos for 1–14 photos a row, grouped by month when zoomed out.
-- Develops straight from the system library (no copy) or imports into the app; imports from Files, a card reader (a whole DCIM folder) and other apps; RAW + JPEG keeps the RAW; anything imported before is skipped.
-- Cull: unexported shots by day — export the keepers, delete the rest; how long negatives are kept is configurable.
-- Recipe library: save recipes, favourite films, apply to many photos at once.
-
-**Editor**
-- Tools in the order light travels: Frame · Lens · Exposure · Film · Paper · Finish.
-- Crop and straighten, global undo / redo, long-press for the original.
-- Decode curve, black-and-white films (Tri-X, T-Max 100, Acros II, HP5 on Multigrade paper grades 00–5), anti-halation removal, light leaks, diffusion filters, lens character (swirl, Petzval, vintage, toy).
-- Finish (Layer 2): light, colour, HSL, curves, colour balance.
-- **HDR**: the engine works out a per-pixel gain from the film and paper's shoulder; the editor goes brighter than white on HDR screens, and JPEG / HEIF exports carry an ISO gain map.
-- Half-frame pairs: two photos joined as one half-frame negative.
-- Export: JPEG / 10-bit HEIF / 16-bit TIFF / PNG in sRGB / Display P3 / Adobe RGB / ProPhoto, size capped by memory; 48 MP exports at full size.
-
-**Camera**
-- ProRAW, single-frame RAW (no multi-frame merging or noise reduction), HEIF; each lens's real sizes.
-- Focal lengths 13 / 24 / 48 / 100 / 200 mm (48 and 200 are in-sensor crops), pinch to zoom.
-- The viewfinder shows the film's colour live (a 3D LUT baked by the engine); manual shutter, ISO, exposure compensation, colour temperature; level, grid, histogram.
-- A roll can be a film, a recipe or “No film” (the original straight to Photos); shots can develop in the background.
-
-**Light Table**
-- Photos laid out at their real millimetre size on an A4 / A5 / A6 light box — drag, rotate, tidy, shuffle.
-- EDR backlight, lamp on/off, loupe (2–8×, hold still to lean in), full-screen slideshow.
-
-The project, targets and code keep the name `SpektraLab` (`ios/SpektraLab.xcodeproj`); only the app shows as Spektra Cam.
-
-## Building locally
+## Building from source
 
 Needs an Apple silicon Mac, Xcode 27.2+, the iOS 27 SDK and Python 3.10+.
 
@@ -213,19 +244,11 @@ For “launch from the Camera Control” (press the Camera Control on the Lock S
 
 A free account can use `com.apple.developer.kernel.increased-memory-limit` (already in the entitlements); 48 MP full-size exports need it.
 
-## Known limitations
+## Privacy and license
 
-- Tested on iPhone 17 Pro Max and iPhone 14 Pro only (see “Download and install”).
-- iPhone only; no iPad layout.
-- No video.
-- HDR gain maps are at most 2048 px.
-- Sigma Foveon (X3F) and GoPro GPR RAW are not supported (the app's LibRaw can't read them); import says so.
-- Photos shared from the share menu are imported when the app is next opened (a share extension can't open its app).
-- No launching from the Camera Control (it needs a Lock Screen extension that tools like SideStore can't sign; the code is kept for later).
-- Re-signing with a free Apple ID uses 2 App IDs (the app and the share extension) and an App Group.
-- `.github/workflows/build-ios.yml` is the community port's CI kept as it was: pinned to the old engine and needing the community port's signing secrets, it can't build this version; Actions don't run on forks by default — please don't enable it. This version's IPA is built locally.
+Photos, recipes, thumbnails and the develop cache stay on the iPhone. Spektra Cam collects no usage data and uploads nothing; only when an original lives in iCloud does the system Photos app download it. See and clear the develop cache under Settings › Develop.
 
-## License and credits
+Spektra Cam stands on these open-source projects:
 
 Spektra Cam stands on these open-source projects:
 
@@ -242,3 +265,7 @@ Spektra Cam's code is distributed under **GPL-3.0-or-later** (see `LICENSE`); th
 ## Trademarks
 
 SpektraLab™ and its icon belong to their owners. Spektra Cam is an independent, unofficial project, not affiliated with or endorsed by SpektraLab or the spektrafilm project; it has its own name and icon and only says “based on the SpektraLab engine”. Film and paper names are their makers' trademarks, used only to say which public data a profile is based on.
+
+## Feedback and contributing
+
+For questions and reproducible bugs, use this repository's [GitHub Issues](../../issues) with your iPhone model, iOS version, Spektra Cam version and the steps to reproduce; leave out any photos you don't want public when attaching screenshots.

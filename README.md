@@ -10,15 +10,21 @@
 
 <p align="center"><img src="https://img.shields.io/badge/iOS-18%2B-1f6feb?style=flat-square" alt="iOS 18+"> <img src="https://img.shields.io/badge/UI-SwiftUI-f05138?style=flat-square" alt="UI SwiftUI"> <img src="https://img.shields.io/badge/%E5%BC%95%E6%93%8E-SpektraLab%202.4.1-8e44ad?style=flat-square" alt="引擎 SpektraLab 2.4.1"> <img src="https://img.shields.io/badge/Version-2.1.7-555555?style=flat-square" alt="Version 2.1.7"> <img src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF-GPL--3.0-2e7d32?style=flat-square" alt="许可 GPL-3.0"></p>
 
-<p align="center"><a href="../../releases/latest">下载最新版</a> · <a href="#推荐添加软件源sidestore--altstore">添加软件源</a> · <a href="#本地构建">本地构建</a></p>
+<p align="center"><a href="../../releases/latest">下载最新版</a> · <a href="#安装步骤">安装教程</a> · <a href="#5-添加-spektra-cam-软件源">软件源</a> · <a href="#从源码编译">从源码编译</a></p>
 
-**Spektra Cam 是 [SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（Mac 上的胶片冲洗软件）的非官方 iPhone 移植版。** 用的是同一个胶片物理引擎——胶片曝光、染料层、颗粒、光晕、放大机与相纸，一路算下来，而不是给照片套一张 LUT——并在 iPhone 上加了相机、观片台等功能。
+**Spektra Cam 是 [SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（Mac 上的胶片冲洗软件）的非官方 iPhone 移植版。** 用的是同一个胶片物理引擎——胶片曝光、染料层、颗粒、光晕、放大机与相纸，一路算下来，而不是给照片套一张 LUT——并在 iPhone 上加了相机、观片台等功能。起点是它的 iOS 社区移植版 [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS) 1.2.0，之后界面重做、功能大幅扩展。项目保留原作者署名和上游链接，不代表 SpektraLab 官方。
 
-> 非官方：不是 SpektraLab 作者发布的 App。
-> 胶片引擎来自 [JamesQiu2005/SpektraLab](https://github.com/JamesQiu2005/SpektraLab)（本版用 2.4.1 引擎）；
-> 起点是它的 iOS 社区移植版 [Minerchu/SpektraLab-iOS](https://github.com/Minerchu/SpektraLab-iOS) 1.2.0，之后界面重做、功能大幅扩展。
+如果这个项目帮到了你，欢迎点一个 **Star**；发现问题或有改进建议，欢迎提交 [Issue](../../issues)。
 
-## 截图
+## 当前进展
+
+- 当前版本 **2.1.7（Build 15）**，以 GitHub Release 中的未签名 IPA 分发，用 SideStore 等自签方式安装；也可以添加[软件源](#5-添加-spektra-cam-软件源)，以后在 SideStore 里直接更新。
+- 胶片引擎是上游 SpektraLab **2.4.1**，同一张 RAW 在 Mac 版和 Spektra Cam 里冲出来的颜色一致（逐张对比过）。
+- 已完成：相机（ProRAW / 单帧 RAW / HEIF、iPhone 17 方形前置）、按光路排的暗房编辑、30 款胶片与 7 种相纸、片边与电影画幅、HDR、观片台、配方库、批量导出，中英双语界面。
+- 已在 iPhone 17 Pro Max（iOS 27）和 iPhone 14 Pro（iOS 26.5）上实测；其他机型能装，但镜头焦段、拍摄尺寸、导出大小和 HDR 亮度没有验证过。
+- 每个版本更新了什么，见 [Releases](../../releases)。
+
+## 界面预览
 
 | 底片 | 编辑 | 拍摄 |
 |:---:|:---:|:---:|
@@ -28,160 +34,185 @@
 
 截图是 2.1.7 在 iPhone 17 Pro Max 上的界面（2026-11-27 截）。
 
-## 下载与安装
+## 主要功能
 
-### 推荐：添加软件源（SideStore / AltStore）
+- **拍摄**：ProRAW、单帧 RAW（不做多帧合成与降噪）、HEIF；按镜头列出焦段（iPhone 17 Pro Max 上是 13 / 24 / 48 / 100 / 200 mm）；取景器实时显示胶片色彩；手动快门、ISO、曝光补偿、色温；点按对焦、上下拖动调曝光、长按锁定；水平仪、网格、直方图；相机控制键和音量键当快门。
+- **前置相机**：iPhone 17 的方形前置传感器，不转手机也能竖拍或横拍，0.6× 和 1× 两档，支持 ProRAW。
+- **胶卷**：装一卷胶片、一个配方，或「无胶卷」（原始文件直接进「照片」）；相纸跟着胶卷走，推荐相纸会记住；拍完在后台冲洗，不挡操作。
+- **编辑**：按光路排的工具——取景 · 镜头 · 曝光 · 胶片 · 相纸 · 后期；裁剪、拉直、旋转、翻转；白平衡吸管；解码曲线；全局撤销 / 重做；按住看原图。
+- **胶片与相纸**：30 款胶片（彩色负片、反转片、电影负片、黑白负片）和 7 种相纸，按类型或品牌排列；黑白胶片配 Multigrade 相纸 00–5 号；反转片直接扫描；胶片对比网格一次看完所有胶片。
+- **效果**：片边、齿孔与日期后背，电影画幅（Super 8 / 16、35 mm、65 mm、IMAX）；漏光与边缘烧灼、柔光镜、镜头风格（漩涡、Petzval、老镜头、玩具镜头）、去防光晕层。
+- **后期**：光线、色彩、HSL、曲线、四个色轮的色彩平衡、通道混合、水印；**HDR**：在 HDR 屏幕上亮过白色，导出附增益图。
+- **底片（图库）**：直接读系统相册（不复制）或导入 App；支持各家相机的 RAW（含 LibRaw 回退）、存储卡整个 DCIM 文件夹、从「照片」分享过来；按天分组、双指缩放、筛选与排序；横向滑动多选、复制粘贴配方、半格双拼、两张对比；挑片和批量导出。
+- **观片台**：照片按底片的真实毫米尺寸摆在灯箱上；EDR 背光、开关灯、放大镜（按住凑近 8×）、全屏幻灯。
+- **导出**：JPEG / 10 位 HEIF / 16 位 TIFF / PNG，sRGB / Display P3 / Adobe RGB / ProPhoto，三组推荐设置；按内存自动限制尺寸，4800 万像素可全尺寸导出（开片边时约 3100 万）。
 
-在 SideStore 或 AltStore 的「Sources / 源」里点 ＋，粘贴下面的地址，然后在源里安装 Spektra Cam。以后有新版本，直接在 App 里点「更新」，不用再下载安装包。
+## 实现原理
+
+Spektra Cam 不是滤镜 App。每张照片都交给 SpektraLab 引擎（C++ / Metal，跑在 iPhone 的 GPU 上）从头冲洗一遍：
+
+1. **解码**：RAW 用 Core Image 解成场景线性的 ProPhoto 数据，解码参数和 Mac 版完全一样；Core Image 读不了的 RAW 改用 LibRaw。
+2. **胶片曝光**：按胶片的光谱感光度把场景光换成三层乳剂的曝光，再按特性曲线显影出染料密度；颗粒、光晕、成色剂的层间抑制都在这一步按物理尺寸（微米）算。
+3. **印放**：放大机的光穿过底片照到相纸上，相纸再显影一次，得到最终的颜色和影调；反转片跳过这一步，直接扫描。
+4. **后期**：亮度、色彩、曲线等调整（Layer 2）在冲洗好的成片上用 GPU 再算一遍，调这些不用重新冲洗。
+
+胶片和相纸的特性数据来自 [spektrafilm](https://github.com/andreavolpato/spektrafilm) 的实测描述档。
+
+## 与 Mac 版 SpektraLab 的区别
+
+| | Spektra Cam | SpektraLab（Mac） |
+|---|---|---|
+| 设备 | iPhone | Mac |
+| 冲洗引擎 | 同一个引擎（2.4.1），颜色一致 | 原版 |
+| 拍摄 | 内置胶片相机，取景器实时显示胶片色彩 | 只冲洗已有照片 |
+| 观片台 | 有，带 EDR 背光和放大镜 | 有 |
+| 片边全尺寸导出 | 受手机内存限制，约 3100 万像素 | 全尺寸 |
+| 发布方式 | 非官方，GitHub 发布，需要自签安装 | 官方 |
+
+### 怎么选
+
+- 用 iPhone 拍照、想直接出胶片效果的，用 Spektra Cam。
+- 在电脑上批量处理大量照片、要全尺寸片边成片的，用 Mac 版。
+- 两边冲洗结果一致，可以在 iPhone 上先拍先看，回到电脑再精修。
+
+## 优点与已知限制
+
+Spektra Cam 的主要优点：
+
+- 和 Mac 版同一个物理引擎，不是 LUT，换胶片、换相纸、调曝光的反应和真胶片一致。
+- 相机、编辑、观片台都在手机上完成，不需要电脑。
+- 照片、配方和缩略图都留在 iPhone 本地，不联网、不上传。
+- 可以直接冲洗系统相册里的照片，不复制原图，不改动原图。
+
+当前限制：
+
+- 最低系统 iOS 18.0，只支持 iPhone，没有 iPad 布局。iOS 26 以前的界面用磨砂背景代替玻璃质感。
+- 没有视频。
+- 开着片边时导出最大约 3100 万像素（引擎还不支持分块渲染片边，整张一次渲染受手机内存限制）。
+- HDR 增益图最长 2048 px。
+- 不支持 Sigma Foveon（X3F）和 GoPro GPR 两种 RAW，导入时会提示。
+- 从分享菜单传来的照片要等打开 App 时才导入（分享扩展不能直接打开 App）。
+- 不能用相机控制键在锁屏直接启动（需要一个 SideStore 签不了的锁屏扩展；代码保留，以后再上）。
+- SideStore 免费签名受 Apple 的七天刷新、App 数量和 App ID 数量限制；Spektra Cam 占 2 个 App ID（主程序 + 分享扩展）。
+
+## 安装前准备
+
+下面是免费路线：**iLoader + SideStore（正式版）+ LocalDevVPN + Spektra Cam**。
+
+你需要：
+
+- 一台运行 iOS 18 或更高版本的 iPhone，并已设置锁屏密码。
+- 一台 Mac、Windows 或 Linux 电脑，只在第一次安装 SideStore 时用。
+- 一根可以传输数据的 USB 线。
+- 一个 Apple 账号，免费账号即可。
+- Wi-Fi。SideStore 安装或刷新 App 时需要同时连接 Wi-Fi 和 LocalDevVPN。
+
+各工具请从官方入口下载：
+
+| 工具 | 安装位置 | 入口 |
+|---|---|---|
+| iLoader | 电脑 | [iloader.app](https://iloader.app) |
+| SideStore | iPhone，由 iLoader 安装 | [SideStore 安装文档](https://docs.sidestore.io)（请阅读英文版） |
+| LocalDevVPN | iPhone | App Store |
+| Spektra Cam | iPhone，由 SideStore 安装 | 本仓库的软件源或 [Releases](../../releases/latest) |
+
+Spektra Cam 暂未通过 App Store 或 TestFlight 分发。不要使用来源不明的网盘或镜像，安装包可能被重新打包。
+
+## 安装步骤
+
+### 1. 在 iPhone 上安装 LocalDevVPN
+
+1. 从 App Store 安装 LocalDevVPN。国区商店搜不到，请使用美区等其他地区的账号。
+2. 打开后轻点 **Connect**，允许它添加 VPN 配置，并输入锁屏密码。
+3. 确认它显示已连接。
+
+名称里虽然有 VPN，但它不会改变公网 IP，也不能代理上网，只是让 SideStore 访问 iPhone 本机的服务。开启它会断开手机上正在运行的其他代理或 VPN；装完、刷新完 App 后可以关掉。
+
+### 2. 用 iLoader 安装 SideStore
+
+1. 在电脑上安装 iLoader。
+2. 用数据线连接并解锁 iPhone；如果出现「要信任此电脑吗」，选择「信任」并输入锁屏密码。
+3. 打开 iLoader，确认设备列表里出现了这台 iPhone。找不到时先换一根数据线，再确认 Finder、iTunes 或 Apple Devices 能看到这台 iPhone。
+4. 在 iLoader 中登录 Apple 账号，按提示输入双重认证验证码。
+5. 选择这台 iPhone，点击 **Install SideStore (Stable)**——用正式版，不用其他版本。
+6. 等待签名和安装完成，中途不要拔线。
+
+如果 iLoader 询问是否撤销已有证书，先确认这个 Apple 账号有没有给其他侧载工具使用；撤销证书可能让此前用它签名的 App 失效。
+
+### 3. 信任开发者并开启开发者模式
+
+1. 打开「设置 → 通用 → VPN 与设备管理」，在「开发者 App」下选择你的 Apple 账号，轻点「信任」。
+2. 打开「设置 → 隐私与安全性 → 开发者模式」并开启。
+3. 按提示重启 iPhone，重启并解锁后再次确认开启。
+
+开启开发者模式不需要付费加入 Apple Developer Program。用 SideStore 装的 App 都需要它。如果 Apple 提示账号没有可用的开发团队，登录 [developer.apple.com/register](https://developer.apple.com/register) 接受协议即可，这一步免费。
+
+### 4. 第一次刷新 SideStore
+
+1. 连接 Wi-Fi，并打开 LocalDevVPN。
+2. 打开 SideStore，用在 iLoader 中使用的同一个 Apple 账号登录。
+3. 进入 **My Apps**，轻点 SideStore 右侧的 **7 DAYS** 刷新一次。
+4. 如果弹出创建新证书的提示，按页面说明继续。
+
+这次刷新成功后，SideStore 才算安装完整，以后不再需要电脑。
+
+### 5. 添加 Spektra Cam 软件源
+
+1. 在 SideStore 里进入 **Sources**，轻点右上角 **＋**。
+2. 粘贴下面的地址，确认添加：
 
 ```
 https://raw.githubusercontent.com/HLyu3/SpektraCam/main/source.json
 ```
 
-### 或者：下载安装包
+添加软件源以后，新版本发布时 SideStore 会在 **My Apps** 里显示「更新」，点一下就能更新，不用再下载安装包。
 
-到 **[Releases](../../releases/latest)** 下载 `SpektraCam-2.1.7-unsigned.ipa`。IPA 没有签名，需要用自己的 Apple ID 重签：
+### 6. 安装 Spektra Cam
 
-| 工具 | 做法 |
-|---|---|
-| SideStore / AltStore / Sideloadly | 选这个 IPA，用自己的 Apple ID 签名安装 |
-| Xcode | 按下面“本地构建”编译，在 Signing 里选自己的 Personal Team |
+1. 确认 Wi-Fi 和 LocalDevVPN 都已连接。
+2. 在 SideStore 的 **Sources** 里打开 Spektra Cam 源，轻点 Spektra Cam 旁边的 **FREE / 获取**。
+3. 等待 SideStore 完成签名和安装。期间保持 SideStore 打开，不要断开 Wi-Fi 或 LocalDevVPN。
+4. 回到桌面确认 Spektra Cam 图标已经出现。
 
-- 最低系统 **iOS 18.0**（iPhone XS / XR 及以后），只支持 iPhone。iOS 26 以前的界面用磨砂背景代替玻璃质感。
-- **已在 iPhone 17 Pro Max 和 iPhone 14 Pro 上测试。** iOS 18 及以上的 iPhone 都能安装；其他机型没有实测，镜头焦段、拍摄尺寸、导出大小和 HDR 亮度可能不准。
-- 免费 Apple ID 的签名 7 天后过期，要重新安装。
-- IPA 里带了全部引擎资源，第一次打开不需要联网下载。
-- 语言：跟着手机的系统语言显示中文或英文；只想换这个 App 的语言，到「设置 › Spektra Cam › 首选语言」里选。
+**不想用软件源**：到 [Releases](../../releases/latest) 下载 `SpektraCam-2.1.7-unsigned.ipa`，先保存到 iPhone 的「文件」App，再在 SideStore 的 **My Apps** 里轻点 **＋** 从「文件」选择它。不要直接粘贴 IPA 的下载链接安装，部分 SideStore 版本会因此报 Bundle ID 不匹配。
 
-## 2.1.7 的变化（相对 2.1.6）
+## 第一次打开
 
-- **中英双语**：整个 App（包括分享菜单里的提示）跟着手机的系统语言显示中文或英文；只想换这个 App 的语言，到「设置 › Spektra Cam › 首选语言」里选。
+- 允许访问相机和「照片」：拍照需要相机；保存成片、冲洗系统相册里的照片需要「照片」。只给了「部分照片」时，可以在 设置 › 相册权限 里随时改。
+- 第一次启动会准备引擎资源，几秒后就能用，不需要联网。
+- 底部中间的快门按钮打开相机，右上角的按钮进入观片台；点照片查看，「编辑」进暗房。
+- 语言跟着手机系统显示中文或英文；只想换这个 App 的语言，到「设置 › Spektra Cam › 首选语言」里选。
 
-## 2.1.6 的变化（相对 2.1.5）
+## 更新 Spektra Cam
 
-- **前置相机**：改用 iPhone 17 前置的方形传感器（和原相机一样），支持 ProRAW；不转手机也能竖拍 / 横拍，有 0.6× 和 1× 两档；照片方向正确、按取景镜像保存；取景画面不再变形，切换横竖时画面模糊过渡、没有重影。
-- **片边照片能导出了**：开着片边（含电影画幅）的照片以前导出会失败。
-- **反转片直接扫描**：Ektachrome、Kodachrome、Provia、Velvia 不再印在相纸上，和 Mac 版一致。
-- **胶片与相纸按类型排**：彩色负片 / 反转片 / 电影负片 / 黑白负片，「全部」页左上角可切回按品牌。
-- 选电影画幅会自动打开片边；拍摄页的相纸按钮跟着装好的胶卷走；Verita 200D 有了推荐相纸；多选底栏改成一排一样大的按钮。
+- **用软件源**：SideStore 的 **My Apps** 里出现「更新」时，连接 Wi-Fi 和 LocalDevVPN 后轻点它。
+- **用 IPA**：下载新版 IPA，用 SideStore 覆盖安装。
 
-## 2.1.5 的变化（相对 2.1.4）
+不要先删除旧版再装新版：删除 App 会清掉底片库里的照片、配方和设置。
 
-- **跟 Mac 版一致**：RAW 解码改成 Mac 版的做法（iPhone RAW 暗部不再被压死）；相机拍的照片默认用「保高光」测光，导入的照片跟 Mac 一样用「均衡」；修好「自动置位」打开就报错的问题。
-- **拍摄**：默认 ProRAW 1200 万像素；拍完在 App 里后台冲洗，底片上显示进度，不再自动存进「照片」，也不挡操作；冲好后查看和编辑都是秒开。
-- **更快**：进编辑从约 2 秒缩到约 0.45 秒；没改动就退出编辑不再重冲。冲洗缓存在 设置 › 冲洗 里能看到占用，默认 14 天没看就自动清掉。
-- **导航**：去掉底部标签栏，底片是主页——底部快门按钮从下往上打开相机，右上角按钮推出观片台；修好快速来回切换时卡住的问题。
-- **底片**：格子铺满屏宽、更大；去掉格子上的 ⋯（长按菜单都有）；粘贴配方时，拍的照片保留它拍摄时拖的曝光补偿。
+## SideStore 日常刷新
 
-## 2.1.4 的变化（相对 2.1.3）
+免费 Apple 账号签名的 App 七天后过期。只要 SideStore 自己还没过期，就可以直接在 iPhone 上续签，不需要电脑：
 
-- **底片**：点照片先进查看页（左右滑、缩放、按住看原图，「编辑」才进编辑页）；两张照片对比；批量导出（会提示哪些导出过）；导出页的推荐设置。
-- **拍摄**：打开更快，光圈转开的开场；按钮放大到 44 点，窄屏自动收紧；点按对焦更平稳。
-- **观片台**：3072 像素清晰版；放大镜在手指处画出俯视的放大镜，按住变全屏 8 倍；没开放大镜时长按不再误触。
+1. 连接 Wi-Fi，并打开 LocalDevVPN。
+2. 打开 SideStore，进入 **My Apps**。
+3. 轻点 **Refresh All**，或轻点各 App 右侧的剩余天数。
+4. 等待 SideStore 和 Spektra Cam 都刷新成功。
 
-## 2.1.3 的变化（相对 2.1.2）
+刷新只是延长签名有效期，不会删除 Spektra Cam 的照片和配方。如果 SideStore 自己已经过期，它无法打开，也无法给自己续期：这时重新连接电脑，用 iLoader 覆盖安装 SideStore，再回到手机刷新各 App。
 
-- 支持 iOS 18 起。
-- 修正 2.1.1 / 2.1.2 安装包误带旧引擎资源的问题：Portra 160 / 400 NC、VC 不再偏蓝青。
-- 默认用 RAW 拍（Pro 机型 ProRAW，标准版单帧 RAW）；HEIF 的缺点写进了格式页，装着胶卷选 HEIF 时会提醒。
-- 拍完自动冲洗默认关闭。
+七天期限以及 App 和 App ID 的数量限制是 Apple 对免费账号的规定，不是 Spektra Cam 的限制。
 
-## 2.1.2 的变化（相对 2.1.1）
+## 常见问题
 
-**拍摄**
-- 点按对焦：点哪里就在哪里对焦，曝光跟着那一点；镜头移动更平稳。对焦框像原相机一样落下、变暗、淡出。
-- 新装默认 HEIF 4800 万像素；胶卷架上自带一个组合「Portra 400 · Professional Portra」。
+- **SideStore 提示没有 Wi-Fi 或 LocalDevVPN**：确认两者都已连接，关闭其他 DNS、代理或 VPN 工具，再重启 LocalDevVPN 和 SideStore。
+- **SideStore 安装卡在中途**：重新打开 SideStore、清理缓存、切换 Anisette Server 或重启 iPhone；仍然失败时，用 iLoader 重新放置配对文件或重装 SideStore。
+- **提示 App ID 数量不够**：免费账号七天内最多注册 10 个 App ID，Spektra Cam 要用 2 个。等旧的过期，或在 SideStore 的 App IDs 页面查看。
+- **SideStore 的配对文件失效**：系统升级或还原设备都可能导致失效。连接电脑，在 iLoader 中删除旧配对并重新信任，再把新的配对文件放入 SideStore。
+- **打开后一直显示「引擎还在准备」**：安装包不完整。删除后从软件源或 Releases 重新安装（会清掉底片库，先导出要留的照片）。
+- **导出的照片比原图小**：手机内存放不下全尺寸冲洗时会自动缩小；开着片边时最大约 3100 万像素。导出页会显示实际尺寸。
 
-**编辑**
-- **白平衡吸管**（曝光 › 白平衡）：点一块灰色或白色，在胶片曝光之前校正偏色，任何格式都能用。
-- **胶片对比网格**（胶片 › 对比）：这张照片用每款胶片各冲一张小图，点一张就换上。
-
-## 2.1.1 的变化（相对 2.1.0）
-
-**引擎升到 SpektraLab 2.4.1**
-- 新胶片：Portra 160 NC / 160 VC / 400 NC / 400 VC（VC 默认配 Portra Endura 相纸）。
-- 漏光加「边缘烧灼」，可以换随机位置或回到机身位置。
-- 片边里多了「电影画幅」：Super 8、Super 16、35 mm 4 齿孔、65 mm 5 / 15 齿孔，以及 135 带齿孔全幅。
-- 胶片和相纸按品牌排列。
-
-**编辑**
-- 裁剪页像「照片」一样：框不动，拖动、双指缩放照片；新增向左转 90° 和水平翻转。
-- 色彩平衡改成四个色轮（全局、阴影、中间调、高光）。
-- 新增**通道混合**和**水印**（PNG 标志或文字，放在四个角，可调大小、边距、透明度、旋转和颜色；导出、缩略图、观片台都会带上）。
-- 编辑页 ⋯ 菜单可以打开直方图。
-
-**拍摄与底片**
-- 拍摄格式改成说明页：HEIF（日常推荐）、ProRAW（认真拍时用）、RAW（单帧，只适合光线充足）各写清楚用途和文件大小。
-- 复制配方后，长按任意照片就能粘贴或清除；来源照片不再被锁住。
-
-## 2.1.0 的变化（相对 2.0.0）
-
-**拍摄**
-- **相纸跟着胶卷走**：选好胶卷自动用它的推荐相纸（如 Portra 400 → Portra Endura，电影卷 → 2383），胶卷名下面的「相纸」按钮可以换；推荐相纸里选的那张会记住。编辑时选胶片也是同一套规则，拍出来和以后再冲洗颜色一致。
-- **收藏组合**：胶卷名旁的 ☆ 一键把「胶卷 + 相纸」存成组合，排在胶卷栏最前面。
-- **像原相机一样调曝光**：点一下对焦，在画面上下拖动调曝光（太阳滑块），长按锁定对焦与曝光（AE/AF 锁定）。
-- 单帧 RAW 自动少曝光 1 档保住高光，冲洗时由胶片测光补回。
-- 拍摄页里相机控制键和音量键都能当快门。
-- 焦段按钮显示倍率（0.5 · 1× · 2 · 4 · 8），也可以切回焦段；横拿手机时按钮跟着转正；胶卷下方显示相纸。
-- 「无胶卷」拍的照片只存进系统相册，不再进底片。
-
-**导入与 RAW**
-- **各家相机的 RAW**：系统读不了、只给出内嵌小预览或解出全黑的，自动改用 LibRaw 解码；没有拍摄白平衡的老机身（如 Mamiya ZD）用相机的日光白平衡。用 22 种格式的样张测过：Canon CR3 / CR2 / CRW、Nikon NEF（含 Z 8 高效压缩）、Sony ARW、Fujifilm RAF、Panasonic RW2、Olympus ORF、Pentax PEF、Leica DNG / RWL、Hasselblad 3FR、Phase One IIQ、Leaf MOS、Mamiya MEF、Samsung SRW、Kodak DCR、Minolta MRW、Epson ERF、DJI 与 iPhone DNG。
-- **「照片」的分享菜单里有 Spektra Cam**：选照片分享过来，下次打开 App 时导入（RAW + JPEG 只留 RAW）。
-- 导入的照片默认「无胶片」（原图），想冲洗时再选胶片。
-- 「导入过」只看照片还在不在底片里：删掉后可以重新导入；全都导入过时可以选「再导入一次」。
-- 导入失败会逐个列出文件和原因；RAW 的缩略图在导入结束后逐张生成。
-- 设置里可以查看和修改相册权限（只给了部分照片时也能改）。
-
-**编辑**
-- **预览改为 Display P3**：编辑画面、缩略图、幻灯和导出的成片颜色一致（以前预览是 sRGB，比成片灰）。
-- **无胶片**：胶片里的第一项，显示原图（RAW 用系统或 LibRaw 的默认解码），后期和裁剪照常可用。
-- **反转片 HDR**：反转片用引擎的两次渲染算出每个像素的增益，编辑画面在 HDR 屏幕上更亮，导出 JPEG / HEIF 附增益图。
-
-**底片**
-- 选择时像系统相册一样**横向滑动连选**，拖到屏幕边缘自动滚动；全选 / 取消全选。
-- 挑片成为单独的按钮；日期标题改成悬浮的小标签。
-
-**观片台**
-- 照片默认按底片实际尺寸摆放，也可以切到 5 寸相片尺寸；选中一张后双指单独缩放，一键回到原大小。
-- 叠放的照片互相遮挡；底部「胶片托盘 · 关灯 · 放大镜」，从托盘点一下或拖到台上。
-- 长按进入沉浸式大镜片（镜片避开手指，四周变暗）；放大时自动冲洗 2048 px 清晰版；幻灯可双指放大。
-
-## 2.0.0：相对社区移植版 1.2.0 的变化
-
-**界面：暗房**
-- 新名字、新图标；全新配色（石墨黑、相纸白、安全灯琥珀色）、胶片颗粒背景。
-- 底栏三处：**底片**（图库）· **拍摄** · **观片台**。
-
-**底片（图库）**
-- 一排点一下就切换的筛选（拍摄 / 导入 / 收藏 / 已调色 / RAW / 双拼 / 胶片），按拍摄时间、添加时间或胶片排序。
-- 按天分组；像系统相册一样双指缩放，每行 1–14 张，缩远了按月分组。
-- 直接读系统相册（不复制），或导入到 App 里；从“文件”、存储卡（读卡器，整个 DCIM 文件夹）、其他 App 导入，RAW + JPEG 只留 RAW，导入过的自动跳过。
-- 挑片：没导出的拍摄按天列出，留下的导出、其余删除；底片保留期可设。
-- 配方库：存配方、收藏胶片，一键套到多张照片。
-
-**编辑**
-- 按光路排的工具：取景 · 镜头 · 曝光 · 胶片 · 相纸 · 后期。
-- 裁剪与拉直、全局撤销 / 重做、长按看原图。
-- 解码曲线、黑白胶片（Tri-X、T-Max 100、Acros II、HP5，配 Multigrade 相纸 00–5 号）、去防光晕层、漏光、柔光镜、镜头风格（漩涡、Petzval、老镜头、玩具镜头）。
-- 后期（Layer 2）：光线、色彩、HSL、曲线、色彩平衡。
-- **HDR**：引擎按胶片与相纸的肩部算出每个像素的增益，编辑画面在 HDR 屏幕上亮过白色；导出 JPEG / HEIF 时附 ISO 增益图。
-- 半格双拼：两张拼成一张半格胶片。
-- 导出：JPEG / 10-bit HEIF / 16-bit TIFF / PNG，sRGB / Display P3 / Adobe RGB / ProPhoto，按内存自动限制尺寸，48 MP 可全尺寸导出。
-
-**拍摄**
-- ProRAW、单帧 RAW（不做多帧合成与降噪）、HEIF；按镜头列出真实尺寸。
-- 焦段 13 / 24 / 48 / 100 / 200 mm（48 和 200 是传感器内裁切），双指变焦。
-- 取景器实时显示胶片色彩（引擎烘出的 3D LUT）；手动快门、ISO、曝光补偿、色温；水平仪、网格、直方图。
-- 胶卷可以是一种胶片、一个配方，或“无胶卷”（原始文件直接进“照片”）；拍完可自动在后台冲洗。
-
-**观片台**
-- 把照片按真实毫米尺寸摆在 A4 / A5 / A6 灯箱上，拖动、旋转、整理、打乱。
-- EDR 背光、开关灯、放大镜（2–8×，按住不动凑近）、全屏幻灯。
-
-工程、目标和内部代码仍沿用 `SpektraLab` 这个名字（`ios/SpektraLab.xcodeproj`），只有 App 显示为 Spektra Cam。
-
-## 本地构建
+## 从源码编译
 
 需要 Apple silicon Mac、Xcode 27.2+、iOS 27 SDK、Python 3.10+。
 
@@ -213,19 +244,11 @@ open ios/SpektraLab.xcodeproj
 
 免费账号也能用 `com.apple.developer.kernel.increased-memory-limit`（已写在 entitlements 里），48 MP 全尺寸导出需要它。
 
-## 已知限制
+## 隐私与许可证
 
-- 只在 iPhone 17 Pro Max 和 iPhone 14 Pro 上测试过（见“下载与安装”）。
-- 只支持 iPhone；没有 iPad 布局。
-- 没有视频。
-- HDR 增益图最长 2048 px。
-- 不支持 Sigma Foveon（X3F）和 GoPro GPR 两种 RAW（App 内的 LibRaw 读不了），导入时会提示。
-- 从分享菜单传来的照片要等打开 App 时才导入（分享扩展不能直接打开 App）。
-- 不能用相机控制键直接启动（需要一个锁屏扩展，而 SideStore 这类工具签不了它；代码保留，以后再上）。
-- 用免费 Apple ID 重签会占 2 个 App ID（主程序 + 分享扩展），并用到 App Group。
-- `.github/workflows/build-ios.yml` 是社区版原样保留的 CI：它固定在旧引擎、要用社区版的签名密钥，构建不了这个版本；fork 仓库默认不运行 Actions，请不要启用它。本版的 IPA 是在本地构建的。
+照片、配方、缩略图和冲洗缓存都保存在 iPhone 本地。Spektra Cam 不收集使用数据，不上传任何东西；只有当原图在 iCloud 里时，系统「照片」会替它下载原图。冲洗缓存可以在 设置 › 冲洗 里查看占用和清除。
 
-## 许可与致谢
+Spektra Cam 站在这些开源项目上：
 
 Spektra Cam 站在这些开源项目上：
 
@@ -242,3 +265,7 @@ Spektra Cam 的代码按 **GPL-3.0-or-later** 分发（见 `LICENSE`）；胶片
 ## 商标
 
 SpektraLab™ 及其图标归其权利人所有。Spektra Cam 是独立的非官方项目，与 SpektraLab 官方、spektrafilm 项目都没有关联，也未获其认可；它有自己的名字和图标，只说明“基于 SpektraLab 引擎”。胶片、相纸的名称是各自厂商的商标，只用来说明描述档依据的是哪份公开数据。
+
+## 反馈与贡献
+
+普通问题和可复现的故障请使用本仓库的 [GitHub Issues](../../issues)，说明机型、系统版本、Spektra Cam 版本和复现步骤；附截图时注意去掉不想公开的照片。
