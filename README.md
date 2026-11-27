@@ -14,7 +14,7 @@
 | **观片台** | **设置** | **配方与胶片** |
 | <img src="docs/screenshots/lighttable.png" width="240"> | <img src="docs/screenshots/settings.png" width="240"> | <img src="docs/screenshots/recipes.png" width="240"> |
 
-截图在 iPhone 17 Pro Max 上用“iPhone 镜像”截取；拍摄页的取景画面在镜像时会被系统遮黑。
+截图是 2.1.7 在 iPhone 17 Pro Max 上的界面（2026-11-27 截）。
 
 ## 下载与安装
 
