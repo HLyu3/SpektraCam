@@ -130,6 +130,12 @@ struct EditorView: View {
     private var editingMarks: Bool {
         stage == .finish && chosenTool[.finish] == "watermark"
     }
+    /// The 局部 tool is open: its layer's handles are on the picture.
+    private var editingLocal: Bool {
+        stage == .finish && chosenTool[.finish] == "local" && model.recipe.localAdjustments?.isEmpty == false
+    }
+    /// A tool's handles take the fingers on the picture: its own zoom and hold stand down.
+    private var handlesOnPicture: Bool { editingMarks || editingLocal }
     @State private var immersive = false
     @State private var zoom: CGFloat = 1
     @State private var savedZoom: CGFloat = 1
@@ -495,10 +501,15 @@ struct EditorView: View {
                                                  } : nil)
                             }
                         }
-                        // With the 水印 tool open the marks take the fingers: the picture's own zoom and hold stand down.
-                        .simultaneousGesture(imageGestures, including: editingMarks ? .subviews : .all)
+                        .overlay {
+                            if editingLocal, zoom <= 1, !model.showingOriginal, let t = model.renderedTexture {
+                                LocalOverlay(model: model, picture: CGSize(width: t.width, height: t.height), area: proxy.size)
+                            }
+                        }
+                        // With the 水印 or 局部 tool open its handles take the fingers: the picture's zoom and hold stand down.
+                        .simultaneousGesture(imageGestures, including: handlesOnPicture ? .subviews : .all)
                         .simultaneousGesture(pictureTapGesture)
-                        .simultaneousGesture(compareGesture, including: editingMarks ? .subviews : .all)
+                        .simultaneousGesture(compareGesture, including: handlesOnPicture ? .subviews : .all)
                         .onChange(of: comparing) { _, on in
                             if !on { compareEndedAt = Date() }
                             model.setShowingOriginal(on)

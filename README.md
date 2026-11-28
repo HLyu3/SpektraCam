@@ -6,9 +6,9 @@
 
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
 
-<p align="center"><b>当前版本：</b>2.1.8（Build 16） · <b>系统要求：</b>iOS 18+</p>
+<p align="center"><b>当前版本：</b>2.1.9（Build 17） · <b>系统要求：</b>iOS 18+</p>
 
-<p align="center"><img src="https://img.shields.io/badge/iOS-18%2B-1f6feb?style=flat-square" alt="iOS 18+"> <img src="https://img.shields.io/badge/UI-SwiftUI-f05138?style=flat-square" alt="UI SwiftUI"> <img src="https://img.shields.io/badge/%E5%BC%95%E6%93%8E-SpektraLab%202.4.1-8e44ad?style=flat-square" alt="引擎 SpektraLab 2.4.1"> <img src="https://img.shields.io/badge/Version-2.1.8-555555?style=flat-square" alt="Version 2.1.8"> <img src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF-GPL--3.0-2e7d32?style=flat-square" alt="许可 GPL-3.0"></p>
+<p align="center"><img src="https://img.shields.io/badge/iOS-18%2B-1f6feb?style=flat-square" alt="iOS 18+"> <img src="https://img.shields.io/badge/UI-SwiftUI-f05138?style=flat-square" alt="UI SwiftUI"> <img src="https://img.shields.io/badge/%E5%BC%95%E6%93%8E-SpektraLab%202.4.1-8e44ad?style=flat-square" alt="引擎 SpektraLab 2.4.1"> <img src="https://img.shields.io/badge/Version-2.1.9-555555?style=flat-square" alt="Version 2.1.9"> <img src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF-GPL--3.0-2e7d32?style=flat-square" alt="许可 GPL-3.0"></p>
 
 <p align="center"><a href="../../releases/latest">下载最新版</a> · <a href="#安装步骤">安装教程</a> · <a href="#5-添加-spektra-cam-软件源">软件源</a> · <a href="#从源码编译">从源码编译</a></p>
 
@@ -18,7 +18,7 @@
 
 ## 当前进展
 
-- 当前版本 **2.1.8（Build 16）**，以 GitHub Release 中的未签名 IPA 分发，用 SideStore 等自签方式安装；也可以添加[软件源](#5-添加-spektra-cam-软件源)，以后在 SideStore 里直接更新。
+- 当前版本 **2.1.9（Build 17）**，以 GitHub Release 中的未签名 IPA 分发，用 SideStore 等自签方式安装；也可以添加[软件源](#5-添加-spektra-cam-软件源)，以后在 SideStore 里直接更新。
 - 胶片引擎是上游 SpektraLab **2.4.1**，同一张 RAW 在 Mac 版和 Spektra Cam 里冲出来的颜色一致（逐张对比过）。
 - 已完成：相机（ProRAW / 单帧 RAW / HEIF、iPhone 17 方形前置）、按光路排的暗房编辑、30 款胶片与 7 种相纸、片边与电影画幅、HDR、观片台、配方库、批量导出，中英双语界面。
 - 已在 iPhone 17 Pro Max（iOS 27）和 iPhone 14 Pro（iOS 26.5）上实测；其他机型能装，但镜头焦段、拍摄尺寸、导出大小和 HDR 亮度没有验证过。
@@ -42,10 +42,10 @@
 - **编辑**：按光路排的工具——取景 · 镜头 · 曝光 · 胶片 · 相纸 · 后期；裁剪、拉直、旋转、翻转；**透视校正**（垂直、水平），**自动**按画面里的直线一键扶正、校正透视；白平衡吸管；解码曲线；全局撤销 / 重做；按住看原图；选「无胶片」时只留用得上的工具。
 - **胶片与相纸**：30 款胶片（彩色负片、反转片、电影负片、黑白负片）和 7 种相纸，按类型或品牌排列；黑白胶片配 Multigrade 相纸 00–5 号；反转片直接扫描；胶片对比网格一次看完所有胶片。
 - **效果**：片边、齿孔与日期后背，电影画幅（Super 8 / 16、35 mm、65 mm、IMAX）；漏光与边缘烧灼、柔光镜、镜头风格（漩涡、Petzval、老镜头、玩具镜头）、去防光晕层。
-- **后期**：光线、色彩、HSL、曲线、四个色轮的色彩平衡、通道混合、水印（直接在照片上拖动、缩放、旋转）；**HDR**：在 HDR 屏幕上亮过白色，导出附增益图。
-- **底片（图库）**：直接读系统相册（不复制）或导入 App；支持各家相机的 RAW（含 LibRaw 回退）、存储卡整个 DCIM 文件夹、从「照片」分享过来；按天分组、双指缩放、筛选与排序；横向滑动多选、复制粘贴配方、两张对比；**半格双拼**（可以再编辑，片边可选「半格双拼」印在同一条 135 胶片上）；挑片和批量导出。
-- **观片台**：照片按底片的真实毫米尺寸摆在灯箱上；EDR 背光、开关灯、放大镜（按住凑近 8×）、全屏幻灯；整张观片台可以**导出成一张图**分享。
-- **导出**：JPEG / 10 位 HEIF / 16 位 TIFF / PNG，sRGB / Display P3 / Adobe RGB / ProPhoto，三组推荐设置；按内存自动限制尺寸，4800 万像素可全尺寸导出（开片边时约 3100 万）。
+- **后期**：光线、色彩、HSL、曲线、四个色轮的色彩平衡、通道混合、水印（直接在照片上拖动、缩放、旋转）；**局部调整**（渐变、径向，以及自动识别的主体、人物蒙版）；**HDR**：在 HDR 屏幕上亮过白色，导出附增益图。
+- **底片（图库）**：直接读系统相册（不复制）或导入 App；支持各家相机的 RAW（含 LibRaw 回退）、存储卡整个 DCIM 文件夹、从「照片」分享过来；按天分组、双指缩放、筛选与排序；横向滑动多选、复制粘贴配方、两张对比；**半格双拼**（可以再编辑，片边可选「半格双拼」印在同一条 135 胶片上）；**多重曝光**（两张按光线相加，上层可移动、缩放、旋转、翻转）；照片信息页；**自动备份**到你选的文件夹（如 iCloud 云盘）；新照片默认用哪款胶片可以设；挑片和批量导出。
+- **观片台**：照片按底片的真实毫米尺寸摆在灯箱上；EDR 背光、开关灯、放大镜（按住凑近 8×）、全屏幻灯；整张观片台可以**导出成一张图**分享，也可以导出带尺子的版面或海报。
+- **导出**：JPEG / 10 位 HEIF / 16 位 TIFF / PNG，sRGB / Display P3 / Adobe RGB / ProPhoto，三组推荐设置；可选导出尺寸（像素数、长边或短边）和自定义文件名；按内存自动限制尺寸，4800 万像素可全尺寸导出（开片边时约 3100 万）。
 
 ## 实现原理
 
@@ -174,7 +174,7 @@ https://raw.githubusercontent.com/HLyu3/SpektraCam/main/source.json
 3. 等待 SideStore 完成签名和安装。期间保持 SideStore 打开，不要断开 Wi-Fi 或 LocalDevVPN。
 4. 回到桌面确认 Spektra Cam 图标已经出现。
 
-**不想用软件源**：到 [Releases](../../releases/latest) 下载 `SpektraCam-2.1.8-unsigned.ipa`，先保存到 iPhone 的「文件」App，再在 SideStore 的 **My Apps** 里轻点 **＋** 从「文件」选择它。不要直接粘贴 IPA 的下载链接安装，部分 SideStore 版本会因此报 Bundle ID 不匹配。
+**不想用软件源**：到 [Releases](../../releases/latest) 下载 `SpektraCam-2.1.9-unsigned.ipa`，先保存到 iPhone 的「文件」App，再在 SideStore 的 **My Apps** 里轻点 **＋** 从「文件」选择它。不要直接粘贴 IPA 的下载链接安装，部分 SideStore 版本会因此报 Bundle ID 不匹配。
 
 ## 第一次打开
 

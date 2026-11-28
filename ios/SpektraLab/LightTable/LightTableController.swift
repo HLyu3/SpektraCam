@@ -30,6 +30,7 @@
 //  at the display's own rate, 120 Hz on a ProMotion screen.
 
 import CoreGraphics
+import CoreText
 import Foundation
 import Metal
 import Observation
@@ -1221,15 +1222,143 @@ final class LightTableController {
 
     /// The whole light box as a picture, `longEdge` pixels on its long side (the 导出 item): the films as they lie, the
     /// pad lit at plain white (no EDR boost), a little desk round it. Nil without the GPU.
-    func exportPicture(longEdge: Double) -> CGImage? {
+    func exportPicture(longEdge: Double, sharp: Bool = false) -> CGImage? {
         guard let renderer else { return nil }
         var s = scene()
         s.glow = 1
         let half = model.half, m = 0.04 * max(half.width, half.height)
         let (x0, x1, y0, y1) = (-half.width - m, half.width + m, -half.height - m, half.height + m)
         let px = (x1 - x0) >= (y1 - y0) ? longEdge : longEdge * (x1 - x0) / (y1 - y0)
+        if sharp {
+            // Each film read again at the size this file shows it (its large develop where there is one), not at the
+            // size the screen happened to need: the screen's textures are a few hundred pixels when the table fits it.
+            let pxPerMM = px / (x1 - x0)
+            var films: [LightTableRenderer.Film] = []
+            for (id, film) in zip(drawn.filter { shown[$0] != nil }, s.films) {
+                var f = film
+                if let frame = frames[id] {
+                    let need = min(Int((max(film.size.width, film.size.height) * pxPerMM).rounded(.up)), LightTableSizing.sourceCeiling)
+                    if let image = filmImage(frame, edge: need, sharp: true),
+                       let t = LightTableTextures.upload(image, edge: need, renderer: renderer)?.0 { f.texture = t }
+                }
+                films.append(f)
+            }
+            s.films = films
+        }
         return renderer.picture(s, x0: x0, y0: y0, x1: x1, y1: y1, px: px)
     }
+
+    /// A film's picture `edge` pixels long: its large develop when `sharp` and there is one, else its thumbnail.
+    private func filmImage(_ frame: LibraryFrame, edge: Int, sharp: Bool) -> CGImage? {
+        (sharp ? LightTableFullRead.ref(frame).flatMap { LightTableFullRead.image($0, edge: edge) } : nil)
+            ?? CGImageSourceCreateWithURL(frame.thumbnail as CFURL, nil).flatMap {
+                CGImageSourceCreateThumbnailAtIndex($0, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                                            kCGImageSourceCreateThumbnailWithTransform: true,
+                                                            kCGImageSourceThumbnailMaxPixelSize: edge] as CFDictionary)
+            }
+    }
+
+    /// 只要照片: the films as they lie on white paper — no light box, no desk —, cropped to them with a margin,
+    /// `longEdge` pixels on its long side. Drawn with Core Graphics (the table's world is y up, turns counter-clockwise,
+    /// as a CGContext's). Nil with no film on the table.
+    /// `sheet` (版面): the whole sheet of paper instead, edge to edge, with a printed millimetre scale along its foot —
+    /// upstream's Layout Only.
+    func exportLayout(longEdge: Double, sharp: Bool, sheet: Bool = false) -> CGImage? {
+        let pairs = zip(drawn.filter { shown[$0] != nil }, scene().films).filter { $0.1.presence > 0.5 }
+        guard sheet || !pairs.isEmpty else { return nil }
+        var box = CGRect.null
+        if sheet {
+            let half = model.half
+            box = CGRect(x: -half.width, y: -half.height, width: 2 * half.width, height: 2 * half.height)
+        } else {
+            for (_, f) in pairs {
+                let c = cos(f.angle), s = sin(f.angle), hw = f.size.width / 2, hh = f.size.height / 2
+                let ex = abs(hw * c) + abs(hh * s), ey = abs(hw * s) + abs(hh * c)
+                box = box.union(CGRect(x: f.centre.x - ex, y: f.centre.y - ey, width: 2 * ex, height: 2 * ey))
+            }
+            box = box.insetBy(dx: -0.06 * max(box.width, box.height), dy: -0.06 * max(box.width, box.height))
+        }
+        let k = min(longEdge, 12000) / max(box.width, box.height)          // px per mm
+        let w = Int((box.width * k).rounded()), h = Int((box.height * k).rounded())
+        guard w > 0, h > 0, let space = CGColorSpace(name: CGColorSpace.displayP3),
+              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        ctx.setFillColor(CGColor(gray: 0.97, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.interpolationQuality = .high
+        for (id, f) in pairs {
+            let need = Int((max(f.size.width, f.size.height) * k).rounded(.up))
+            guard let frame = frames[id], let image = filmImage(frame, edge: need, sharp: sharp) else { continue }
+            let rw = f.size.width * k, rh = f.size.height * k
+            ctx.saveGState()
+            ctx.translateBy(x: (f.centre.x - box.minX) * k, y: (f.centre.y - box.minY) * k)
+            ctx.rotate(by: f.angle)
+            ctx.setShadow(offset: CGSize(width: 0, height: -0.004 * rh - 1), blur: 0.02 * max(rw, rh),
+                          color: CGColor(gray: 0, alpha: 0.28))
+            ctx.draw(image, in: CGRect(x: -rw / 2, y: -rh / 2, width: rw, height: rh))
+            ctx.restoreGState()
+        }
+        if sheet { drawScale(ctx, k: k, width: box.width) }
+        return ctx.makeImage()
+    }
+
+    /// A printed ruler along the sheet's foot: a tick each 10 mm, longer and numbered each 50.
+    private func drawScale(_ ctx: CGContext, k: Double, width mm: Double) {
+        let ink = CGColor(gray: 0.35, alpha: 1)
+        ctx.setStrokeColor(ink)
+        ctx.setLineWidth(max(1, 0.25 * k))
+        let foot = 4 * k
+        var x = 10.0
+        while x < mm {
+            let long = Int(x) % 50 == 0
+            ctx.move(to: CGPoint(x: x * k, y: foot))
+            ctx.addLine(to: CGPoint(x: x * k, y: foot + (long ? 3 : 1.5) * k))
+            if long {
+                let label = NSAttributedString(string: "\(Int(x))", attributes: [
+                    .font: CTFontCreateWithName("Menlo" as CFString, 2.2 * k, nil),
+                    .foregroundColor: ink])
+                let line = CTLineCreateWithAttributedString(label)
+                let w = CTLineGetTypographicBounds(line, nil, nil, nil)
+                ctx.textPosition = CGPoint(x: x * k - w / 2, y: foot + 3.8 * k)
+                CTLineDraw(line, ctx)
+            }
+            x += 10
+        }
+        ctx.strokePath()
+    }
+
+    /// 海报: the lit table on white paper with a line under it — the app's name, the day and the films on it.
+    func exportPoster(longEdge: Double, sharp: Bool) -> CGImage? {
+        guard let table = exportPicture(longEdge: longEdge * 0.86, sharp: sharp) else { return nil }
+        let tw = Double(table.width), th = Double(table.height)
+        let margin = 0.07 * max(tw, th), foot = 0.09 * max(tw, th)
+        let w = Int((tw + 2 * margin).rounded()), h = Int((th + 2 * margin + foot).rounded())
+        guard let space = CGColorSpace(name: CGColorSpace.displayP3),
+              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        ctx.setFillColor(CGColor(gray: 0.985, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.setShadow(offset: CGSize(width: 0, height: -0.006 * th), blur: 0.025 * max(tw, th), color: CGColor(gray: 0, alpha: 0.22))
+        ctx.draw(table, in: CGRect(x: margin, y: margin + foot, width: tw, height: th))
+        ctx.setShadow(offset: .zero, blur: 0)
+        // The line: name left, the day and the films right.
+        let size = foot * 0.26
+        let films = Array(NSOrderedSet(array: drawn.compactMap { frames[$0]?.caption }.filter { !$0.isEmpty })) as? [String] ?? []
+        let right = ([Date().formatted(date: .long, time: .omitted)] + films.prefix(4)).joined(separator: "  ·  ")
+        func draw(_ text: String, _ font: CTFont, _ grey: CGFloat, leftAt x: Double?, rightAt r: Double?) {
+            let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [
+                .font: font, .foregroundColor: CGColor(gray: grey, alpha: 1)]))
+            let lw = CTLineGetTypographicBounds(line, nil, nil, nil)
+            ctx.textPosition = CGPoint(x: x ?? ((r ?? 0) - lw), y: margin + foot * 0.38)
+            CTLineDraw(line, ctx)
+        }
+        draw("Spektra Cam", CTFontCreateWithName("Georgia-Bold" as CFString, size * 1.25, nil), 0.12, leftAt: margin, rightAt: nil)
+        draw(right, CTFontCreateWithName("Menlo" as CFString, size * 0.62, nil), 0.4, leftAt: nil, rightAt: Double(w) - margin)
+        return ctx.makeImage()
+    }
+
+    /// The films lying on the table (for the export's 清晰版 step).
+    var filmsOnTable: [UUID] { drawn }
 
     private func scene() -> LightTableRenderer.Scene {
         var films: [LightTableRenderer.Film] = []

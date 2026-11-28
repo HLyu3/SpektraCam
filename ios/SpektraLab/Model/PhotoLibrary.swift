@@ -61,6 +61,14 @@ struct PhotoRecipe: Codable, Equatable, Sendable {
     var hdr: Bool? = nil
     /// 水印 over the finished picture (`Edit/Watermark.swift`); never on the wire. nil = none.
     var watermarks: [WatermarkPlacement]? = nil
+    /// 局部调整 (`Edit/LocalAdjust.swift`): the finish's graduated and radial layers. Never on the engine's wire.
+    var localAdjustments: [LocalAdjustment]? = nil
+
+    /// The finish pass has something to do: the whole picture's adjustments, or a layer that moves something.
+    var finishActive: Bool {
+        adjustments?.isActive == true || (localAdjustments ?? []).contains { !$0.isNeutral }
+    }
+    var finishLocals: [LocalAdjustment] { localAdjustments ?? [] }
     /// 白平衡 at the decode (`Edit/SceneBalance.swift`): r, g, b gains on the linear frame before the engine. nil = as shot.
     var sceneBalance: [Double]? = nil
     /// 自动置位 (the engine's Scene Latitude fit, solved per photo): nil = off, as the Mac app's default (the owner:
@@ -257,6 +265,8 @@ struct LibraryPhoto: Identifiable {
     var crop: FrameCrop? = nil
     /// A half-frame pair: which two photographs this piece was composed from.
     var pair: PairSpec? = nil
+    /// A double exposure: which two photographs, and how they were laid and lit.
+    var double: DoubleSpec? = nil
     var favorite = false
     /// Shot with the app's camera (not imported).
     var captured = false
@@ -310,6 +320,8 @@ struct LibraryManifestEntry: Codable {
     var recipe: PhotoRecipe
     var crop: FrameCrop? = nil
     var pair: PairSpec? = nil
+    /// A double exposure: which two photographs, and how they were laid and lit.
+    var double: DoubleSpec? = nil
     var favorite: Bool? = nil
     var captured: Bool? = nil
     var frameNumber: Int? = nil

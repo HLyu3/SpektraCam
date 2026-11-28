@@ -36,6 +36,7 @@
 		F56B5ACED68A518C70A19BA7 /* AutoUpright.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AutoUpright.swift"; sourceTree = "<group>"; };
 		76DACEB24A36AEDCAB891359 /* CropScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CropScreen.swift"; sourceTree = "<group>"; };
 		656533944E85E5AD552CC3B3 /* CurveMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CurveMath.swift"; sourceTree = "<group>"; };
+		ADE4039D2366E8BCBE427C8F /* DoubleExposure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DoubleExposure.swift"; sourceTree = "<group>"; };
 		CED46D211B3CD4077F7D8B31 /* EditorDeck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorDeck.swift"; sourceTree = "<group>"; };
 		ECBF1318CF3CD6947172B59D /* FinishPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FinishPanel.swift"; sourceTree = "<group>"; };
 		AE5D6F6740063DBB2B53B057 /* FrameCrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FrameCrop.swift"; sourceTree = "<group>"; };
@@ -43,6 +44,7 @@
 		038B2F29ADA1BD108CF897AC /* Layer2Kernel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Layer2Kernel.swift"; sourceTree = "<group>"; };
 		5AD6ACCD1BB3BEFE738691CC /* Layer2Renderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Layer2Renderer.swift"; sourceTree = "<group>"; };
 		ED18289047175E04732CED17 /* Layer2Shims.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Layer2Shims.swift"; sourceTree = "<group>"; };
+		D40FD18F2FA37ADCE2335DB2 /* LocalAdjust.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalAdjust.swift"; sourceTree = "<group>"; };
 		B5F9A511840FF539EFB6C4D7 /* SceneBalance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SceneBalance.swift"; sourceTree = "<group>"; };
 		1146BBDB7FEB387773123990 /* Watermark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Watermark.swift"; sourceTree = "<group>"; };
 		6F2E613BD707C2C2300FC122 /* Edit */ = {
@@ -52,6 +54,7 @@
 				F56B5ACED68A518C70A19BA7 /* AutoUpright.swift */,
 				76DACEB24A36AEDCAB891359 /* CropScreen.swift */,
 				656533944E85E5AD552CC3B3 /* CurveMath.swift */,
+				ADE4039D2366E8BCBE427C8F /* DoubleExposure.swift */,
 				CED46D211B3CD4077F7D8B31 /* EditorDeck.swift */,
 				ECBF1318CF3CD6947172B59D /* FinishPanel.swift */,
 				AE5D6F6740063DBB2B53B057 /* FrameCrop.swift */,
@@ -59,6 +62,7 @@
 				038B2F29ADA1BD108CF897AC /* Layer2Kernel.swift */,
 				5AD6ACCD1BB3BEFE738691CC /* Layer2Renderer.swift */,
 				ED18289047175E04732CED17 /* Layer2Shims.swift */,
+				D40FD18F2FA37ADCE2335DB2 /* LocalAdjust.swift */,
 				B5F9A511840FF539EFB6C4D7 /* SceneBalance.swift */,
 				1146BBDB7FEB387773123990 /* Watermark.swift */
 			);
@@ -105,6 +109,7 @@
 		};
 		67F1C4D932C9544A49DACAFC /* CullView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CullView.swift"; sourceTree = "<group>"; };
 		8304BCEFE03E24BBCFA4F98F /* HandOver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HandOver.swift"; sourceTree = "<group>"; };
+		1699A4074B731673B8A89D28 /* InfoSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InfoSheet.swift"; sourceTree = "<group>"; };
 		3034057BDB6CEA8BF0FFFD91 /* MainTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MainTabs.swift"; sourceTree = "<group>"; };
 		982C4A560535D86FCA1513AE /* PhotoAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PhotoAssets.swift"; sourceTree = "<group>"; };
 		C83081B6E6706E61AA28D06D /* PhotosWall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PhotosWall.swift"; sourceTree = "<group>"; };
@@ -115,6 +120,7 @@
 			children = (
 				67F1C4D932C9544A49DACAFC /* CullView.swift */,
 				8304BCEFE03E24BBCFA4F98F /* HandOver.swift */,
+				1699A4074B731673B8A89D28 /* InfoSheet.swift */,
 				3034057BDB6CEA8BF0FFFD91 /* MainTabs.swift */,
 				982C4A560535D86FCA1513AE /* PhotoAssets.swift */,
 				C83081B6E6706E61AA28D06D /* PhotosWall.swift */,
@@ -158,6 +164,7 @@
 		4C25A2A11A9B022A9630D937 /* ExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExportOptions.swift"; sourceTree = "<group>"; };
 		98BA85BA0900B8D0A9F272E6 /* FilmEffects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FilmEffects.swift"; sourceTree = "<group>"; };
 		0E3CC8CA30A687F2AB16F676 /* FrameCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FrameCache.swift"; sourceTree = "<group>"; };
+		BBB197D3B940188EE2755CE3 /* LibraryBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryBackup.swift"; sourceTree = "<group>"; };
 		43640C977325C2A4780BCB22 /* Params.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Params.swift"; sourceTree = "<group>"; };
 		7C720500C0B7033ECA5EA3A1 /* PhotoLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PhotoLibrary.swift"; sourceTree = "<group>"; };
 		8319D85CEA62FD3B59A0AD0D /* RecipeLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecipeLibrary.swift"; sourceTree = "<group>"; };
@@ -169,6 +176,7 @@
 				4C25A2A11A9B022A9630D937 /* ExportOptions.swift */,
 				98BA85BA0900B8D0A9F272E6 /* FilmEffects.swift */,
 				0E3CC8CA30A687F2AB16F676 /* FrameCache.swift */,
+				BBB197D3B940188EE2755CE3 /* LibraryBackup.swift */,
 				43640C977325C2A4780BCB22 /* Params.swift */,
 				7C720500C0B7033ECA5EA3A1 /* PhotoLibrary.swift */,
 				8319D85CEA62FD3B59A0AD0D /* RecipeLibrary.swift */,
@@ -547,6 +555,7 @@
 		1D5F8339D48E14242DBE010A /* AutoUpright.swift */ = {isa = PBXBuildFile; fileRef = F56B5ACED68A518C70A19BA7; };
 		572A4EE3A49E4158F84E8784 /* CropScreen.swift */ = {isa = PBXBuildFile; fileRef = 76DACEB24A36AEDCAB891359; };
 		E0CBC3DA27261B658E36EFC8 /* CurveMath.swift */ = {isa = PBXBuildFile; fileRef = 656533944E85E5AD552CC3B3; };
+		90AC77391679311DC44A0106 /* DoubleExposure.swift */ = {isa = PBXBuildFile; fileRef = ADE4039D2366E8BCBE427C8F; };
 		9778111D94FFC466455766F8 /* EditorDeck.swift */ = {isa = PBXBuildFile; fileRef = CED46D211B3CD4077F7D8B31; };
 		CD8AD252BE18E1BFD575AC80 /* FinishPanel.swift */ = {isa = PBXBuildFile; fileRef = ECBF1318CF3CD6947172B59D; };
 		6FC9B17453E34729A84D37BA /* FrameCrop.swift */ = {isa = PBXBuildFile; fileRef = AE5D6F6740063DBB2B53B057; };
@@ -554,6 +563,7 @@
 		8A669D16B06FA54984862B60 /* Layer2Kernel.swift */ = {isa = PBXBuildFile; fileRef = 038B2F29ADA1BD108CF897AC; };
 		86083ADB8D7816F56B38F6BD /* Layer2Renderer.swift */ = {isa = PBXBuildFile; fileRef = 5AD6ACCD1BB3BEFE738691CC; };
 		B47E3304978A18A3CC2AF989 /* Layer2Shims.swift */ = {isa = PBXBuildFile; fileRef = ED18289047175E04732CED17; };
+		EA4258B4FCD300697A7DFA8B /* LocalAdjust.swift */ = {isa = PBXBuildFile; fileRef = D40FD18F2FA37ADCE2335DB2; };
 		D0421C747DF3F73D01B5D487 /* SceneBalance.swift */ = {isa = PBXBuildFile; fileRef = B5F9A511840FF539EFB6C4D7; };
 		C0BB97E57670AF6A05BBB515 /* Watermark.swift */ = {isa = PBXBuildFile; fileRef = 1146BBDB7FEB387773123990; };
 		8F2218D74932543ADE1F1D2F /* HDRExport.swift */ = {isa = PBXBuildFile; fileRef = 744ADE80DEC00B8F39D14859; };
@@ -568,6 +578,7 @@
 		6FBE1FABF6467A05AF2602F2 /* RAWTypes.swift */ = {isa = PBXBuildFile; fileRef = 474A33366FB5799CE2817692; };
 		CD1DB7AD8B6BDF0D3F2D71CF /* CullView.swift */ = {isa = PBXBuildFile; fileRef = 67F1C4D932C9544A49DACAFC; };
 		466C3964863C7F0C09FACB1F /* HandOver.swift */ = {isa = PBXBuildFile; fileRef = 8304BCEFE03E24BBCFA4F98F; };
+		482E22AF3811D8C3020A20D8 /* InfoSheet.swift */ = {isa = PBXBuildFile; fileRef = 1699A4074B731673B8A89D28; };
 		2CA94F7B21350A44CE487629 /* MainTabs.swift */ = {isa = PBXBuildFile; fileRef = 3034057BDB6CEA8BF0FFFD91; };
 		FC1F1DCD02DE3F2EE435A92C /* PhotoAssets.swift */ = {isa = PBXBuildFile; fileRef = 982C4A560535D86FCA1513AE; };
 		ED424885A361AC7545127B00 /* PhotosWall.swift */ = {isa = PBXBuildFile; fileRef = C83081B6E6706E61AA28D06D; };
@@ -588,6 +599,7 @@
 		718E3192DA17A496331767B8 /* ExportOptions.swift */ = {isa = PBXBuildFile; fileRef = 4C25A2A11A9B022A9630D937; };
 		A3C2DA798B33ED4314BD260E /* FilmEffects.swift */ = {isa = PBXBuildFile; fileRef = 98BA85BA0900B8D0A9F272E6; };
 		E9672D32D2F8C726CB0FD9C8 /* FrameCache.swift */ = {isa = PBXBuildFile; fileRef = 0E3CC8CA30A687F2AB16F676; };
+		38BB45A7E964976F3E5E18CF /* LibraryBackup.swift */ = {isa = PBXBuildFile; fileRef = BBB197D3B940188EE2755CE3; };
 		430B96D64212D930E62FE531 /* Params.swift */ = {isa = PBXBuildFile; fileRef = 43640C977325C2A4780BCB22; };
 		DFA11D3FCF18012C210B07AD /* PhotoLibrary.swift */ = {isa = PBXBuildFile; fileRef = 7C720500C0B7033ECA5EA3A1; };
 		17C8E9B68DC82511A5BB2AFD /* RecipeLibrary.swift */ = {isa = PBXBuildFile; fileRef = 8319D85CEA62FD3B59A0AD0D; };
@@ -729,6 +741,7 @@
 				1D5F8339D48E14242DBE010A /* AutoUpright.swift */,
 				572A4EE3A49E4158F84E8784 /* CropScreen.swift */,
 				E0CBC3DA27261B658E36EFC8 /* CurveMath.swift */,
+				90AC77391679311DC44A0106 /* DoubleExposure.swift */,
 				9778111D94FFC466455766F8 /* EditorDeck.swift */,
 				CD8AD252BE18E1BFD575AC80 /* FinishPanel.swift */,
 				6FC9B17453E34729A84D37BA /* FrameCrop.swift */,
@@ -736,6 +749,7 @@
 				8A669D16B06FA54984862B60 /* Layer2Kernel.swift */,
 				86083ADB8D7816F56B38F6BD /* Layer2Renderer.swift */,
 				B47E3304978A18A3CC2AF989 /* Layer2Shims.swift */,
+				EA4258B4FCD300697A7DFA8B /* LocalAdjust.swift */,
 				D0421C747DF3F73D01B5D487 /* SceneBalance.swift */,
 				C0BB97E57670AF6A05BBB515 /* Watermark.swift */,
 				8F2218D74932543ADE1F1D2F /* HDRExport.swift */,
@@ -750,6 +764,7 @@
 				6FBE1FABF6467A05AF2602F2 /* RAWTypes.swift */,
 				CD1DB7AD8B6BDF0D3F2D71CF /* CullView.swift */,
 				466C3964863C7F0C09FACB1F /* HandOver.swift */,
+				482E22AF3811D8C3020A20D8 /* InfoSheet.swift */,
 				2CA94F7B21350A44CE487629 /* MainTabs.swift */,
 				FC1F1DCD02DE3F2EE435A92C /* PhotoAssets.swift */,
 				ED424885A361AC7545127B00 /* PhotosWall.swift */,
@@ -770,6 +785,7 @@
 				718E3192DA17A496331767B8 /* ExportOptions.swift */,
 				A3C2DA798B33ED4314BD260E /* FilmEffects.swift */,
 				E9672D32D2F8C726CB0FD9C8 /* FrameCache.swift */,
+				38BB45A7E964976F3E5E18CF /* LibraryBackup.swift */,
 				430B96D64212D930E62FE531 /* Params.swift */,
 				DFA11D3FCF18012C210B07AD /* PhotoLibrary.swift */,
 				17C8E9B68DC82511A5BB2AFD /* RecipeLibrary.swift */,
@@ -986,7 +1002,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_DEBUG_DYLIB = NO;
@@ -996,7 +1012,7 @@
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.8;
+				MARKETING_VERSION = 2.1.9;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
@@ -1020,14 +1036,14 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 2.1.8;
+				MARKETING_VERSION = 2.1.9;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(SPEKTRA_APP_ID).share";
 				PRODUCT_NAME = ShareExtension;
@@ -1116,7 +1132,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1143,7 +1159,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 2.1.8;
+				MARKETING_VERSION = 2.1.9;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1176,7 +1192,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpektraLab/SpektraLab.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
@@ -1200,7 +1216,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 2.1.8;
+				MARKETING_VERSION = 2.1.9;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = NO;

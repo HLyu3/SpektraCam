@@ -284,6 +284,22 @@
         }
       }
     },
+    "%@ 印在": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ printed on"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 印在"
+          }
+        }
+      }
+    },
     "%@（%lld×%lld mm）": {
       "localizations": {
         "zh-Hans": {
@@ -340,6 +356,7 @@
         }
       }
     },
+    "%lld MP": {},
     "%lld px": {
       "localizations": {
         "zh-Hans": {
@@ -886,6 +903,22 @@
         }
       }
     },
+    "App 会关闭，再次打开时换成备份里的底片库。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app closes; when you open it again it uses the backup's library."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 会关闭，再次打开时换成备份里的底片库。"
+          }
+        }
+      }
+    },
     "EDR 背光": {
       "localizations": {
         "en": {
@@ -1170,6 +1203,7 @@
         }
       }
     },
+    "px": {},
     "·": {
       "localizations": {
         "zh-Hans": {
@@ -1192,22 +1226,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "· %lld 张"
-          }
-        }
-      }
-    },
-    "“上次使用”：新导入或新拍的照片，套用最近一次在编辑页调好的配方（拍摄时胶片仍按装好的胶卷）。\n相纸：选胶片时（拍照和编辑都一样）用这卷胶片的推荐相纸，没有推荐的用 Crystal Archive；黑白胶片用自己的黑白相纸。拍照页胶卷名下面的“相纸”按钮里选了推荐相纸中的另一张，以后这卷胶片就用它；选推荐以外的相纸只在这次拍摄有效，想固定请存成配方；编辑时换的相纸只影响那一张。\n预览尺寸：编辑时画面的长边；越大越清楚，拖动时越慢，下次打开照片时生效。导出始终是全尺寸。\n镜头校正：只对 RAW，按照片里记录的相机数据校正畸变和暗角；ProRAW 和大多数 DNG 都带这份数据。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“Last used”: new imports and new shots take the recipe last set in the editor (shots still use the film loaded in the camera).\nPaper: when a film is chosen (camera and editor alike) it prints on that film's recommended paper, or Crystal Archive if it has none; black-and-white films use their own silver paper. Pick another recommended paper with the “Paper” button under the roll name in the camera and that film keeps it from then on; a paper outside the recommendations lasts only for that session — save it as a recipe to keep it. A paper changed in the editor affects that photo only.\nPreview size: the long edge of the picture while editing; larger is sharper but slower to drag, and takes effect the next time a photo opens. Exports are always full size.\nLens correction: RAW only; corrects distortion and vignetting from the camera data in the file. ProRAW and most DNGs carry it."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“上次使用”：新导入或新拍的照片，套用最近一次在编辑页调好的配方（拍摄时胶片仍按装好的胶卷）。\n相纸：选胶片时（拍照和编辑都一样）用这卷胶片的推荐相纸，没有推荐的用 Crystal Archive；黑白胶片用自己的黑白相纸。拍照页胶卷名下面的“相纸”按钮里选了推荐相纸中的另一张，以后这卷胶片就用它；选推荐以外的相纸只在这次拍摄有效，想固定请存成配方；编辑时换的相纸只影响那一张。\n预览尺寸：编辑时画面的长边；越大越清楚，拖动时越慢，下次打开照片时生效。导出始终是全尺寸。\n镜头校正：只对 RAW，按照片里记录的相机数据校正畸变和暗角；ProRAW 和大多数 DNG 都带这份数据。"
           }
         }
       }
@@ -1244,6 +1262,7 @@
         }
       }
     },
+    "、": {},
     "「%@」只有 %lld×%lld，会被放大到另一张的尺寸，这一格会偏软。": {
       "localizations": {
         "en": {
@@ -1256,6 +1275,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "「%@」只有 %lld×%lld，会被放大到另一张的尺寸，这一格会偏软。"
+          }
+        }
+      }
+    },
+    "一张照片最多 %lld 个局部调整": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up to %lld local adjustments per photo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一张照片最多 %lld 个局部调整"
           }
         }
       }
@@ -1292,6 +1327,54 @@
         }
       }
     },
+    "上 %d%% · 下 %d%%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top %d%% · bottom %d%%"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上 %d%% · 下 %d%%"
+          }
+        }
+      }
+    },
+    "上下互换": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap top and bottom"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上下互换"
+          }
+        }
+      }
+    },
+    "上层曝光": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top exposure"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上层曝光"
+          }
+        }
+      }
+    },
     "上次使用": {
       "localizations": {
         "en": {
@@ -1304,6 +1387,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "上次使用"
+          }
+        }
+      }
+    },
+    "上次备份": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last backup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次备份"
+          }
+        }
+      }
+    },
+    "上次失败：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last attempt failed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次失败：%@"
+          }
+        }
+      }
+    },
+    "上次导出到相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last exported to Photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次导出到相册"
           }
         }
       }
@@ -1404,6 +1535,22 @@
         }
       }
     },
+    "不会比原图更大。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Never larger than the original."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不会比原图更大。"
+          }
+        }
+      }
+    },
     "不允许": {
       "localizations": {
         "en": {
@@ -1480,6 +1627,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "两张半格 · 135 片边"
+          }
+        }
+      }
+    },
+    "两张照片做成的双拼": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A pair made of two photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "两张照片做成的双拼"
           }
         }
       }
@@ -1564,6 +1727,38 @@
         }
       }
     },
+    "主体": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subject"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主体"
+          }
+        }
+      }
+    },
+    "之后改过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changed since"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之后改过"
+          }
+        }
+      }
+    },
     "亮度": {
       "localizations": {
         "en": {
@@ -1580,6 +1775,22 @@
         }
       }
     },
+    "亮着的观片台放在白纸上，下面一行写着日期和台上的胶片，适合分享。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The lit light table on white paper, with a line under it naming the day and the films on it. Good for sharing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "亮着的观片台放在白纸上，下面一行写着日期和台上的胶片，适合分享。"
+          }
+        }
+      }
+    },
     "亮部": {
       "localizations": {
         "en": {
@@ -1592,6 +1803,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "亮部"
+          }
+        }
+      }
+    },
+    "人物": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人物"
           }
         }
       }
@@ -1640,6 +1867,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "从图库添加"
+          }
+        }
+      }
+    },
+    "从备份恢复…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore from Backup…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从备份恢复…"
           }
         }
       }
@@ -2012,6 +2255,22 @@
         }
       }
     },
+    "信息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信息"
+          }
+        }
+      }
+    },
     "倍率": {
       "localizations": {
         "en": {
@@ -2124,6 +2383,22 @@
         }
       }
     },
+    "像胶片相机不过片再按一次快门：两张的光叠加在同一格上。每张先各自测光，「比例」决定上层占多少光，合起来是一次正常曝光。暗的地方会透出另一张，亮的地方盖住。预览是真实的叠加结果，胶片的颜色和颗粒在生成后冲洗时加上。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Like pressing the shutter again without winding on: the light of both pictures adds up on one frame. Each is metered on its own; Balance sets how much of the light the top gets, together one normal exposure. Dark areas let the other picture through, bright ones cover it. The preview is the real sum; the film's colour and grain come when it is developed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "像胶片相机不过片再按一次快门：两张的光叠加在同一格上。每张先各自测光，「比例」决定上层占多少光，合起来是一次正常曝光。暗的地方会透出另一张，亮的地方盖住。预览是真实的叠加结果，胶片的颜色和颗粒在生成后冲洗时加上。"
+          }
+        }
+      }
+    },
     "允许访问相册": {
       "localizations": {
         "en": {
@@ -2136,6 +2411,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "允许访问相册"
+          }
+        }
+      }
+    },
+    "先冲好清晰版": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Develop Sharp Versions First"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先冲好清晰版"
           }
         }
       }
@@ -2444,6 +2735,22 @@
         }
       }
     },
+    "关闭自动备份": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn Off Automatic Backup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭自动备份"
+          }
+        }
+      }
+    },
     "其中 %lld 张将在 1 天内自动删除": {
       "localizations": {
         "en": {
@@ -2572,6 +2879,22 @@
         }
       }
     },
+    "冲洗参数": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Develop settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冲洗参数"
+          }
+        }
+      }
+    },
     "冲洗缓存": {
       "localizations": {
         "en": {
@@ -2600,6 +2923,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "冷"
+          }
+        }
+      }
+    },
+    "分隔符": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Separator"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分隔符"
           }
         }
       }
@@ -2780,6 +3119,22 @@
         }
       }
     },
+    "删除这个局部": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete This Layer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除这个局部"
+          }
+        }
+      }
+    },
     "删除这些照片？": {
       "localizations": {
         "en": {
@@ -2856,6 +3211,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "剪贴板配方"
+          }
+        }
+      }
+    },
+    "加一个渐变、径向、主体或人物遮罩，只调照片的一部分：比如压暗天空、提亮人脸。最多 4 个。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a linear, radial, subject or people mask to adjust part of the photo: darken a sky, brighten a face. Up to 4."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加一个渐变、径向、主体或人物遮罩，只调照片的一部分：比如压暗天空、提亮人脸。最多 4 个。"
+          }
+        }
+      }
+    },
+    "加入时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入时间"
           }
         }
       }
@@ -2988,6 +3375,22 @@
         }
       }
     },
+    "原图尺寸": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原图尺寸"
+          }
+        }
+      }
+    },
     "原图载入中…": {
       "localizations": {
         "en": {
@@ -3036,6 +3439,22 @@
         }
       }
     },
+    "原图，自己再选胶片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original; pick a film yourself"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原图，自己再选胶片"
+          }
+        }
+      }
+    },
     "原大小": {
       "localizations": {
         "en": {
@@ -3080,6 +3499,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "原始文件直接存进“照片”"
+          }
+        }
+      }
+    },
+    "原尺寸": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原尺寸"
+          }
+        }
+      }
+    },
+    "原文件名": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原文件名"
           }
         }
       }
@@ -3196,6 +3647,22 @@
         }
       }
     },
+    "反向": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invert"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反向"
+          }
+        }
+      }
+    },
     "反转片": {
       "localizations": {
         "en": {
@@ -3244,6 +3711,22 @@
         }
       }
     },
+    "反转片直接扫描，不用相纸。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slide film is scanned directly, without paper."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反转片直接扫描，不用相纸。"
+          }
+        }
+      }
+    },
     "反馈": {
       "localizations": {
         "en": {
@@ -3288,23 +3771,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "取"
-          }
-        }
-      }
-    },
-    "取景": {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Frame"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取景"
           }
         }
       }
@@ -3453,6 +3919,38 @@
         }
       }
     },
+    "只有纸张和上面的照片，平整、没有灯箱，底边印着毫米刻度，适合打印成印样。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the sheet and the photos on it, flat, without the light box, with a millimetre scale along the bottom. Good for printing as a contact sheet."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有纸张和上面的照片，平整、没有灯箱，底边印着毫米刻度，适合打印成印样。"
+          }
+        }
+      }
+    },
+    "只要照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos only"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只要照片"
+          }
+        }
+      }
+    },
     "只读传感器的一帧，不合成、不降噪、不锐化，1200 万像素，约 10 MB。颜色和影调和 ProRAW 一样对，白天光线足时很好；暗光和长焦下噪点很多。没有 ProRAW 的机型选 ProRAW 时会用它。": {
       "localizations": {
         "en": {
@@ -3465,6 +3963,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "只读传感器的一帧，不合成、不降噪、不锐化，1200 万像素，约 10 MB。颜色和影调和 ProRAW 一样对，白天光线足时很好；暗光和长焦下噪点很多。没有 ProRAW 的机型选 ProRAW 时会用它。"
+          }
+        }
+      }
+    },
+    "台上每张照片按导出尺寸重新读取；还没冲过清晰版的先冲一遍（每张几秒）。关掉更快，但放大看会软。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each photo on the table is read again at the export's size; any without a sharp version is developed first (a few seconds each). Off is faster but softer up close."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "台上每张照片按导出尺寸重新读取；还没冲过清晰版的先冲一遍（每张几秒）。关掉更快，但放大看会软。"
           }
         }
       }
@@ -3789,6 +4303,22 @@
         }
       }
     },
+    "在“照片”里（Spektra Cam 只存配方和缩略图）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Photos (Spektra Cam keeps only the recipe and a thumbnail)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在“照片”里（Spektra Cam 只存配方和缩略图）"
+          }
+        }
+      }
+    },
     "在“设置 > Spektra Cam > 照片”里选“所有照片”，或把来源改回 Spektra Cam 图库。": {
       "localizations": {
         "en": {
@@ -3801,6 +4331,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "在“设置 > Spektra Cam > 照片”里选“所有照片”，或把来源改回 Spektra Cam 图库。"
+          }
+        }
+      }
+    },
+    "在照片上拖两个圆点：实心点一端是全部效果，空心点一端没有效果。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag the two dots on the photo: full effect at the solid one, none at the hollow one."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在照片上拖两个圆点：实心点一端是全部效果，空心点一端没有效果。"
+          }
+        }
+      }
+    },
+    "在照片上拖中心移动，拖右边和下边的圆点改大小。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag the centre on the photo to move it, the right and bottom dots to resize it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在照片上拖中心移动，拖右边和下边的圆点改大小。"
           }
         }
       }
@@ -3917,6 +4479,70 @@
         }
       }
     },
+    "填的数字比原图还大时按原图尺寸。手机内存不够时还会自动缩小。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A number larger than the original gives the original's size. If the phone runs short of memory, it is made smaller."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填的数字比原图还大时按原图尺寸。手机内存不够时还会自动缩小。"
+          }
+        }
+      }
+    },
+    "备份": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份"
+          }
+        }
+      }
+    },
+    "备份到": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backs up to"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份到"
+          }
+        }
+      }
+    },
+    "备份失败：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup failed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份失败：%@"
+          }
+        }
+      }
+    },
     "复制": {
       "localizations": {
         "en": {
@@ -4009,6 +4635,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "多选添加"
+          }
+        }
+      }
+    },
+    "多重曝光": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Double Exposure"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多重曝光"
+          }
+        }
+      }
+    },
+    "多重曝光 %02d": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Double Exposure %02d"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多重曝光 %02d"
+          }
+        }
+      }
+    },
+    "多重曝光失败：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Double exposure failed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多重曝光失败：%@"
+          }
+        }
+      }
+    },
+    "多重曝光已更新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Double exposure updated"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多重曝光已更新"
           }
         }
       }
@@ -4153,6 +4843,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "存到“照片”，格式：%@ · %@。"
+          }
+        }
+      }
+    },
+    "存在 Spektra Cam 里": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kept in Spektra Cam"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存在 Spektra Cam 里"
           }
         }
       }
@@ -4477,6 +5183,38 @@
         }
       }
     },
+    "导出并分享": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export and Share"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出并分享"
+          }
+        }
+      }
+    },
+    "导出观片台": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Light Table"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出观片台"
+          }
+        }
+      }
+    },
     "导出观片台…": {
       "localizations": {
         "en": {
@@ -4633,6 +5371,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "尺寸"
+          }
+        }
+      }
+    },
+    "局部": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "局部"
+          }
+        }
+      }
+    },
+    "局部 %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "局部 %lld"
+          }
+        }
+      }
+    },
+    "局部调整": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local adjustments"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "局部调整"
           }
         }
       }
@@ -5069,6 +5855,22 @@
         }
       }
     },
+    "已生成多重曝光：%@ + %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Double exposure made: %@ + %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已生成多重曝光：%@ + %@"
+          }
+        }
+      }
+    },
     "已经导出过，之后又改过，新成片会和旧的不一样。": {
       "localizations": {
         "en": {
@@ -5293,6 +6095,38 @@
         }
       }
     },
+    "底片库大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Library size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "底片库大小"
+          }
+        }
+      }
+    },
+    "底片曝光": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bottom exposure"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "底片曝光"
+          }
+        }
+      }
+    },
     "底片越大，颗粒和光晕相对画面越细。": {
       "localizations": {
         "en": {
@@ -5305,6 +6139,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "底片越大，颗粒和光晕相对画面越细。"
+          }
+        }
+      }
+    },
+    "开启自动备份…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn On Automatic Backup…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启自动备份…"
           }
         }
       }
@@ -5533,6 +6383,54 @@
         }
       }
     },
+    "往前": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Earlier"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "往前"
+          }
+        }
+      }
+    },
+    "往后": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Later"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "往后"
+          }
+        }
+      }
+    },
+    "径向": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Radial"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "径向"
+          }
+        }
+      }
+    },
     "微光": {
       "localizations": {
         "en": {
@@ -5549,23 +6447,6 @@
         }
       }
     },
-    "快门": {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shutter"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "快门"
-          }
-        }
-      }
-    },
     "总是打开相机": {
       "localizations": {
         "en": {
@@ -5578,6 +6459,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "总是打开相机"
+          }
+        }
+      }
+    },
+    "恢复": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复"
+          }
+        }
+      }
+    },
+    "恢复准备好了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore ready"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复准备好了"
+          }
+        }
+      }
+    },
+    "恢复失败：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore failed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复失败：%@"
           }
         }
       }
@@ -5626,6 +6555,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "成色剂让彩色胶片的各层互相抑制：越高，颜色越分离、边缘越锐。"
+          }
+        }
+      }
+    },
+    "我的配方": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My Recipes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的配方"
           }
         }
       }
@@ -5694,6 +6639,38 @@
         }
       }
     },
+    "手机空间不够：还需要大约 %lld MB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not enough space: about %lld MB more needed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手机空间不够：还需要大约 %lld MB"
+          }
+        }
+      }
+    },
+    "打不开备份文件夹，请重新选择": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't open the backup folder. Choose it again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打不开备份文件夹，请重新选择"
+          }
+        }
+      }
+    },
     "打乱": {
       "localizations": {
         "en": {
@@ -5738,6 +6715,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开一张照片后可以看到预计尺寸和大小"
+          }
+        }
+      }
+    },
+    "打开后可以用原文件名、胶片、相纸、日期组合文件名。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on to build the name from the original name, film, paper and date."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开后可以用原文件名、胶片、相纸、日期组合文件名。"
           }
         }
       }
@@ -5790,18 +6783,34 @@
         }
       }
     },
-    "批量导出都存到“照片”，每张按原图全尺寸、用它自己的配方冲洗。这些设置和编辑页“导出”里的是同一套。": {
+    "扫描（反转片）": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Batch exports all go to Photos, each developed full size with its own recipe. These settings are the same as “Export” in the editor."
+            "value": "Scanned (slide film)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "批量导出都存到“照片”，每张按原图全尺寸、用它自己的配方冲洗。这些设置和编辑页“导出”里的是同一套。"
+            "value": "扫描（反转片）"
+          }
+        }
+      }
+    },
+    "批量导出都存到“照片”，每张用它自己的配方冲洗。这些设置和编辑页“导出”里的是同一套。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Batch exports all go to Photos, each developed with its own recipe. These are the same settings as Export in the editor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "批量导出都存到“照片”，每张用它自己的配方冲洗。这些设置和编辑页“导出”里的是同一套。"
           }
         }
       }
@@ -6046,6 +7055,22 @@
         }
       }
     },
+    "拖动摆放上层，双指缩放（可以缩到比画面小），双击恢复": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag to place the top, pinch to zoom (it can be smaller than the frame), double-tap to reset"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖动摆放上层，双指缩放（可以缩到比画面小），双击恢复"
+          }
+        }
+      }
+    },
     "拖动色轮里的点调色相和强度，双击色轮复位。": {
       "localizations": {
         "en": {
@@ -6110,6 +7135,22 @@
         }
       }
     },
+    "按上面的尺寸完整重新渲染。选择「文件 / 分享」可以存到「文件」App、AirDrop 到 Mac，或发给其他 App。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fully re-rendered at the size above. Choose Files / Share to save to the Files app, AirDrop to a Mac or send to another app."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按上面的尺寸完整重新渲染。选择「文件 / 分享」可以存到「文件」App、AirDrop 到 Mac，或发给其他 App。"
+          }
+        }
+      }
+    },
     "按住看原图": {
       "localizations": {
         "en": {
@@ -6122,22 +7163,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "按住看原图"
-          }
-        }
-      }
-    },
-    "按原图像素尺寸完整重新渲染。选择「文件 / 分享」可以存到「文件」App、AirDrop 到 Mac，或发给其他 App。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rendered again in full at the original's pixel size. Choose “Files / Share” to save to the Files app, AirDrop to a Mac or send to another app."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按原图像素尺寸完整重新渲染。选择「文件 / 分享」可以存到「文件」App、AirDrop 到 Mac，或发给其他 App。"
           }
         }
       }
@@ -6170,6 +7195,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "按类型"
+          }
+        }
+      }
+    },
+    "按纸张打印 · 300 dpi（%lld 像素）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Print size · 300 dpi (%lld px)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按纸张打印 · 300 dpi（%lld 像素）"
           }
         }
       }
@@ -6218,6 +7259,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "挑片，%lld 张没导出"
+          }
+        }
+      }
+    },
+    "换一个文件夹…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Another Folder…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "换一个文件夹…"
           }
         }
       }
@@ -6414,6 +7471,22 @@
         }
       }
     },
+    "推荐（%@）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recommended (%@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "推荐（%@）"
+          }
+        }
+      }
+    },
     "撤销": {
       "localizations": {
         "en": {
@@ -6510,6 +7583,38 @@
         }
       }
     },
+    "改过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改过"
+          }
+        }
+      }
+    },
+    "改过，成片和现在不一样": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes, the print differs from now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改过，成片和现在不一样"
+          }
+        }
+      }
+    },
     "放上 %lld 张": {
       "localizations": {
         "en": {
@@ -6538,23 +7643,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "放上台：%@"
-          }
-        }
-      }
-    },
-    "放大": {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enlarger"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "放大"
           }
         }
       }
@@ -6607,23 +7695,6 @@
         }
       }
     },
-    "效果": {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Effects"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "效果"
-          }
-        }
-      }
-    },
     "效果在画面四周、中间保持清晰。预览尺寸小，100% 时边角只模糊两三个像素；放大边角或导出后看更清楚。": {
       "localizations": {
         "en": {
@@ -6656,6 +7727,22 @@
         }
       }
     },
+    "整个观片台": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whole light table"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整个观片台"
+          }
+        }
+      }
+    },
     "文件 / 分享": {
       "localizations": {
         "en": {
@@ -6684,6 +7771,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "文件为空"
+          }
+        }
+      }
+    },
+    "文件名": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件名"
+          }
+        }
+      }
+    },
+    "文件大小": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件大小"
           }
         }
       }
@@ -6732,6 +7851,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "新照片"
+          }
+        }
+      }
+    },
+    "新照片：新导入的照片一开始用什么——无胶片（原图）、上次在编辑页调好的配方、你存的配方，或指定一卷胶片和相纸。拍照时胶片仍按装好的胶卷。\n相纸：选胶片时（拍照和编辑都一样）用这卷胶片的推荐相纸，没有推荐的用 Crystal Archive；黑白胶片用自己的黑白相纸。拍照页胶卷名下面的“相纸”按钮里选了推荐相纸中的另一张，以后这卷胶片就用它；选推荐以外的相纸只在这次拍摄有效，想固定请存成配方；编辑时换的相纸只影响那一张。\n预览尺寸：编辑时画面的长边；越大越清楚，拖动时越慢，下次打开照片时生效。导出始终是全尺寸。\n镜头校正：只对 RAW，按照片里记录的相机数据校正畸变和暗角；ProRAW 和大多数 DNG 都带这份数据。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New photos: what a newly imported photo starts with — No Film (the original), the recipe last set in the editor, one of your saved recipes, or a chosen film and paper. Camera shots still use the loaded roll.\nPaper: choosing a film (in the camera and the editor alike) uses that film's recommended paper, Crystal Archive when it has none; black-and-white films use their own silver paper. Pick another recommended paper with the Paper button under the roll's name in the camera and the film keeps it; a paper outside the recommendations lasts only that session — save a recipe to keep it. A paper changed in the editor affects that photo only.\nPreview size: the long edge of the picture while editing; larger is sharper but slower to drag, and applies the next time a photo opens. Exports are always full size.\nLens correction: RAW only, corrects distortion and vignetting from the camera data in the file; ProRAW and most DNGs carry it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新照片：新导入的照片一开始用什么——无胶片（原图）、上次在编辑页调好的配方、你存的配方，或指定一卷胶片和相纸。拍照时胶片仍按装好的胶卷。\n相纸：选胶片时（拍照和编辑都一样）用这卷胶片的推荐相纸，没有推荐的用 Crystal Archive；黑白胶片用自己的黑白相纸。拍照页胶卷名下面的“相纸”按钮里选了推荐相纸中的另一张，以后这卷胶片就用它；选推荐以外的相纸只在这次拍摄有效，想固定请存成配方；编辑时换的相纸只影响那一张。\n预览尺寸：编辑时画面的长边；越大越清楚，拖动时越慢，下次打开照片时生效。导出始终是全尺寸。\n镜头校正：只对 RAW，按照片里记录的相机数据校正畸变和暗角；ProRAW 和大多数 DNG 都带这份数据。"
           }
         }
       }
@@ -6796,6 +7931,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "旋转"
+          }
+        }
+      }
+    },
+    "旋转上层": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate Top"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转上层"
           }
         }
       }
@@ -7104,6 +8255,22 @@
         }
       }
     },
+    "显示范围": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Area"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示范围"
+          }
+        }
+      }
+    },
     "暂不支持 GoPro GPR RAW": {
       "localizations": {
         "en": {
@@ -7312,6 +8479,22 @@
         }
       }
     },
+    "更新多重曝光": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Double Exposure"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新多重曝光"
+          }
+        }
+      }
+    },
     "替换会把旧的移到“最近删除”。": {
       "localizations": {
         "en": {
@@ -7372,6 +8555,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "最大色域，建议只配合 TIFF 16 位使用，8 位 JPEG 容易出现色带"
+          }
+        }
+      }
+    },
+    "最近一次在编辑页调好的配方": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The recipe last set in the editor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近一次在编辑页调好的配方"
           }
         }
       }
@@ -7472,6 +8671,22 @@
         }
       }
     },
+    "来自": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Made from"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自"
+          }
+        }
+      }
+    },
     "柔光": {
       "localizations": {
         "en": {
@@ -7500,6 +8715,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "柔光镜"
+          }
+        }
+      }
+    },
+    "柔焦镜": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diffusion filter"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "柔焦镜"
           }
         }
       }
@@ -7568,18 +8799,34 @@
         }
       }
     },
-    "标准配方": {
+    "标准 · 2048 像素": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Standard Recipe"
+            "value": "Standard · 2048 px"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标准配方"
+            "value": "标准 · 2048 像素"
+          }
+        }
+      }
+    },
+    "样式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Style"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "样式"
           }
         }
       }
@@ -7712,6 +8959,22 @@
         }
       }
     },
+    "正在冲洗清晰版 %lld/%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Developing sharp versions %lld/%lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在冲洗清晰版 %lld/%lld"
+          }
+        }
+      }
+    },
     "正在合成…": {
       "localizations": {
         "en": {
@@ -7744,6 +9007,22 @@
         }
       }
     },
+    "正在合成多重曝光…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Composing double exposure…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在合成多重曝光…"
+          }
+        }
+      }
+    },
     "正在向引擎要这张的 HDR 曲线…": {
       "localizations": {
         "en": {
@@ -7756,6 +9035,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在向引擎要这张的 HDR 曲线…"
+          }
+        }
+      }
+    },
+    "正在备份…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backing up…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在备份…"
           }
         }
       }
@@ -7904,6 +9199,22 @@
         }
       }
     },
+    "正在画观片台…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drawing the light table…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在画观片台…"
+          }
+        }
+      }
+    },
     "正在粘贴配方 %lld/%lld": {
       "localizations": {
         "en": {
@@ -7952,6 +9263,38 @@
         }
       }
     },
+    "正在读取原图…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading the original…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取原图…"
+          }
+        }
+      }
+    },
+    "正在读取备份…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading the backup…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取备份…"
+          }
+        }
+      }
+    },
     "正在重新曝光…": {
       "localizations": {
         "en": {
@@ -7980,6 +9323,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "每张按自己的配方冲洗，存到“照片”。"
+          }
+        }
+      }
+    },
+    "比例": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Balance"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "比例"
           }
         }
       }
@@ -8064,6 +9423,38 @@
         }
       }
     },
+    "没找到主体": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No subject found"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没找到主体"
+          }
+        }
+      }
+    },
+    "没找到人": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No people found"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没找到人"
+          }
+        }
+      }
+    },
     "没找到可以对齐的直线": {
       "localizations": {
         "en": {
@@ -8076,6 +9467,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "没找到可以对齐的直线"
+          }
+        }
+      }
+    },
+    "没改过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没改过"
+          }
+        }
+      }
+    },
+    "没有": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有"
           }
         }
       }
@@ -8224,6 +9647,22 @@
         }
       }
     },
+    "没有记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not recorded"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有记录"
+          }
+        }
+      }
+    },
     "没经过镜头的光漏到胶片上。边缘烧灼是胶片边缘被光烧到的一条亮边，可以单独用，也可以和上面的漏光一起用。位置和形状默认由设置里的机身号决定，“随机位置”给这张照片换一个。": {
       "localizations": {
         "en": {
@@ -8284,6 +9723,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "测光"
+          }
+        }
+      }
+    },
+    "海报": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poster"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "海报"
           }
         }
       }
@@ -8400,6 +9855,22 @@
         }
       }
     },
+    "渐变": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Graduated"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渐变"
+          }
+        }
+      }
+    },
     "渲染中": {
       "localizations": {
         "en": {
@@ -8508,6 +9979,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "灯箱"
+          }
+        }
+      }
+    },
+    "点一下加入或拿掉（亮的会出现在文件名里），长按往前或往后挪。每项下面是它会加进去的内容，写「无」的这张照片没有（比如无胶片的照片没有胶片和相纸）。最上面就是导出后的文件名。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to add or remove a part (lit ones are in the name); long-press to move it. Under each is what it adds; “None” means this photo has nothing for it (a No Film photo has no film or paper). The name at the top is what the file will be called."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一下加入或拿掉（亮的会出现在文件名里），长按往前或往后挪。每项下面是它会加进去的内容，写「无」的这张照片没有（比如无胶片的照片没有胶片和相纸）。最上面就是导出后的文件名。"
           }
         }
       }
@@ -8656,6 +10143,22 @@
         }
       }
     },
+    "照片信息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Info"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片信息"
+          }
+        }
+      }
+    },
     "照片尺寸": {
       "localizations": {
         "en": {
@@ -8700,6 +10203,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "照片库"
+          }
+        }
+      }
+    },
+    "照片按台上的摆放画在白底上，裁到照片周围，没有灯箱。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The photos as they lie on the table, on white, cropped around them, without the light box."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片按台上的摆放画在白底上，裁到照片周围，没有灯箱。"
           }
         }
       }
@@ -8912,6 +10431,22 @@
         }
       }
     },
+    "版面": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sheet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版面"
+          }
+        }
+      }
+    },
     "玩具镜": {
       "localizations": {
         "en": {
@@ -8924,6 +10459,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "玩具镜"
+          }
+        }
+      }
+    },
+    "现在重新打开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reopen Now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在重新打开"
           }
         }
       }
@@ -8944,6 +10495,22 @@
         }
       }
     },
+    "生成多重曝光": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make Double Exposure"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成多重曝光"
+          }
+        }
+      }
+    },
     "用文字做一个": {
       "localizations": {
         "en": {
@@ -8956,6 +10523,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "用文字做一个"
+          }
+        }
+      }
+    },
+    "用这个备份替换现在的底片库？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace the current library with this backup?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用这个备份替换现在的底片库？"
           }
         }
       }
@@ -9424,6 +11007,38 @@
         }
       }
     },
+    "短边": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Short edge"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "短边"
+          }
+        }
+      }
+    },
+    "短边 %lld px": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Short edge %lld px"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "短边 %lld px"
+          }
+        }
+      }
+    },
     "移除防光晕层": {
       "localizations": {
         "en": {
@@ -9500,6 +11115,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "空"
+          }
+        }
+      }
+    },
+    "空格": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Space"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空格"
+          }
+        }
+      }
+    },
+    "立即备份": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back Up Now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即备份"
           }
         }
       }
@@ -9808,6 +11455,22 @@
         }
       }
     },
+    "编辑多重曝光": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Double Exposure"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑多重曝光"
+          }
+        }
+      }
+    },
     "缩略图无法编码": {
       "localizations": {
         "en": {
@@ -9868,6 +11531,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "置位"
+          }
+        }
+      }
+    },
+    "羽化": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feather"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "羽化"
+          }
+        }
+      }
+    },
+    "翻转上层": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flip Top"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻转上层"
           }
         }
       }
@@ -10064,6 +11759,38 @@
         }
       }
     },
+    "自动找出照片里的主体（人、动物、物件）。打开「反向」就是只调背景。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finds the subject (people, animals, objects) automatically. Turn on Invert to adjust only the background."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动找出照片里的主体（人、动物、物件）。打开「反向」就是只调背景。"
+          }
+        }
+      }
+    },
+    "自动找出照片里的人，连头发边缘。打开「反向」就是只调人以外的部分。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finds the people automatically, hair edges included. Turn on Invert to adjust everything but them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动找出照片里的人，连头发边缘。打开「反向」就是只调人以外的部分。"
+          }
+        }
+      }
+    },
     "自动置位": {
       "localizations": {
         "en": {
@@ -10076,6 +11803,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "自动置位"
+          }
+        }
+      }
+    },
+    "自定义文件名": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom file name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义文件名"
           }
         }
       }
@@ -10400,6 +12143,22 @@
         }
       }
     },
+    "观片台导出失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light table export failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "观片台导出失败"
+          }
+        }
+      }
+    },
     "角落": {
       "localizations": {
         "en": {
@@ -10576,6 +12335,22 @@
         }
       }
     },
+    "读不到原图": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't read the original"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读不到原图"
+          }
+        }
+      }
+    },
     "读取中": {
       "localizations": {
         "en": {
@@ -10652,6 +12427,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "资源准备失败"
+          }
+        }
+      }
+    },
+    "超大 · 8192 像素": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large · 8192 px"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超大 · 8192 像素"
           }
         }
       }
@@ -10864,6 +12655,38 @@
         }
       }
     },
+    "还没备份过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Never"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没备份过"
+          }
+        }
+      }
+    },
+    "还没导出过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没导出过"
+          }
+        }
+      }
+    },
     "还没导出过。": {
       "localizations": {
         "en": {
@@ -10940,6 +12763,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这个全景片幅在真实相机上没有日期后背，引擎会忽略日期曝光。"
+          }
+        }
+      }
+    },
+    "这个文件夹里没有 Spektra Cam 的底片库备份": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This folder has no Spektra Cam library backup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个文件夹里没有 Spektra Cam 的底片库备份"
           }
         }
       }
@@ -11184,6 +13023,22 @@
         }
       }
     },
+    "连灯箱和桌面一起，像拍下整个观片台。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With the light box and the desk, like a picture of the whole table."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连灯箱和桌面一起，像拍下整个观片台。"
+          }
+        }
+      }
+    },
     "适合屏幕": {
       "localizations": {
         "en": {
@@ -11196,6 +13051,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "适合屏幕"
+          }
+        }
+      }
+    },
+    "选一个文件夹（推荐 iCloud 云盘），之后每次离开 App 都会自动把新增和改过的照片、配方、编辑记录、观片台、水印和设置同步过去，只传变化的部分。用免费 Apple ID 安装时，App 过期或删掉重装会丢掉底片库，可以从这里恢复；换手机也能用。冲洗缓存不备份，恢复后会重新冲洗。从系统相册关联的照片只记了链接，原图本来就在“照片”里。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a folder (iCloud Drive recommended). Each time you leave the app, new and changed photos, recipes, edits, the light table, watermarks and settings are copied there — only what changed. With a free Apple ID the library is lost when the app expires or is reinstalled; restore it from here, or move it to a new phone. The develop cache isn't backed up; it is made again after a restore. Photos linked from the system library are kept as links; their originals are in Photos."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选一个文件夹（推荐 iCloud 云盘），之后每次离开 App 都会自动把新增和改过的照片、配方、编辑记录、观片台、水印和设置同步过去，只传变化的部分。用免费 Apple ID 安装时，App 过期或删掉重装会丢掉底片库，可以从这里恢复；换手机也能用。冲洗缓存不备份，恢复后会重新冲洗。从系统相册关联的照片只记了链接，原图本来就在“照片”里。"
           }
         }
       }
@@ -11244,6 +13115,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "选择照片"
+          }
+        }
+      }
+    },
+    "选的是备份文件夹（“Spektra Cam Library”或它所在的文件夹）。现在的底片库会被备份里的替换掉，设置也会恢复成备份时的样子。恢复会在重新打开 App 时完成。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the backup folder (“Spektra Cam Library” or the folder holding it). The current library is replaced by the backup, and the settings go back to the backup's. The restore finishes when the app opens again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选的是备份文件夹（“Spektra Cam Library”或它所在的文件夹）。现在的底片库会被备份里的替换掉，设置也会恢复成备份时的样子。恢复会在重新打开 App 时完成。"
           }
         }
       }
@@ -11584,6 +13471,22 @@
         }
       }
     },
+    "镜头特性": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lens character"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜头特性"
+          }
+        }
+      }
+    },
     "镜头风格": {
       "localizations": {
         "en": {
@@ -11628,6 +13531,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "长按照片粘贴"
+          }
+        }
+      }
+    },
+    "长边": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long edge"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长边"
+          }
+        }
+      }
+    },
+    "长边 %lld px": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long edge %lld px"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长边 %lld px"
           }
         }
       }
@@ -11952,6 +13887,22 @@
         }
       }
     },
+    "高清 · 4096 像素": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "High · 4096 px"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高清 · 4096 像素"
+          }
+        }
+      }
+    },
     "黄": {
       "localizations": {
         "en": {
@@ -12156,6 +14107,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "（内存不够，已缩小）"
+          }
+        }
+      }
+    },
+    "（原图尺寸）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (original size)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（原图尺寸）"
+          }
+        }
+      }
+    },
+    "（等效 %lld mm）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (%lld mm equiv.)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（等效 %lld mm）"
           }
         }
       }

@@ -14,6 +14,8 @@ struct PhotoViewer: View {
     @Environment(\.dismiss) private var dismiss
     @State private var chrome = true
     @State private var exportQuestion: UUID?
+    /// 照片信息 open for this photo.
+    @State private var infoFor: UUID?
     // Paging is our own (a horizontal drag at 1×): a page TabView never swiped — the pictures' own gestures
     // (zoom, pan, hold) took every touch from its scroll view.
     @State private var dragX: CGFloat = 0
@@ -100,6 +102,9 @@ struct PhotoViewer: View {
                 if let image = await model.largeDevelop(for: ids[j]) { large[ids[j]] = image }
             }
         }
+        .sheet(isPresented: Binding(get: { infoFor != nil }, set: { if !$0 { infoFor = nil } })) {
+            if let infoFor { InfoSheet(model: model, id: infoFor) }
+        }
         .confirmationDialog(String(localized: "导出这张？"), isPresented: Binding(get: { exportQuestion != nil }, set: { if !$0 { exportQuestion = nil } }),
                             titleVisibility: .visible) {
             let id = exportQuestion.map { [$0] } ?? []
@@ -184,6 +189,7 @@ struct PhotoViewer: View {
                 Button { model.toggleFavorite(p.id) } label: {
                     Image(systemName: p.favorite ? "heart.fill" : "heart").frame(width: 44, height: 44)
                 }
+                Button { infoFor = p.id } label: { Image(systemName: "info.circle").frame(width: 44, height: 44) }
                 Spacer()
                 Text((p.capturedAt ?? p.createdAt).formatted(date: .abbreviated, time: .shortened))
                     .font(.caption).foregroundStyle(.secondary)

@@ -342,8 +342,10 @@ struct CropScreen: View {
                 .tint(Color.labRed)
 
             // Perspective: a building's converging verticals (垂直) or a wall seen from the side (水平) made square.
-            keystoneRow(String(localized: "垂直透视"), value: crop.keystoneV ?? 0) { setKeystone(v: $0, h: crop.keystoneH ?? 0) }
-            keystoneRow(String(localized: "水平透视"), value: crop.keystoneH ?? 0) { setKeystone(v: crop.keystoneV ?? 0, h: $0) }
+            // As seen: the stored keystones are in the photograph's own axes, the sliders in the screen's.
+            let seen = shownKeystone
+            keystoneRow(String(localized: "垂直透视"), value: seen.v) { setShownKeystone(h: seen.h, v: $0) }
+            keystoneRow(String(localized: "水平透视"), value: seen.h) { setShownKeystone(h: $0, v: seen.v) }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -392,7 +394,7 @@ struct CropScreen: View {
         .buttonStyle(.plain)
     }
 
-    /// Straighten as seen: a mirror turns it the other way.
+    /// One perspective slider; a double tap on the number sets it back to 0.
     private func keystoneRow(_ title: String, value: Double, set: @escaping (Double) -> Void) -> some View {
         HStack(spacing: 10) {
             Text(title).font(.footnote).frame(width: 64, alignment: .leading)
@@ -427,6 +429,22 @@ struct CropScreen: View {
             next.keystoneH = fit.keystoneH == 0 ? nil : fit.keystoneH
             withAnimation(.easeOut(duration: 0.2)) { crop = next.fitted(in: source) }
         }
+    }
+
+    /// Quarter turns clockwise on screen, 0…3.
+    private var screenTurns: Int { ((Int((spin / 90).rounded()) % 4) + 4) % 4 }
+
+    /// The keystone vector (h, v) transforms like a point: d = 1 − k·p, so on screen k' = M·k (M = mirror · turn).
+    private var shownKeystone: (h: Double, v: Double) {
+        var (x, y) = (crop.keystoneH ?? 0, crop.keystoneV ?? 0)
+        for _ in 0..<screenTurns { (x, y) = (-y, x) }
+        return ((flip ? -x : x) + 0, y + 0)          // + 0: no "-0" on the label
+    }
+
+    private func setShownKeystone(h: Double, v: Double) {
+        var (x, y) = (flip ? -h : h, v)
+        for _ in 0..<screenTurns { (x, y) = (y, -x) }
+        setKeystone(v: y, h: x)
     }
 
     private func setKeystone(v: Double, h: Double) {

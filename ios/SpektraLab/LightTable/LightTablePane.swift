@@ -138,6 +138,7 @@ struct LightTablePane: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var table: LightTableController?
     @State private var tableClosed = false
+    @State private var exporting = false
     @State private var loupeMode = false
     @State private var adding = false
     @State private var undo: Undo?
@@ -186,6 +187,11 @@ struct LightTablePane: View {
             if !Task.isCancelled, !tableClosed { table?.close(); tableClosed = true }
         }
         .onDisappear { if !tableClosed { table?.close(); tableClosed = true }; largeDevelops?.stop() }
+        .sheet(isPresented: $exporting) {
+            LightTableExportSheet(model: model, table: table)
+                .presentationDetents([.medium])
+                .presentationBackground(Color.labInk)
+        }
         .onChange(of: glow) { _, _ in applyGlow() }
         .onChange(of: printSize) { _, on in
             guard let table else { return }
@@ -324,7 +330,7 @@ struct LightTablePane: View {
                     }
                     Button { table?.fit() } label: { Label(String(localized: "适合屏幕"), systemImage: "arrow.down.right.and.arrow.up.left") }
                 } label: { Label(String(localized: "灯箱"), systemImage: "rectangle.portrait") }
-                Button { exportTable() } label: { Label(String(localized: "导出观片台…"), systemImage: "square.and.arrow.up") }
+                Button { exporting = true } label: { Label(String(localized: "导出观片台…"), systemImage: "square.and.arrow.up") }
                     .disabled(count == 0)
                 Divider()
                 Group {
@@ -578,19 +584,6 @@ struct LightTablePane: View {
     }
 
     /// Films back to their size before a pinch: these, or all.
-    /// The whole table as one picture (4096 px on its long side, Display P3 JPEG), handed to the share sheet: save it
-    /// to Photos, AirDrop it, send it. Upstream's Poster / Contact Sheet export, as one plain picture.
-    private func exportTable() {
-        guard let table, let image = table.exportPicture(longEdge: 4096) else { return }
-        let stamp = Date().formatted(.iso8601.year().month().day())
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Spektra Cam \(String(localized: "观片台")) \(stamp).jpg")
-        try? FileManager.default.removeItem(at: url)
-        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return }
-        CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: 0.92] as CFDictionary)
-        guard CGImageDestinationFinalize(dest) else { return }
-        ShareController.present(url: url) { try? FileManager.default.removeItem(at: url) }
-    }
-
     private func resetSizes(_ ids: [UUID]? = nil) {
         model.resetLightTableScales(ids)
         table?.sync(model.lightTableFrames)
@@ -764,5 +757,119 @@ struct LoupeModel: View {
             ctx.stroke(glint, with: .color(.white.opacity(0.6)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// 导出观片台: the whole light box as one picture — its size, and whether the films are read sharp first.
+struct LightTableExportSheet: View {
+    @ObservedObject var model: ViewModel
+    let table: LightTableController?
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("SpektraLab.tableExportEdge") private var edge = 4096
+    @AppStorage("SpektraLab.tableExportSharp") private var sharp = true
+    /// table (the lit light box), sheet (版面: the paper alone, with a scale), photos (只要照片), poster (海报).
+    @AppStorage("SpektraLab.tableExportStyle") private var style = "table"
+    @State private var working: String?
+
+    private var styleNote: String {
+        switch style {
+        case "sheet": String(localized: "只有纸张和上面的照片，平整、没有灯箱，底边印着毫米刻度，适合打印成印样。")
+        case "photos": String(localized: "照片按台上的摆放画在白底上，裁到照片周围，没有灯箱。")
+        case "poster": String(localized: "亮着的观片台放在白纸上，下面一行写着日期和台上的胶片，适合分享。")
+        default: String(localized: "连灯箱和桌面一起，像拍下整个观片台。")
+        }
+    }
+
+    /// The table's paper at 300 dpi, long side.
+    private var printEdge: Int {
+        let mm = table.map { max($0.model.half.width, $0.model.half.height) * 2 * 1.08 } ?? 297
+        return min(Int((mm / 25.4 * 300).rounded()), 8192)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(String(localized: "尺寸")) {
+                    Picker(String(localized: "尺寸"), selection: $edge) {
+                        Text(String(localized: "标准 · 2048 像素")).tag(2048)
+                        Text(String(localized: "高清 · 4096 像素")).tag(4096)
+                        Text(String(localized: "超大 · 8192 像素")).tag(8192)
+                        Text(String(localized: "按纸张打印 · 300 dpi（\(printEdge) 像素）")).tag(-1)
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+                Section {
+                    Picker(String(localized: "样式"), selection: $style) {
+                        Text(String(localized: "整个观片台")).tag("table")
+                        Text(String(localized: "版面")).tag("sheet")
+                        Text(String(localized: "只要照片")).tag("photos")
+                        Text(String(localized: "海报")).tag("poster")
+                    }
+                    .pickerStyle(.segmented)
+                } footer: {
+                    Text(styleNote)
+                }
+                Section {
+                    Toggle(String(localized: "先冲好清晰版"), isOn: $sharp).tint(Color.labRed)
+                } footer: {
+                    Text(String(localized: "台上每张照片按导出尺寸重新读取；还没冲过清晰版的先冲一遍（每张几秒）。关掉更快，但放大看会软。"))
+                }
+                Section {
+                    Button {
+                        Task { await run() }
+                    } label: {
+                        HStack {
+                            if working != nil { ProgressView().tint(Color.labCream) }
+                            Text(working ?? String(localized: "导出并分享")).frame(maxWidth: .infinity)
+                        }
+                    }
+                    .disabled(working != nil || table == nil)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .navigationTitle(String(localized: "导出观片台"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button(String(localized: "取消")) { dismiss() }.disabled(working != nil) } }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func run() async {
+        guard let table else { return }
+        let longEdge = edge > 0 ? edge : printEdge
+        if sharp {
+            // The films that have no sharp develop yet, made one by one (the engine has one session).
+            let missing = table.filmsOnTable.filter { id in table.frame(id).map { LightTableFullRead.ref($0) == nil } ?? false }
+            for (i, id) in missing.enumerated() {
+                working = String(localized: "正在冲洗清晰版 \(i + 1)/\(missing.count)")
+                _ = await model.largeDevelop(for: id)
+            }
+            if !missing.isEmpty { table.reopen(model.lightTableFrames) }
+        }
+        working = String(localized: "正在画观片台…")
+        await Task.yield()
+        let picture: CGImage?
+        switch style {
+        case "sheet": picture = table.exportLayout(longEdge: Double(longEdge), sharp: sharp, sheet: true)
+        case "photos": picture = table.exportLayout(longEdge: Double(longEdge), sharp: sharp)
+        case "poster": picture = table.exportPoster(longEdge: Double(longEdge), sharp: sharp)
+        default: picture = table.exportPicture(longEdge: Double(longEdge), sharp: sharp)
+        }
+        guard let image = picture else {
+            working = nil
+            model.libraryMessage = String(localized: "观片台导出失败")
+            return
+        }
+        let stamp = Date().formatted(.iso8601.year().month().day())
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Spektra Cam \(String(localized: "观片台")) \(stamp).jpg")
+        try? FileManager.default.removeItem(at: url)
+        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { working = nil; return }
+        CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: 0.92] as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { working = nil; return }
+        working = nil
+        dismiss()
+        try? await Task.sleep(for: .milliseconds(400))      // the sheet gone before the share sheet comes
+        ShareController.present(url: url) { try? FileManager.default.removeItem(at: url) }
     }
 }

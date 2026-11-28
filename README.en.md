@@ -6,9 +6,9 @@
 
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
 
-<p align="center"><b>Current version:</b> 2.1.8 (Build 16) · <b>Requires:</b> iOS 18+</p>
+<p align="center"><b>Current version:</b> 2.1.9 (Build 17) · <b>Requires:</b> iOS 18+</p>
 
-<p align="center"><img src="https://img.shields.io/badge/iOS-18%2B-1f6feb?style=flat-square" alt="iOS 18+"> <img src="https://img.shields.io/badge/UI-SwiftUI-f05138?style=flat-square" alt="UI SwiftUI"> <img src="https://img.shields.io/badge/Engine-SpektraLab%202.4.1-8e44ad?style=flat-square" alt="Engine SpektraLab 2.4.1"> <img src="https://img.shields.io/badge/Version-2.1.8-555555?style=flat-square" alt="Version 2.1.8"> <img src="https://img.shields.io/badge/License-GPL--3.0-2e7d32?style=flat-square" alt="License GPL-3.0"></p>
+<p align="center"><img src="https://img.shields.io/badge/iOS-18%2B-1f6feb?style=flat-square" alt="iOS 18+"> <img src="https://img.shields.io/badge/UI-SwiftUI-f05138?style=flat-square" alt="UI SwiftUI"> <img src="https://img.shields.io/badge/Engine-SpektraLab%202.4.1-8e44ad?style=flat-square" alt="Engine SpektraLab 2.4.1"> <img src="https://img.shields.io/badge/Version-2.1.9-555555?style=flat-square" alt="Version 2.1.9"> <img src="https://img.shields.io/badge/License-GPL--3.0-2e7d32?style=flat-square" alt="License GPL-3.0"></p>
 
 <p align="center"><a href="../../releases/latest">Download</a> · <a href="#installation">Install guide</a> · <a href="#5-add-the-spektra-cam-source">Source</a> · <a href="#building-from-source">Build from source</a></p>
 
@@ -18,7 +18,7 @@ If the project helps you, a **Star** is welcome; found a problem or have an idea
 
 ## Status
 
-- Current version **2.1.8 (Build 16)**, distributed as an unsigned IPA in GitHub Releases and installed by self-signing with SideStore; or add the [source](#5-add-the-spektra-cam-source) and update from inside SideStore.
+- Current version **2.1.9 (Build 17)**, distributed as an unsigned IPA in GitHub Releases and installed by self-signing with SideStore; or add the [source](#5-add-the-spektra-cam-source) and update from inside SideStore.
 - The film engine is upstream SpektraLab **2.4.1**: the same RAW develops to the same colour in the Mac app and in Spektra Cam (compared photo by photo).
 - Done: camera (ProRAW / single-frame RAW / HEIF, the iPhone 17 square front camera), a darkroom editor in the order light travels, 30 films and 7 papers, film edges and cine gauges, HDR, light table, recipe library, batch export, Chinese and English.
 - Tested on iPhone 17 Pro Max (iOS 27) and iPhone 14 Pro (iOS 26.5); other models install fine, but focal lengths, capture sizes, export sizes and HDR brightness are unverified there.
@@ -42,10 +42,10 @@ Screenshots of 2.1.7 on an iPhone 17 Pro Max (taken 2026-11-27, Chinese interfac
 - **Editor**: tools in the order light travels — Frame · Lens · Exposure · Film · Paper · Finish; crop, straighten, rotate, flip; **perspective correction** (vertical, horizontal) and **Auto**, which squares the picture to its own straight lines; white-balance eyedropper; decode curve; global undo / redo; hold to see the original; with No Film only the tools that apply remain.
 - **Films and papers**: 30 films (colour negative, slide, cine negative, B&W negative) and 7 papers, by type or by brand; B&W films on Multigrade paper grades 00–5; slides scanned directly; a film comparison grid shows every film at once.
 - **Effects**: film edge, sprockets and date back, cine gauges (Super 8 / 16, 35 mm, 65 mm, IMAX); light leaks and edge burn, diffusion filters, lens character (swirl, Petzval, vintage, toy), anti-halation removal.
-- **Finish**: light, colour, HSL, curves, colour balance with four wheels, channel mixer, watermarks (dragged, pinched and turned right on the photo); **HDR**: brighter than white on HDR screens, exports carry a gain map.
-- **Negatives (library)**: develop straight from the system library (no copy) or import into the app; RAW from every maker (LibRaw fallback), a card's whole DCIM folder, sharing from Photos; grouped by day, pinch to zoom, filters and sorting; slide-to-select, copy and paste recipes, side-by-side compare; **half-frame pairs** (editable again, with a “Half-frame Pair” film edge printing both on one 135 strip); cull and batch export.
-- **Light Table**: photos laid on a light box at their negative's real size in millimetres; EDR backlight, lamp, loupe (hold to lean in to 8×), full-screen slideshow; the whole table **exports as one picture** to share.
-- **Export**: JPEG / 10-bit HEIF / 16-bit TIFF / PNG in sRGB / Display P3 / Adobe RGB / ProPhoto, three presets; size capped by memory — 48 MP exports at full size (about 31 MP with the film edge on).
+- **Finish**: light, colour, HSL, curves, colour balance with four wheels, channel mixer, watermarks (dragged, pinched and turned right on the photo); **local adjustments** (linear, radial, and automatic subject and people masks); **HDR**: brighter than white on HDR screens, exports carry a gain map.
+- **Negatives (library)**: develop straight from the system library (no copy) or import into the app; RAW from every maker (LibRaw fallback), a card's whole DCIM folder, sharing from Photos; grouped by day, pinch to zoom, filters and sorting; slide-to-select, copy and paste recipes, side-by-side compare; **half-frame pairs** (editable again, with a “Half-frame Pair” film edge printing both on one 135 strip); **double exposure** (two photos added as light, the top one moved, zoomed, turned or flipped); a photo info page; **auto backup** to a folder you pick (iCloud Drive, say); a default film for new photos; cull and batch export.
+- **Light Table**: photos laid on a light box at their negative's real size in millimetres; EDR backlight, lamp, loupe (hold to lean in to 8×), full-screen slideshow; the whole table **exports as one picture** to share, or as a sheet with a ruler or a poster.
+- **Export**: JPEG / 10-bit HEIF / 16-bit TIFF / PNG in sRGB / Display P3 / Adobe RGB / ProPhoto, three presets; choose the export size (megapixels, long or short edge) and name files your way; size capped by memory — 48 MP exports at full size (about 31 MP with the film edge on).
 
 ## How it works
 
@@ -174,7 +174,7 @@ With the source added, SideStore shows an Update in **My Apps** whenever a new v
 3. Wait for SideStore to sign and install it; keep SideStore open and stay on Wi-Fi and LocalDevVPN.
 4. Check that the Spektra Cam icon is on the Home Screen.
 
-**Without the source**: download `SpektraCam-2.1.8-unsigned.ipa` from [Releases](../../releases/latest), save it to the Files app first, then in SideStore's **My Apps** tap **＋** and pick it from Files. Don't install by pasting the IPA's download link; some SideStore versions then fail with a Bundle ID mismatch.
+**Without the source**: download `SpektraCam-2.1.9-unsigned.ipa` from [Releases](../../releases/latest), save it to the Files app first, then in SideStore's **My Apps** tap **＋** and pick it from Files. Don't install by pasting the IPA's download link; some SideStore versions then fail with a Bundle ID mismatch.
 
 ## First launch
 

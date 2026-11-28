@@ -263,7 +263,7 @@ final class LightTableTextures {
 
     /// The picture's pixels drawn into a shared buffer in Display P3, RGBA 8 bits, its long edge at
     /// most `edge`, and blitted into a texture. The texture and its size.
-    nonisolated private static func upload(_ image: CGImage, edge: Int, renderer: LightTableRenderer) -> (MTLTexture, Int, Int)? {
+    nonisolated static func upload(_ image: CGImage, edge: Int, renderer: LightTableRenderer) -> (MTLTexture, Int, Int)? {
         let k = min(1, Double(edge) / Double(max(image.width, image.height)))
         let w = max(1, Int((Double(image.width) * k).rounded())), h = max(1, Int((Double(image.height) * k).rounded()))
         let rowBytes = w * 4

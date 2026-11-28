@@ -12,7 +12,8 @@ struct SettingsView: View {
     @AppStorage(ViewModel.reopenKey) private var reopenTo = UserDefaults.standard.bool(forKey: "SpektraLab.openToCamera") ? "camera" : "last"
     @AppStorage("SpektraLab.cameraToPhotos") private var toPhotos = false
     @AppStorage("SpektraLab.haptics") private var haptics = true
-    @AppStorage(ViewModel.newPhotoKey) private var newPhotoUsesLast = false
+    @AppStorage(ViewModel.newPhotoLookKey) private var newPhotoLook =
+        UserDefaults.standard.bool(forKey: ViewModel.newPhotoKey) ? "last" : ""
     @AppStorage(ImageDecoder.previewLongEdgeKey) private var previewLongEdge = 1920
     @AppStorage("SpektraLab.lensCorrection") private var lensCorrection = true
     @AppStorage("SpektraLab.librarySource") private var source = "app"
@@ -21,6 +22,14 @@ struct SettingsView: View {
     @State private var nextFrame = CameraBody.nextFrame
     @State private var storage = ""
     @State private var cacheBytes: Int64 = 0
+    @State private var backupSize = "…"
+    @State private var backingUp: String?
+    @State private var pickingFolder = false
+    @State private var backupFolder = LibraryBackup.folderTitle
+    @ObservedObject private var backup = AutoBackup.shared
+    @State private var pickingBackup = false
+    @State private var restoreFrom: URL?
+    @State private var restoreReady = false
     @AppStorage(DevelopCache.keepDaysKey) private var cacheDays = 14
     @AppStorage(ViewModel.negativeKeepDaysKey) private var keepDays = 7
     @AppStorage(ViewModel.unexportedDeleteDaysKey) private var unexportedDays = 0
@@ -96,9 +105,10 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Picker(String(localized: "新照片"), selection: $newPhotoUsesLast) {
-                        Text(String(localized: "标准配方")).tag(false)
-                        Text(String(localized: "上次使用")).tag(true)
+                    NavigationLink {
+                        NewPhotoLookPage(model: model, choice: $newPhotoLook)
+                    } label: {
+                        LabeledContent(String(localized: "新照片"), value: NewPhotoLookPage.title(newPhotoLook, model: model))
                     }
                     Picker(String(localized: "预览尺寸"), selection: $previewLongEdge) {
                         ForEach(ImageDecoder.previewLongEdgeChoices, id: \.self) { Text("\($0) px").tag($0) }
@@ -107,7 +117,7 @@ struct SettingsView: View {
                 } header: {
                     Text(String(localized: "冲洗"))
                 } footer: {
-                    Text(String(localized: "“上次使用”：新导入或新拍的照片，套用最近一次在编辑页调好的配方（拍摄时胶片仍按装好的胶卷）。\n相纸：选胶片时（拍照和编辑都一样）用这卷胶片的推荐相纸，没有推荐的用 Crystal Archive；黑白胶片用自己的黑白相纸。拍照页胶卷名下面的“相纸”按钮里选了推荐相纸中的另一张，以后这卷胶片就用它；选推荐以外的相纸只在这次拍摄有效，想固定请存成配方；编辑时换的相纸只影响那一张。\n预览尺寸：编辑时画面的长边；越大越清楚，拖动时越慢，下次打开照片时生效。导出始终是全尺寸。\n镜头校正：只对 RAW，按照片里记录的相机数据校正畸变和暗角；ProRAW 和大多数 DNG 都带这份数据。"))
+                    Text(String(localized: "新照片：新导入的照片一开始用什么——无胶片（原图）、上次在编辑页调好的配方、你存的配方，或指定一卷胶片和相纸。拍照时胶片仍按装好的胶卷。\n相纸：选胶片时（拍照和编辑都一样）用这卷胶片的推荐相纸，没有推荐的用 Crystal Archive；黑白胶片用自己的黑白相纸。拍照页胶卷名下面的“相纸”按钮里选了推荐相纸中的另一张，以后这卷胶片就用它；选推荐以外的相纸只在这次拍摄有效，想固定请存成配方；编辑时换的相纸只影响那一张。\n预览尺寸：编辑时画面的长边；越大越清楚，拖动时越慢，下次打开照片时生效。导出始终是全尺寸。\n镜头校正：只对 RAW，按照片里记录的相机数据校正畸变和暗角；ProRAW 和大多数 DNG 都带这份数据。"))
                 }
 
                 Section {
@@ -148,6 +158,62 @@ struct SettingsView: View {
                     Text(String(localized: "从相册添加照片时，只关联不复制，原图留在相册里。\n相册权限选了“部分照片”时，只能冲洗你选过的那些；改成“完全访问”要到系统设置 › Spektra Cam › 照片。\n“系统相册”：照片库里多一个“系统相册”视图，直接冲洗相册里的照片——原图留在相册里不动，Spektra Cam 只记下配方和冲洗后的缩略图；RAW + JPEG 的照片按 RAW 冲洗。\n冲洗缓存：每张冲过的照片会留一份清晰版和编辑用的画面（每张约 30–50 MB），让查看和编辑能马上打开；超过设定天数没看过的会自动删除，需要时会重新冲洗，删掉不会丢照片。"))
                 }
 
+                // 自动备份 / 从备份恢复 (`Model/LibraryBackup.swift`).
+                Section {
+                    if let folder = backupFolder {
+                        LabeledContent(String(localized: "备份到"), value: folder)
+                        LabeledContent(String(localized: "上次备份")) {
+                            if backup.running { HStack(spacing: 6) { ProgressView().controlSize(.small); Text(String(localized: "正在备份…")) } }
+                            else { Text(LibraryBackup.last?.formatted(.relative(presentation: .named)) ?? String(localized: "还没备份过")) }
+                        }
+                        if let error = backup.lastError {
+                            Text(String(localized: "上次失败：\(error)")).font(.caption).foregroundStyle(Color.labRed)
+                        }
+                        Button(String(localized: "立即备份")) { backup.run(force: true) }.disabled(backup.running)
+                        Button(String(localized: "换一个文件夹…")) { pickingFolder = true }
+                        Button(String(localized: "关闭自动备份"), role: .destructive) { LibraryBackup.forgetFolder(); backupFolder = nil }
+                    } else {
+                        Button(String(localized: "开启自动备份…")) { pickingFolder = true }
+                    }
+                    LabeledContent(String(localized: "底片库大小"), value: backupSize)
+                    Button(String(localized: "从备份恢复…")) { pickingBackup = true }
+                        .disabled(backingUp != nil || backup.running)
+                    if let backingUp { Text(backingUp).font(.caption).foregroundStyle(.secondary) }
+                } header: {
+                    Text(String(localized: "备份"))
+                } footer: {
+                    Text(String(localized: "选一个文件夹（推荐 iCloud 云盘），之后每次离开 App 都会自动把新增和改过的照片、配方、编辑记录、观片台、水印和设置同步过去，只传变化的部分。用免费 Apple ID 安装时，App 过期或删掉重装会丢掉底片库，可以从这里恢复；换手机也能用。冲洗缓存不备份，恢复后会重新冲洗。从系统相册关联的照片只记了链接，原图本来就在“照片”里。"))
+                }
+                .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
+                    guard case .success(let url) = result else { return }
+                    do {
+                        try LibraryBackup.setFolder(url)
+                        backupFolder = LibraryBackup.folderTitle
+                        backup.run(force: true)
+                    } catch {
+                        model.libraryMessage = String(localized: "备份失败：\(error.localizedDescription)")
+                    }
+                }
+                .background {
+                    // A second importer on the same view is ignored by SwiftUI: the restore's lives on its own view.
+                    Color.clear.fileImporter(isPresented: $pickingBackup, allowedContentTypes: [.folder]) { result in
+                        if case .success(let url) = result { restoreFrom = url }
+                    }
+                }
+                .confirmationDialog(String(localized: "用这个备份替换现在的底片库？"), isPresented: Binding(get: { restoreFrom != nil }, set: { if !$0 { restoreFrom = nil } }),
+                                    titleVisibility: .visible) {
+                    Button(String(localized: "恢复"), role: .destructive) {
+                        if let url = restoreFrom { Task { await restore(url) } }
+                    }
+                } message: {
+                    Text(String(localized: "选的是备份文件夹（“Spektra Cam Library”或它所在的文件夹）。现在的底片库会被备份里的替换掉，设置也会恢复成备份时的样子。恢复会在重新打开 App 时完成。"))
+                }
+                .alert(String(localized: "恢复准备好了"), isPresented: $restoreReady) {
+                    Button(String(localized: "现在重新打开")) { exit(0) }
+                } message: {
+                    Text(String(localized: "App 会关闭，再次打开时换成备份里的底片库。"))
+                }
+
                 Section(String(localized: "关于")) {
                     LabeledContent("Spektra Cam",
                                    value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
@@ -176,6 +242,23 @@ struct SettingsView: View {
         storage = String(format: String(localized: "%.1f GB · %d 张"), Double(bytes) / 1_073_741_824, model.library.count)
         let negatives = model.expendableNegatives(olderThanDays: nil)
         cleanable = (negatives.count, model.negativeBytes(negatives))
+        Task {
+            let size = await Task.detached(priority: .utility) { LibraryBackup.size() }.value
+            backupSize = String(format: "%.1f GB", Double(size) / 1_073_741_824)
+        }
+    }
+
+    private func restore(_ url: URL) async {
+        restoreFrom = nil
+        backingUp = String(localized: "正在读取备份…")
+        do {
+            try await Task.detached(priority: .userInitiated) { try LibraryBackup.prepareRestore(from: url) }.value
+            backingUp = nil
+            restoreReady = true
+        } catch {
+            backingUp = nil
+            model.libraryMessage = String(localized: "恢复失败：\(error.localizedDescription)")
+        }
     }
 }
 
@@ -218,5 +301,88 @@ struct PhotoAccessRow: View {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
             }
         }
+    }
+}
+
+/// 新照片: what a new import starts with — 无胶片, the last look, a saved recipe, or a film on a paper.
+struct NewPhotoLookPage: View {
+    @ObservedObject var model: ViewModel
+    @Binding var choice: String
+
+    static func title(_ choice: String, model: ViewModel) -> String {
+        if choice.isEmpty { return String(localized: "无胶片") }
+        if choice == "last" { return String(localized: "上次使用") }
+        if choice.hasPrefix("recipe:") {
+            return model.savedRecipes.first { $0.roll == choice }?.name ?? String(localized: "无胶片")
+        }
+        let parts = choice.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        return model.shortFilmName(for: parts[0])
+    }
+
+    private var film: String? {
+        guard !choice.isEmpty, choice != "last", !choice.hasPrefix("recipe:") else { return nil }
+        return choice.split(separator: "|", omittingEmptySubsequences: false).first.map(String.init)
+    }
+    private var paper: String {
+        let parts = choice.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        return parts.count > 1 ? parts[1] : ""
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                row(String(localized: "无胶片"), detail: String(localized: "原图，自己再选胶片"), on: choice.isEmpty) { choice = "" }
+                row(String(localized: "上次使用"), detail: String(localized: "最近一次在编辑页调好的配方"), on: choice == "last") { choice = "last" }
+            }
+            if let film {
+                Section {
+                    Picker(String(localized: "相纸"), selection: Binding(get: { paper }, set: { choice = "\(film)|\($0)" })) {
+                        Text(String(localized: "推荐（\(model.shortFilmName(for: model.paper(for: film)))）")).tag("")
+                        ForEach(model.papers.filter { model.catalog.canPrint(film: film, on: $0.id) }) { p in
+                            Text(p.name).tag(p.id)
+                        }
+                    }
+                } header: {
+                    Text(String(localized: "\(model.filmName(for: film)) 印在"))
+                } footer: {
+                    if model.catalog.isSlide(film) { Text(String(localized: "反转片直接扫描，不用相纸。")) }
+                }
+            }
+            if !model.savedRecipes.isEmpty {
+                Section(String(localized: "我的配方")) {
+                    ForEach(model.savedRecipes) { r in
+                        row(r.name, detail: model.filmName(for: r.recipe.filmID), on: choice == r.roll) { choice = r.roll }
+                    }
+                }
+            }
+            // The pickers' own grouping (by kind, or by maker as Settings chooses): `films` is already in that order.
+            ForEach(Array(Stock.grouped(model.films).enumerated()), id: \.offset) { _, group in
+                let (title, stocks) = group
+                Section(title) {
+                    ForEach(stocks) { s in
+                        row(s.name, detail: nil, on: film == s.id) { choice = "\(s.id)|" }
+                    }
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.labInk.ignoresSafeArea())
+        .navigationTitle(String(localized: "新照片"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func row(_ title: String, detail: String?, on: Bool, pick: @escaping () -> Void) -> some View {
+        Button(action: pick) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).foregroundStyle(Color.labCream)
+                    if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                }
+                Spacer()
+                if on { Image(systemName: "checkmark").foregroundStyle(Color.labRed) }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -47,7 +47,7 @@ extension EditTool {
 
     /// Under 无胶片 the picture is the original as the system renders it: nothing of the lens, exposure, film or
     /// paper reaches it — only the crop, the film picker (to choose one) and the finish (bar HDR, which needs a film).
-    static let noFilmTools: Set<String> = ["crop", "film", "light", "colour", "hsl", "curve", "balance", "mixer", "watermark"]
+    static let noFilmTools: Set<String> = ["crop", "film", "light", "colour", "hsl", "curve", "balance", "local", "mixer", "watermark"]
 
     @MainActor static func tools(in stage: EditStage, noFilm: Bool) -> [EditTool] {
         tools(in: stage).filter { !noFilm || noFilmTools.contains($0.id) }
@@ -295,6 +295,10 @@ extension EditTool {
                  modified: { !$0.adjustments.colorBalance.isNeutral },
                  reset: { m in var a = m.adjustments; a.colorBalance = ColorBalance(); m.setAdjustments(a) },
                  panel: { m, _ in AnyView(FinishPanel(model: m, fixedTool: .balance)) }),
+        EditTool(id: "local", title: String(localized: "局部"), stage: .finish,
+                 modified: { $0.recipe.localAdjustments?.isEmpty == false },
+                 reset: { m in m.edit { $0.localAdjustments = nil }; m.selectedLocal = nil },
+                 panel: { m, _ in AnyView(LocalPanel(model: m)) }),
         EditTool(id: "mixer", title: String(localized: "通道混合"), stage: .finish,
                  modified: { !$0.adjustments.channelMixer.isNeutral },
                  reset: { m in var a = m.adjustments; a.channelMixer = ChannelMixer(); m.setAdjustments(a) },

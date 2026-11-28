@@ -112,6 +112,7 @@ final class ViewModel: ObservableObject {
         }
         var onlyFinish = a
         onlyFinish.adjustments = b.adjustments
+        onlyFinish.localAdjustments = b.localAdjustments
         onlyFinish.hdr = b.hdr
         if onlyFinish == b {
             runLayer2()
@@ -159,6 +160,7 @@ final class ViewModel: ObservableObject {
         if (r.leakEdge ?? 0) <= 0 { r.leakEdge = nil }
         if r.leakSeed == 0 { r.leakSeed = nil }
         if r.watermarks?.isEmpty == true { r.watermarks = nil }
+        if r.localAdjustments?.isEmpty == true { r.localAdjustments = nil }
         if let g = r.sceneBalance, g.count != 3 || g.allSatisfy({ abs($0 - 1) < 1e-6 }) { r.sceneBalance = nil }
         if r.diffusionFamily?.isEmpty == true { r.diffusionFamily = nil }
         if r.diffusionStrength == 0.5 { r.diffusionStrength = nil }
@@ -324,6 +326,17 @@ final class ViewModel: ObservableObject {
         papers.first { $0.id == printStock }?.name ?? printStock
     }
 
+    /// The 局部 layer the panel and the handles work on.
+    @Published var selectedLocal: UUID?
+    /// 局部 › 显示范围: bumped to tint a found (subject / person) mask red over the picture for a moment.
+    @Published var localMaskFlash = 0
+
+    /// The open picture's subject or person mask as a red overlay, found off the main thread (cached with the blend's).
+    func localMaskImage(person: Bool) async -> CGImage? {
+        guard let source = layer2Source, let blend = LocalBlend.shared else { return nil }
+        return await Task.detached(priority: .userInitiated) { blend.overlay(source, person: person) }.value
+    }
+
     /// The photo in the editor is a half-frame pair (its 片幅 row offers 半格双拼).
     var editingIsPair: Bool { editingPhotoID.flatMap { id in library.first { $0.id == id } }?.pair != nil }
 
@@ -434,6 +447,7 @@ final class ViewModel: ObservableObject {
         // than an error.
         let resources = SpektraEngine.defaultResources()
         catalog = StockCatalog.load(resources: resources)
+        LibraryBackup.applyPendingRestore()        // a restore prepared last time takes the library's place first
         loadLibrary()
         forgetCameraEVsOnce()
         // Develops unused for a while go (Settings › 冲洗缓存); they are made again when needed.
@@ -796,6 +810,44 @@ final class ViewModel: ObservableObject {
         }.value
     }
 
+    /// What the camera recorded in a photo's original (照片信息).
+    struct CaptureInfo: Sendable { var camera, lens, exposure: String?; var date: Date?; var bytes: Int64? }
+
+    func captureInfo(for id: UUID) async -> CaptureInfo? {
+        guard let photo = library.first(where: { $0.id == id }), let data = try? await originalData(for: photo) else { return nil }
+        return await Task.detached(priority: .userInitiated) { Self.captureInfo(data) }.value
+    }
+
+    nonisolated static func captureInfo(_ data: Data) -> CaptureInfo {
+        var info = CaptureInfo(bytes: Int64(data.count))
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any] else { return info }
+        let tiff = props[kCGImagePropertyTIFFDictionary] as? [CFString: Any] ?? [:]
+        let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
+        let make = (tiff[kCGImagePropertyTIFFMake] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+        let model = (tiff[kCGImagePropertyTIFFModel] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+        let camera = model.lowercased().hasPrefix(make.lowercased()) ? model : [make, model].filter { !$0.isEmpty }.joined(separator: " ")
+        info.camera = camera.isEmpty ? nil : camera
+        info.lens = exif[kCGImagePropertyExifLensModel] as? String
+        var parts: [String] = []
+        if let f = exif[kCGImagePropertyExifFNumber] as? Double { parts.append(String(format: "f/%.1f", f)) }
+        if let t = exif[kCGImagePropertyExifExposureTime] as? Double, t > 0 {
+            parts.append(t >= 1 ? String(format: "%.1f s", t) : "1/\(Int((1 / t).rounded())) s")
+        }
+        if let iso = (exif[kCGImagePropertyExifISOSpeedRatings] as? [Int])?.first { parts.append("ISO \(iso)") }
+        if let mm = exif[kCGImagePropertyExifFocalLength] as? Double {
+            let eq = exif[kCGImagePropertyExifFocalLenIn35mmFilm] as? Int
+            parts.append(String(format: "%.0f mm", mm) + (eq.map { $0 > 0 && abs(Double($0) - mm) > 1 ? String(localized: "（等效 \($0) mm）") : "" } ?? ""))
+        }
+        if let bias = exif[kCGImagePropertyExifExposureBiasValue] as? Double, abs(bias) > 0.01 { parts.append(String(format: "%+.1f EV", bias)) }
+        info.exposure = parts.isEmpty ? nil : parts.joined(separator: "  ")
+        if let s = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
+            let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy:MM:dd HH:mm:ss"
+            info.date = f.date(from: s)
+        }
+        return info
+    }
+
     private func originalData(for photo: LibraryPhoto) async throws -> Data {
         if let assetID = photo.assetID {
             guard let asset = PhotoAssets.asset(assetID) else {
@@ -1115,6 +1167,7 @@ final class ViewModel: ObservableObject {
                                 recipe: entry.recipe,
                                 crop: entry.crop,
                                 pair: entry.pair,
+                                double: entry.double,
                                 favorite: entry.favorite ?? false,
                                 captured: entry.captured ?? false,
                                 frameNumber: entry.frameNumber,
@@ -1209,7 +1262,7 @@ final class ViewModel: ObservableObject {
         for p in missing {
             if let id = p.assetID {
                 found[p.id] = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject?.creationDate ?? p.createdAt
-            } else if p.captured || p.pair != nil || p.fileName.isEmpty {
+            } else if p.captured || p.pair != nil || p.double != nil || p.fileName.isEmpty {
                 found[p.id] = p.createdAt
             } else {
                 let url = originalURL(for: p)
@@ -1247,6 +1300,7 @@ final class ViewModel: ObservableObject {
                                  recipe: photo.recipe,
                                  crop: photo.crop,
                                  pair: photo.pair,
+                                 double: photo.double,
                                  favorite: photo.favorite ? true : nil,
                                  captured: photo.captured ? true : nil,
                                  frameNumber: photo.frameNumber,
@@ -1549,8 +1603,9 @@ final class ViewModel: ObservableObject {
                 try Self.plainPicture(data, maxLongEdge: longEdge, crop: photoCrop, space: Layer2Renderer.previewSpace,
                                       typeHint: hintID.flatMap(UTType.init))
             }.value
-            if let a = recipe.adjustments, a.isActive, let layer2 = Layer2Renderer.shared {
-                image = try layer2.image(try layer2.source(image), a, space: Layer2Renderer.previewSpace)
+            if recipe.finishActive, let layer2 = Layer2Renderer.shared {
+                image = try layer2.image(try layer2.source(image), recipe.adjustments ?? Adjustments(),
+                                         locals: recipe.finishLocals, space: Layer2Renderer.previewSpace)
             }
             image = Watermark.composite(image, watermarkShelf.resolved(recipe.watermarks))
             return longEdge > 900 ? UIImage(cgImage: image) : LibraryThumbnail.downscale(image)
@@ -1605,8 +1660,9 @@ final class ViewModel: ObservableObject {
         }
         lap("engine rendered")
         var picture = bitmap.cgImage
-        if let a = recipe.adjustments, a.isActive, let layer2 = Layer2Renderer.shared {
-            picture = try layer2.image(try layer2.source(bitmap.cgImage), a, space: Layer2Renderer.previewSpace)
+        if recipe.finishActive, let layer2 = Layer2Renderer.shared {
+            picture = try layer2.image(try layer2.source(bitmap.cgImage), recipe.adjustments ?? Adjustments(),
+                                       locals: recipe.finishLocals, space: Layer2Renderer.previewSpace)
         }
         picture = Watermark.composite(picture, watermarkShelf.resolved(recipe.watermarks))
         return longEdge > 900 ? UIImage(cgImage: picture) : LibraryThumbnail.downscale(picture)
@@ -2042,8 +2098,9 @@ final class ViewModel: ObservableObject {
             let dirty = paramsDirty
             let changed = currentEngineDelta()
             let place = currentRecipe.placesAutomatically
-            let layer2 = adjustments.isActive ? Layer2Renderer.shared : nil
+            let layer2 = recipe.finishActive ? Layer2Renderer.shared : nil
             let look = previewAdjustments
+            let locals = recipe.finishLocals
             let plain: CGImage?
             if recipe.noFilm == true, let data = originalData {
                 let edge = ImageDecoder.previewLongEdge, c = crop, hint = originalTypeHint
@@ -2054,7 +2111,7 @@ final class ViewModel: ObservableObject {
             let result = try await engine.perform { () -> PreviewFrame in
                 if let plain, let layer2 = Layer2Renderer.shared {
                     let source = try layer2.source(plain)
-                    return PreviewFrame(texture: try layer2.texture(source, look), source: source,
+                    return PreviewFrame(texture: try layer2.texture(source, look, locals: locals), source: source,
                                         width: plain.width, height: plain.height, elapsedMs: 0, progressID: "")
                 }
                 if dirty {
@@ -2071,7 +2128,7 @@ final class ViewModel: ObservableObject {
                 if let layer2 {
                     let bitmap = try engine.renderBitmap(tier: "live", reprint: true)
                     let source = try layer2.source(bitmap.cgImage)
-                    return PreviewFrame(texture: try layer2.texture(source, look), source: source,
+                    return PreviewFrame(texture: try layer2.texture(source, look, locals: locals), source: source,
                                         width: bitmap.width, height: bitmap.height,
                                         elapsedMs: bitmap.elapsedMs, progressID: "")
                 }
@@ -2104,8 +2161,8 @@ final class ViewModel: ObservableObject {
 
     /// The file written off the main actor.
     private nonisolated static func write(_ image: CGImage, options: ExportOptions, source: Data?,
-                                          gainMap: HDRGainMap.Attachment?) async throws -> URL {
-        try ExportWriter.write(image, options: options, sourceData: source, gainMap: gainMap)
+                                          gainMap: HDRGainMap.Attachment?, name: String?) async throws -> URL {
+        try ExportWriter.write(image, options: options, sourceData: source, gainMap: gainMap, name: name)
     }
 
     // MARK: - Enable HDR
@@ -2118,7 +2175,7 @@ final class ViewModel: ObservableObject {
     /// A slide (scanned, never printed) with HDR on and no 后期: its HDR is its two renditions' ratio. With 后期 on,
     /// the ratio of the engine's pictures would lift what the edit put down (upstream's review), so the curve.
     var isSlideHDR: Bool {
-        recipe.hdr == true && catalog.stock(recipe.filmStock)?.type == .positive && !adjustments.isActive
+        recipe.hdr == true && catalog.stock(recipe.filmStock)?.type == .positive && !recipe.finishActive
     }
 
     /// The slide's two renditions on the preview session, and the canvas's gain from them.
@@ -2335,15 +2392,40 @@ final class ViewModel: ObservableObject {
     static let newPhotoKey = "SpektraLab.newPhotoUsesLast"
     private static let lastRecipeKey = "SpektraLab.lastRecipe"
 
+    /// What a new photo starts with (设置 › 冲洗 › 新照片, as the Mac's default stock pair): "" 无胶片 (the original),
+    /// "last" the last look closed in the editor, "recipe:<uuid>" a saved recipe, or "<film>|<paper>" (paper "" = the
+    /// film's own rule, `paper(for:)`). Before it, a bool: "上次使用" or not.
+    static let newPhotoLookKey = "SpektraLab.newPhotoLook"
+
+    var newPhotoLook: String {
+        UserDefaults.standard.string(forKey: Self.newPhotoLookKey)
+            ?? (UserDefaults.standard.bool(forKey: Self.newPhotoKey) ? "last" : "")
+    }
+
     var newPhotoRecipe: PhotoRecipe {
-        guard UserDefaults.standard.bool(forKey: Self.newPhotoKey),
-              let data = UserDefaults.standard.data(forKey: Self.lastRecipeKey),
-              let recipe = try? JSONDecoder().decode(PhotoRecipe.self, from: data) else {
-            var plain = PhotoRecipe.standard
-            plain.noFilm = true          // an import starts as itself; the owner picks a film when developing
-            return plain
+        let choice = newPhotoLook
+        var plain = PhotoRecipe.standard
+        if choice.hasPrefix("recipe:"), let id = UUID(uuidString: String(choice.dropFirst(7))),
+           let saved = savedRecipes.first(where: { $0.id == id }) {
+            return Self.forImport(saved.recipe)
         }
-        // Imports meter with the engine, whatever the inherited look's meter (相机 belongs to camera shots).
+        if choice == "last", let data = UserDefaults.standard.data(forKey: Self.lastRecipeKey),
+           let recipe = try? JSONDecoder().decode(PhotoRecipe.self, from: data) {
+            return Self.forImport(recipe)
+        }
+        let parts = choice.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        if let film = parts.first, !film.isEmpty, choice != "last", films.contains(where: { $0.id == film }) {
+            plain.filmStock = film
+            let chosen = parts.count > 1 ? parts[1] : ""
+            plain.printStock = !chosen.isEmpty && catalog.canPrint(film: film, on: chosen) ? chosen : paper(for: film)
+            return normalized(plain)
+        }
+        plain.noFilm = true          // an import starts as itself; the owner picks a film when developing
+        return plain
+    }
+
+    /// Imports meter with the engine, whatever the inherited look's meter (相机 belongs to camera shots).
+    private static func forImport(_ recipe: PhotoRecipe) -> PhotoRecipe {
         var inherited = recipe
         if inherited.exposureMethod == PhotoRecipe.newPhotoMeter { inherited.exposureMethod = nil }
         return inherited
@@ -2655,6 +2737,73 @@ final class ViewModel: ObservableObject {
         }
     }
 
+    /// A photograph as a double exposure takes it: decoded at most `longEdge`, its own crop, straighten, turns and
+    /// white balance applied (linear ProPhoto). Nil when it cannot be read.
+    func doubleSourceFrame(_ id: UUID, longEdge: Int) async -> DecodedFrame? {
+        guard let photo = library.first(where: { $0.id == id }), let data = try? await originalData(for: photo) else { return nil }
+        let crop = photo.crop, gains = photo.recipe.sceneBalance, type = photo.typeIdentifier
+        return try? await Task.detached(priority: .userInitiated) {
+            try ImageDecoder.decode(data: data, maxLongEdge: longEdge, typeHint: type.flatMap(UTType.init))
+                .applying(crop).balanced(gains)
+        }.value
+    }
+
+    /// 多重曝光: the two pictures as they show themselves, metered, lit and ADDED (linear) at the bottom's shape, saved
+    /// as a new photo with the bottom's look (its white balance already in the pixels) — or, `replacing`, into that
+    /// double exposure's own file (its look and crop kept).
+    func makeDouble(_ spec: DoubleSpec, replacing: UUID? = nil) async -> UUID? {
+        guard libraryBusy == nil,
+              let bottom = library.first(where: { $0.id == spec.bottom }),
+              let top = library.first(where: { $0.id == spec.top }) else { return nil }
+        libraryBusy = String(localized: "正在合成多重曝光…")
+        defer { libraryBusy = nil }
+        let frameLong = min(Double(max(bottom.pixelWidth, bottom.pixelHeight)), DoubleSpec.longEdgeCap)
+        // The top as large as its window needs: more when zoomed in, never past its own size.
+        let topLong = min(Double(max(top.pixelWidth, top.pixelHeight)),
+                          frameLong * max(spec.topPlace.zoom, 1) / max(top.crop.map { max($0.width, $0.height) } ?? 1, 0.1))
+        guard let base = await doubleSourceFrame(bottom.id, longEdge: Int(frameLong.rounded())),
+              let picture = await doubleSourceFrame(top.id, longEdge: max(1, Int(topLong.rounded()))) else {
+            libraryMessage = String(localized: "多重曝光失败：\(String(localized: "读不到原图"))")
+            return nil
+        }
+        do {
+            let heif = try await Task.detached(priority: .userInitiated) { () throws -> Data in
+                try PairComposer.heif(DoubleSpec.compose(bottom: base, top: picture.applying(spec.topOrientation), spec: spec))
+            }.value
+            if let replacing, let index = library.firstIndex(where: { $0.id == replacing }) {
+                let photo = library[index]
+                try heif.write(to: originalURL(for: photo), options: .atomic)
+                if let size = ExportWriter.pixelSize(of: heif) {
+                    library[index].pixelWidth = size.width
+                    library[index].pixelHeight = size.height
+                    library[index].sourceAspect = Double(size.width) / Double(max(size.height, 1))
+                }
+                library[index].double = spec
+                for url in [previewFrameURL(for: replacing), largeDevelopURL(for: replacing)] {
+                    try? FileManager.default.removeItem(at: url)
+                }
+                saveLibraryManifest()
+                queueDevelop(replacing)
+                libraryMessage = String(localized: "多重曝光已更新")
+                return replacing
+            }
+            let count = library.filter { $0.double != nil }.count
+            let id = try await addPhoto(data: heif, name: String(format: String(localized: "多重曝光 %02d"), count + 1), typeHint: .heic)
+            if let index = library.firstIndex(where: { $0.id == id }) {
+                library[index].double = spec
+                var look = bottom.recipe
+                look.sceneBalance = nil          // in the pixels already, each exposure its own
+                library[index].recipe = look
+                saveLibraryManifest()
+            }
+            libraryMessage = String(localized: "已生成多重曝光：\(bottom.name) + \(top.name)")
+            return id
+        } catch {
+            libraryMessage = String(localized: "多重曝光失败：\(error.localizedDescription)")
+            return nil
+        }
+    }
+
     // MARK: - crop and straighten
 
     /// The uncropped photograph for the crop screen.
@@ -2697,7 +2846,7 @@ final class ViewModel: ObservableObject {
     /// (Layer 2 was off) the engine renders once to make it.
     private func runLayer2() {
         guard layer2Source != nil, let layer2 = Layer2Renderer.shared else {
-            if adjustments.isActive { scheduleRender() }
+            if recipe.finishActive { scheduleRender() }
             return
         }
         layer2Pending = true
@@ -2707,8 +2856,9 @@ final class ViewModel: ObservableObject {
             while let self, self.layer2Pending, let source = self.layer2Source {
                 self.layer2Pending = false
                 let look = self.previewAdjustments
+                let locals = self.recipe.finishLocals
                 let frame = try? await Task.detached(priority: .userInitiated) {
-                    PreviewFrame(texture: try layer2.texture(source, look), source: source,
+                    PreviewFrame(texture: try layer2.texture(source, look, locals: locals), source: source,
                                  width: source.width, height: source.height, elapsedMs: 0, progressID: "")
                 }.value
                 // A newer engine render replaced the source meanwhile: its texture wins.
@@ -2831,16 +2981,20 @@ final class ViewModel: ObservableObject {
             let gains = recipe.sceneBalance
             let memoryCap = Self.exportLongEdgeCap(for: data, striped: !filmBorderEnabled)
             if let memoryCap { NSLog("SpektraLab export: memory caps the long edge at %d px", memoryCap) }
+            // The chosen size (导出尺寸) and the memory's, whichever is smaller; "shrunk" is said only for the memory's.
+            let sizeCap = ExportWriter.pixelSize(of: data).flatMap { exportSizeCap(original: $0, options: options) }
+            let shrunkForMemory = memoryCap != nil && memoryCap! < (sizeCap ?? Int.max)
+            let cap = [memoryCap, sizeCap].compactMap { $0 }.min()
             let noFilm = recipe.noFilm == true
             var decoded: DecodedFrame? = noFilm ? nil : try await Task.detached(priority: .userInitiated) {
                 if frameCrop.isIdentity {
                     return try ImageDecoder.decode(data: data,
-                                                   maxLongEdge: memoryCap ?? ImageDecoder.exportLongEdge,
+                                                   maxLongEdge: cap ?? ImageDecoder.exportLongEdge,
                                                    typeHint: hint,
                                                    targetAspect: cropAspect).balanced(gains)
                 }
                 // The user's crop first, then the gate's: two full-size frames live for a moment.
-                let cut = try ImageDecoder.decode(data: data, maxLongEdge: memoryCap ?? ImageDecoder.exportLongEdge,
+                let cut = try ImageDecoder.decode(data: data, maxLongEdge: cap ?? ImageDecoder.exportLongEdge,
                                                   typeHint: hint).applying(frameCrop).balanced(gains)
                 return cropAspect.map { cut.centerCropped(toTargetAspect: $0) } ?? cut
             }.value
@@ -2861,7 +3015,7 @@ final class ViewModel: ObservableObject {
             if noFilm {
                 stage(String(localized: "原图（无胶片）"))
                 let tag = space.cgColorSpace ?? Layer2Renderer.previewSpace
-                let edge = memoryCap ?? ImageDecoder.exportLongEdge ?? Int.max
+                let edge = cap ?? ImageDecoder.exportLongEdge ?? Int.max
                 plainImage = try await Task.detached(priority: .userInitiated) {
                     try Self.plainPicture(data, maxLongEdge: edge, crop: frameCrop, space: tag, typeHint: hint)
                 }.value
@@ -2918,12 +3072,12 @@ final class ViewModel: ObservableObject {
                 decoded = nil
                 stage(String(localized: "释放全尺寸会话"))
                 if let frame { try await loadFrame(frame); reopened = true }
-                let look = adjustments
-                if look.isActive {
+                let look = adjustments, locals = recipe.finishLocals
+                if recipe.finishActive {
                     stage(String(localized: "后期"))
                     let source = copy!
                     cgImage = try await Task.detached(priority: .userInitiated) {
-                        try layer2.image(source, look, space: tag, midGrey: space.midGrey)
+                        try layer2.image(source, look, locals: locals, space: tag, midGrey: space.midGrey)
                     }.value
                 }
                 copy = nil
@@ -2957,7 +3111,7 @@ final class ViewModel: ObservableObject {
                 let picture = cgImage
                 gainMap = await Task.detached(priority: .userInitiated) { HDRExport.attachment(for: picture, curve: hdrCurve) }.value
             }
-            let url = try await Self.write(cgImage, options: options, source: source, gainMap: gainMap)
+            let url = try await Self.write(cgImage, options: options, source: source, gainMap: gainMap, name: exportFileName(options))
             if let map = gainMap, let src = CGImageSourceCreateWithURL(url as CFURL, nil) {
                 let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
                 NSLog("SpektraLab export: gain map %dx%d written %@, depth %@", map.map.width, map.map.height,
@@ -2987,11 +3141,11 @@ final class ViewModel: ObservableObject {
                     _ = await PhotoLibrary.deleteAsset(replacing)
                 }
                 doneText = String(format: String(localized: "已导出 %d×%d · %.1f MB 到相册"),
-                                  bitmap.width, bitmap.height, megabytes) + (memoryCap == nil ? "" : String(localized: "（内存不够，已缩小）"))
+                                  bitmap.width, bitmap.height, megabytes) + (shrunkForMemory ? String(localized: "（内存不够，已缩小）") : "")
             case .files:
                 shareURL = url
                 doneText = String(format: String(localized: "已生成 %d×%d · %.1f MB"),
-                                  bitmap.width, bitmap.height, megabytes) + (memoryCap == nil ? "" : String(localized: "（内存不够，已缩小）"))
+                                  bitmap.width, bitmap.height, megabytes) + (shrunkForMemory ? String(localized: "（内存不够，已缩小）") : "")
             }
             NSLog("SpektraLab export: done in %.1fs", Date().timeIntervalSince(started))
         } catch {
@@ -3031,6 +3185,10 @@ final class ViewModel: ObservableObject {
     // MARK: - export size estimate
 
     @Published private(set) var exportEstimate: ExportEstimate?
+    /// `ExportWriter.detailRatio` of the open photo for a format and quality.
+    private var estimateRatio: (key: String, value: Double)?
+    /// The open original, as a key (its bytes' count and the photo).
+    private var identityOfOriginal: String { "\(editingPhotoID?.uuidString ?? "")|\(originalData?.count ?? 0)" }
     private var estimateTask: Task<Void, Never>?
     private var estimatePreview: (identity: String, image: CGImage)?
 
@@ -3042,22 +3200,62 @@ final class ViewModel: ObservableObject {
               let original = ExportWriter.pixelSize(of: originalData) else { return nil }
         var full = original
         // The decoder scales the source to the cap before the crop and the gate cut it.
-        if let cap = Self.exportLongEdgeCap(for: originalData, striped: !filmBorderEnabled) {
+        let caps = [Self.exportLongEdgeCap(for: originalData, striped: !filmBorderEnabled),
+                    exportSizeCap(original: original, options: exportOptions)].compactMap { $0 }
+        if let cap = caps.min() {
             let k = Double(cap) / Double(max(original.width, original.height))
             full = (Int((Double(original.width) * k).rounded()), Int((Double(original.height) * k).rounded()))
         }
-        let size = crop.outputSize(source: CGSize(width: full.width, height: full.height))
+        return exportOutputSize(source: full)
+    }
+
+    /// What the crop and the film gate leave of a source this size.
+    private func exportOutputSize(source: (width: Int, height: Int)) -> (width: Int, height: Int) {
+        let size = crop.outputSize(source: CGSize(width: source.width, height: source.height))
         guard filmBorderEnabled else { return size }
-        let crop = ImageDecoder.centerCrop(width: size.width, height: size.height,
-                                           targetAspect: filmCropAspect)
+        let crop = ImageDecoder.centerCrop(width: size.width, height: size.height, targetAspect: filmCropAspect)
         return (crop.width, crop.height)
     }
 
-    /// The original's own pixel count when the memory cap makes the export smaller, else nil.
+    /// The source long edge the chosen export size (`ExportOptions.size`) asks for; nil = full size.
+    /// shortcut: measured on the picture without the film edge, so a print with its rebate comes out that much larger;
+    /// exact would mean resizing the finished bitmap in each of its bit depths.
+    func exportSizeCap(original: (width: Int, height: Int), options: ExportOptions) -> Int? {
+        guard let size = options.size else { return nil }
+        let out = exportOutputSize(source: original)
+        let k = size.scale(width: out.width, height: out.height)
+        guard k < 0.999 else { return nil }
+        return max(ExportSize.smallestEdge, Int((Double(max(original.width, original.height)) * k).rounded()))
+    }
+
+    /// The original's own size and what the export makes of it at full size (the 尺寸 page's lines).
+    var exportFullOutputSize: (width: Int, height: Int)? {
+        guard let originalData, let o = ExportWriter.pixelSize(of: originalData) else { return nil }
+        return exportOutputSize(source: o)
+    }
+
+    /// The original's own pixel count when the memory cap makes the export smaller than asked, else nil.
     var exportCappedFromMegapixels: Double? {
-        guard let originalData, Self.exportLongEdgeCap(for: originalData, striped: !filmBorderEnabled) != nil,
-              let o = ExportWriter.pixelSize(of: originalData) else { return nil }
+        guard let originalData, let o = ExportWriter.pixelSize(of: originalData),
+              let memory = Self.exportLongEdgeCap(for: originalData, striped: !filmBorderEnabled),
+              memory < (exportSizeCap(original: o, options: exportOptions) ?? Int.max) else { return nil }
         return Double(o.width * o.height) / 1_000_000
+    }
+
+    /// The file's name for the photo being exported (`ExportOptions.naming`), nil = the default.
+    func exportFileName(_ options: ExportOptions) -> String? {
+        guard let naming = options.naming, let context = exportNamingContext() else { return nil }
+        return naming.name(context)
+    }
+
+    /// What the open photo's file name is made of; nil with none open.
+    func exportNamingContext() -> ExportNaming.Context? {
+        guard let photo = editingPhoto else { return nil }
+        let r = recipe
+        let noFilm = r.noFilm == true
+        let scanned = noFilm || catalog.isSlide(r.filmStock)
+        return .init(original: photo.name, film: noFilm ? "" : filmName(for: r.filmStock),
+                     paper: scanned ? "" : filmName(for: r.printStock), date: Date())
     }
 
     /// Re-estimate for the current options. Encodes the live preview with the
@@ -3078,19 +3276,25 @@ final class ViewModel: ObservableObject {
             if let cached = self.estimatePreview, cached.identity == identity {
                 preview = cached.image
             } else {
-                guard let bitmap = try? await engine.perform({
-                    try engine.renderBitmap(tier: "live", reprint: true)
-                }) else { return }
-                self.estimatePreview = (identity, bitmap.cgImage)
-                preview = bitmap.cgImage
+                guard let shown = await self.estimateSource(engine) else { return }
+                self.estimatePreview = (identity, shown)
+                preview = shown
             }
             guard !Task.isCancelled else { return }
-            let sampleBytes = await Task.detached(priority: .userInitiated) {
-                ExportWriter.encodedSize(preview, options: options)
+            // The preview packs more detail into each pixel than the full size has (a 48 MP phone picture is soft at
+            // its own scale): scaled up one for one it put a 48 MP HEIF at ~2.4× its size. The original tells by how
+            // much — its full-resolution tiles against its own preview-sized picture (`detailRatio`, once per photo).
+            let ratioKey = "\(identityOfOriginal)|\(options.format.rawValue)|\(options.quality)"
+            let data = self.originalData
+            let known = self.estimateRatio?.key == ratioKey ? self.estimateRatio?.value : nil
+            let measured = await Task.detached(priority: .userInitiated) { () -> (Int, Double)? in
+                guard let sample = ExportWriter.encodedSize(preview, options: options) else { return nil }
+                return (sample, known ?? data.flatMap { ExportWriter.detailRatio($0, options: options) } ?? 1)
             }.value
-            guard !Task.isCancelled, let sampleBytes, sampleBytes > 0 else { return }
+            guard !Task.isCancelled, let (sampleBytes, ratio) = measured, sampleBytes > 0 else { return }
+            self.estimateRatio = (ratioKey, ratio)
             let samplePixels = Double(preview.width * preview.height)
-            let raw = Int64(Double(sampleBytes) * Double(size.width * size.height) / samplePixels)
+            let raw = Int64(Double(sampleBytes) * Double(size.width * size.height) / samplePixels * ratio)
             let factor = ExportCalibration.factor(for: options.format)
             var estimate = ExportEstimate(width: size.width, height: size.height, options: options)
             estimate.rawBytes = raw
@@ -3100,6 +3304,25 @@ final class ViewModel: ObservableObject {
                 self.exportEstimate = estimate
             }
         }
+    }
+
+    /// The picture the estimate encodes: what the editor shows — 后期 and its local layers on it, or the original as
+    /// the system renders it under 无胶片. (The engine's bare print was encoded before: under 无胶片 a grainy film print
+    /// the export never makes, and the figure came out several times too large.)
+    private func estimateSource(_ engine: SpektraEngine) async -> CGImage? {
+        if let source = layer2Source, let layer2 = Layer2Renderer.shared {
+            let look = previewAdjustments, locals = recipe.finishLocals
+            return try? await Task.detached(priority: .userInitiated) {
+                try layer2.image(source, look, locals: locals, space: Layer2Renderer.previewSpace)
+            }.value
+        }
+        if recipe.noFilm == true, let data = originalData {
+            let edge = ImageDecoder.previewLongEdge, c = crop, hint = originalTypeHint
+            return try? await Task.detached(priority: .userInitiated) {
+                try Self.plainPicture(data, maxLongEdge: edge, crop: c, space: Layer2Renderer.previewSpace, typeHint: hint)
+            }.value
+        }
+        return try? await engine.perform { try engine.renderBitmap(tier: "live", reprint: true) }.cgImage
     }
 
     /// The share sheet closed; the temporary file is no longer needed.
@@ -3113,10 +3336,10 @@ final class ViewModel: ObservableObject {
 /// Encoding, off the main actor.
 enum ExportWriter {
     nonisolated static func write(_ cgImage: CGImage, options: ExportOptions,
-                                  sourceData: Data?, gainMap: HDRGainMap.Attachment? = nil) throws -> URL {
+                                  sourceData: Data?, gainMap: HDRGainMap.Attachment? = nil, name: String? = nil) throws -> URL {
         let stamp = Self.fileStamp()
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("SpektraCam_\(stamp).\(options.format.fileExtension)")
+            .appendingPathComponent("\(name ?? "SpektraCam_\(stamp)").\(options.format.fileExtension)")
         try? FileManager.default.removeItem(at: url)
         let metadata = sourceData.flatMap { Self.metadata(from: $0) } ?? [:]
 
@@ -3153,6 +3376,41 @@ enum ExportWriter {
 
     /// The encoded size of `cgImage` with these options, in memory, without
     /// metadata. Used for the size estimate.
+    /// How many bytes a pixel of this original really costs at its full size, against what its preview-sized
+    /// picture suggests: 16 full-resolution tiles from across the frame, encoded as one mosaic, over the preview
+    /// scaled up one for one. ~0.5 for a 48 MP phone picture, ~1 for 12 MP (checked on the Mac against real HEIF
+    /// exports: within 20 %, the calibration takes the rest). Held to 0.2…1.
+    nonisolated static func detailRatio(_ data: Data, options: ExportOptions) -> Double? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil),
+              let thumb = CGImageSourceCreateThumbnailAtIndex(src, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                                                       kCGImageSourceCreateThumbnailWithTransform: true,
+                                                                       kCGImageSourceThumbnailMaxPixelSize: 1920] as CFDictionary),
+              let full = CIImage(data: data, options: [.applyOrientationProperty: true]) else { return nil }
+        let e = full.extent, big = Double(e.width * e.height), small = Double(thumb.width * thumb.height)
+        guard big > small * 1.5, let thumbBytes = encodedSize(thumb, options: options) else { return 1 }
+        let t = CGFloat(384), n = 4
+        guard e.width > t * 2, e.height > t * 2 else { return 1 }
+        var mosaic = CIImage.empty()
+        for i in 0..<n {
+            for j in 0..<n {
+                let x = e.minX + (e.width - t) * (CGFloat(i) + 0.5) / CGFloat(n)
+                let y = e.minY + (e.height - t) * (CGFloat(j) + 0.5) / CGFloat(n)
+                let tile = full.cropped(to: CGRect(x: x, y: y, width: t, height: t))
+                    .transformed(by: CGAffineTransform(translationX: CGFloat(i) * t - x, y: CGFloat(j) * t - y))
+                mosaic = tile.composited(over: mosaic)
+            }
+        }
+        let side = t * CGFloat(n)
+        let context = CIContext(options: [.cacheIntermediates: false])
+        guard let p3 = CGColorSpace(name: CGColorSpace.displayP3),
+              let tiles = context.createCGImage(mosaic.cropped(to: CGRect(x: 0, y: 0, width: side, height: side)),
+                                                from: CGRect(x: 0, y: 0, width: side, height: side), format: .RGBA16, colorSpace: p3),
+              let tileBytes = encodedSize(tiles, options: options) else { return nil }
+        let atFull = Double(tileBytes) * big / Double(side * side)
+        let scaledUp = Double(thumbBytes) * big / small
+        return min(max(atFull / scaledUp, 0.2), 1)
+    }
+
     nonisolated static func encodedSize(_ cgImage: CGImage, options: ExportOptions) -> Int? {
         switch options.format {
         case .heif:

@@ -164,6 +164,10 @@ struct ExportOptions: Codable, Equatable, Sendable {
     var destination: ExportDestination = .photos
     /// Copy the camera's EXIF, GPS and make/model from the original file.
     var keepMetadata: Bool = true
+    /// The picture's size; nil = the original's (the memory cap may still make it smaller).
+    var size: ExportSize? = nil
+    /// The file's name; nil = "SpektraCam_<date>".
+    var naming: ExportNaming? = nil
 
     private static let defaultsKey = "SpektraLab.exportOptions"
 
@@ -207,7 +211,9 @@ struct ExportEstimate: Equatable, Sendable {
 /// downscale, so it carries more detail per pixel than the full-size print and
 /// overstates the file; the first real export measures by how much.
 enum ExportCalibration {
-    private static let key = "SpektraLab.exportCalibration"
+    /// v2: the estimate carries the bytes up by their own slope (`refreshExportEstimate`); the old factors were
+    /// learned against a straight scale-up and would push the new figure off.
+    private static let key = "SpektraLab.exportCalibration.v2"
 
     static func factor(for format: ExportFormat) -> Double? {
         (UserDefaults.standard.dictionary(forKey: key) as? [String: Double])?[format.rawValue]
@@ -219,10 +225,97 @@ enum ExportCalibration {
         let measured = Double(actual) / Double(raw)
         // A running mean, so one unusual photo does not swing it.
         if let old = all[format.rawValue] {
-            all[format.rawValue] = old * 0.6 + measured * 0.4
+            all[format.rawValue] = old * 0.5 + measured * 0.5
         } else {
             all[format.rawValue] = measured
         }
         UserDefaults.standard.set(all, forKey: key)
+    }
+}
+
+/// An export's size as upstream's Size page offers it: 12 MP, or a long or short edge in pixels — never larger than
+/// the original (full size is `ExportOptions.size` nil).
+enum ExportSize: Codable, Equatable, Hashable, Sendable {
+    case megapixels(Double)
+    case longEdge(Int)
+    case shortEdge(Int)
+
+    static let twelve = ExportSize.megapixels(12)
+    static let smallestEdge = 16
+
+    /// The factor (≤ 1) that takes a picture of `width` × `height` to this size.
+    func scale(width: Int, height: Int) -> Double {
+        guard width > 0, height > 0 else { return 1 }
+        let k: Double
+        switch self {
+        case .megapixels(let mp): k = (mp * 1_000_000 / Double(width * height)).squareRoot()
+        case .longEdge(let e): k = Double(max(e, Self.smallestEdge)) / Double(max(width, height))
+        case .shortEdge(let e): k = Double(max(e, Self.smallestEdge)) / Double(min(width, height))
+        }
+        return min(1, k)
+    }
+
+    var title: String {
+        switch self {
+        case .megapixels(let mp): String(localized: "\(Int(mp)) MP")
+        case .longEdge(let e): String(localized: "长边 \(e) px")
+        case .shortEdge(let e): String(localized: "短边 \(e) px")
+        }
+    }
+}
+
+/// The file's name, as upstream's naming chips make it: the parts that are on, in their order, joined by `separator`.
+struct ExportNaming: Codable, Equatable, Sendable {
+    enum Token: String, Codable, CaseIterable, Identifiable, Sendable {
+        case original, film, paper, date
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .original: String(localized: "原文件名")
+            case .film: String(localized: "胶片")
+            case .paper: String(localized: "相纸")
+            case .date: String(localized: "日期")
+            }
+        }
+    }
+
+    /// Every token in the order the name takes them; `on` the ones it uses.
+    var order: [Token] = [.original, .film, .paper, .date]
+    var on: Set<Token> = [.original, .film]
+    var separator = "_"
+
+    static let separators = ["_", "-", " "]
+
+    struct Context {
+        var original: String; var film: String; var paper: String; var date: Date
+        /// For the batch settings, where no one photo is in front.
+        static var example: Context { Context(original: "IMG_0001.DNG", film: "Kodak Portra 400", paper: "Kodak Portra Endura", date: Date()) }
+    }
+
+    static func stamp(_ date: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyyMMdd_HHmmss"
+        return f.string(from: date)
+    }
+
+    /// What one part adds to the name ("" = nothing: no film under 无胶片, no paper for a slide).
+    static func part(_ t: Token, _ c: Context) -> String {
+        switch t {
+        case .original: clean((c.original as NSString).deletingPathExtension)
+        case .film: clean(c.film)
+        case .paper: clean(c.paper)
+        case .date: stamp(c.date)
+        }
+    }
+
+    /// The name without its extension. Never empty: with nothing usable, the date.
+    func name(_ c: Context) -> String {
+        let parts = order.filter(on.contains).map { Self.part($0, c) }.filter { !$0.isEmpty }
+        return parts.isEmpty ? Self.stamp(c.date) : parts.joined(separator: separator)
+    }
+
+    /// A part as a file name can hold it: no path separators or reserved characters, spaces as the separator does.
+    static func clean(_ s: String) -> String {
+        let bad = CharacterSet(charactersIn: "/\\:*?\"<>|").union(.controlCharacters)
+        return s.components(separatedBy: bad).joined().trimmingCharacters(in: .whitespaces)
     }
 }

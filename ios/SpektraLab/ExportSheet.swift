@@ -82,13 +82,16 @@ struct ExportSheet: View {
                     }
                 }
 
+                ExportSizeAndNameSections(options: $model.exportOptions, fullSize: model.exportFullOutputSize,
+                                          context: model.exportNamingContext() ?? .example)
+
                 Section {
                     Toggle(String(localized: "保留相机 EXIF 与定位"), isOn: $model.exportOptions.keepMetadata)
                     Picker(String(localized: "保存到"), selection: $model.exportOptions.destination) {
                         ForEach(ExportDestination.allCases) { Text($0.title).tag($0) }
                     }
                 } footer: {
-                    Text(String(localized: "按原图像素尺寸完整重新渲染。选择「文件 / 分享」可以存到「文件」App、AirDrop 到 Mac，或发给其他 App。"))
+                    Text(String(localized: "按上面的尺寸完整重新渲染。选择「文件 / 分享」可以存到「文件」App、AirDrop 到 Mac，或发给其他 App。"))
                 }
 
                 if model.exportOptions.format == .jpeg && model.exportOptions.colorSpace == .proPhoto {
@@ -264,10 +267,11 @@ struct ExportSettingsSheet: View {
                         }
                     } header: { Text(String(localized: "质量")) } footer: { Text(String(localized: "推荐 90：和 100 肉眼看不出差别，文件小一半左右。")) }
                 }
+                ExportSizeAndNameSections(options: $model.exportOptions, fullSize: nil, context: .example)
                 Section {
                     Toggle(String(localized: "保留相机 EXIF 与定位"), isOn: $model.exportOptions.keepMetadata)
                 } footer: {
-                    Text(String(localized: "批量导出都存到“照片”，每张按原图全尺寸、用它自己的配方冲洗。这些设置和编辑页“导出”里的是同一套。"))
+                    Text(String(localized: "批量导出都存到“照片”，每张用它自己的配方冲洗。这些设置和编辑页“导出”里的是同一套。"))
                 }
             }
             .scrollContentBackground(.hidden)
@@ -280,5 +284,184 @@ struct ExportSettingsSheet: View {
         .presentationDetents([.medium, .large])
         .presentationBackground(Color.labInk)
         .preferredColorScheme(.dark)
+    }
+}
+
+/// 尺寸 and 文件名: the rows both export sheets share (upstream's Size page and naming chips).
+struct ExportSizeAndNameSections: View {
+    @Binding var options: ExportOptions
+    /// What the photo in front comes out as at full size; nil for a batch.
+    let fullSize: (width: Int, height: Int)?
+    /// What the name is made of: the photo in front's, or an example for a batch.
+    let context: ExportNaming.Context
+
+    /// The whole name this photo gets now, extension and all — shown live above the chips.
+    private var fileName: String {
+        let base = options.naming?.name(context) ?? "SpektraCam_\(ExportNaming.stamp(context.date))"
+        return "\(base).\(options.format.fileExtension)"
+    }
+
+    var body: some View {
+        Section {
+            NavigationLink {
+                ExportSizePage(size: $options.size, fullSize: fullSize)
+            } label: {
+                LabeledContent(String(localized: "尺寸"), value: options.size?.title ?? String(localized: "原尺寸"))
+            }
+        } footer: {
+            Text(String(localized: "不会比原图更大。"))
+        }
+        Section {
+            // The name as it is now: every tap below changes it here at once.
+            Text(fileName)
+                .font(.system(.callout, design: .monospaced).weight(.semibold))
+                .foregroundStyle(Color.labCream)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentTransition(.numericText())
+                .animation(.snappy, value: fileName)
+            Toggle(String(localized: "自定义文件名"), isOn: Binding(get: { options.naming != nil },
+                                                                set: { options.naming = $0 ? ExportNaming() : nil }))
+            if let naming = options.naming {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) { ForEach(naming.order) { chip($0, naming) } }
+                }
+                Picker(String(localized: "分隔符"), selection: Binding(get: { naming.separator },
+                                                                    set: { options.naming?.separator = $0 })) {
+                    ForEach(ExportNaming.separators, id: \.self) { Text($0 == " " ? String(localized: "空格") : $0).tag($0) }
+                }
+                .pickerStyle(.segmented)
+            }
+        } header: {
+            Text(String(localized: "文件名"))
+        } footer: {
+            Text(options.naming != nil
+                 ? String(localized: "点一下加入或拿掉（亮的会出现在文件名里），长按往前或往后挪。每项下面是它会加进去的内容，写「无」的这张照片没有（比如无胶片的照片没有胶片和相纸）。最上面就是导出后的文件名。")
+                 : String(localized: "打开后可以用原文件名、胶片、相纸、日期组合文件名。"))
+        }
+    }
+
+    private func chip(_ t: ExportNaming.Token, _ naming: ExportNaming) -> some View {
+        let on = naming.on.contains(t)
+        let value = ExportNaming.part(t, context)
+        return Button {
+            // The last part on stays on: a name needs one.
+            if on { if naming.on.count > 1 { options.naming?.on.remove(t) } } else { options.naming?.on.insert(t) }
+        } label: {
+            // The part's name over what it puts in the file name — "无" when this photo has nothing for it
+            // (无胶片 has no film or paper): lit, it then changes nothing, and says so.
+            VStack(spacing: 1) {
+                Text(t.title).font(.system(size: 13, weight: on ? .semibold : .medium))
+                Text(value.isEmpty ? String(localized: "无") : value)
+                    .font(.system(size: 10, weight: .regular)).lineLimit(1)
+                    .opacity(value.isEmpty ? 0.5 : 0.75)
+                    .frame(maxWidth: 120)
+            }
+            .foregroundStyle(on ? Color.black : Color.labCream)
+            .padding(.horizontal, 12).padding(.vertical, 5)
+            .background(on ? Color.labCream.opacity(value.isEmpty ? 0.45 : 1) : Color.white.opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(String(localized: "往前")) { shift(t, -1) }.disabled(naming.order.first == t)
+            Button(String(localized: "往后")) { shift(t, 1) }.disabled(naming.order.last == t)
+        }
+    }
+
+    private func shift(_ t: ExportNaming.Token, _ by: Int) {
+        guard var order = options.naming?.order, let i = order.firstIndex(of: t) else { return }
+        let j = min(max(i + by, 0), order.count - 1)
+        order.swapAt(i, j)
+        options.naming?.order = order
+    }
+}
+
+/// 尺寸: full size, 12 MP, or a long or short edge typed in pixels — each says what it makes of the photo in front.
+struct ExportSizePage: View {
+    @Binding var size: ExportSize?
+    let fullSize: (width: Int, height: Int)?
+    @State private var longText = ""
+    @State private var shortText = ""
+    @FocusState private var typing: Bool?      // true = long edge, false = short
+
+    var body: some View {
+        Form {
+            Section {
+                row(String(localized: "原尺寸"), picked: size == nil, line: line(nil)) { size = nil }
+                row("12 MP", picked: size == .twelve, line: line(.twelve)) { size = .twelve }
+                edgeRow(long: true)
+                edgeRow(long: false)
+            } footer: {
+                Text(String(localized: "填的数字比原图还大时按原图尺寸。手机内存不够时还会自动缩小。"))
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.labInk.ignoresSafeArea())
+        .navigationTitle(String(localized: "尺寸"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if typing != nil {
+                ToolbarItem(placement: .confirmationAction) { Button(String(localized: "完成")) { typing = nil } }
+            }
+        }
+        .onAppear {
+            if case .longEdge(let e) = size { longText = "\(e)" }
+            if case .shortEdge(let e) = size { shortText = "\(e)" }
+            if longText.isEmpty { longText = "\(fullSize.map { min(4096, max($0.width, $0.height)) } ?? 4096)" }
+            if shortText.isEmpty { shortText = "\(fullSize.map { min(2048, min($0.width, $0.height)) } ?? 2048)" }
+        }
+    }
+
+    private func row(_ title: String, picked: Bool, line: String?, pick: @escaping () -> Void) -> some View {
+        Button(action: pick) { label(title, picked: picked, line: line) }
+            .buttonStyle(.plain)
+    }
+
+    private func label(_ title: String, picked: Bool, line: String?) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark").foregroundStyle(Color.labRed).opacity(picked ? 1 : 0)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).foregroundStyle(Color.labCream)
+                if let line { Text(line).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
+            }
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func edgeRow(long: Bool) -> some View {
+        let value = edgeValue(long)
+        let picked = size == value
+        return HStack {
+            Button { size = value; typing = long } label: {
+                label(long ? String(localized: "长边") : String(localized: "短边"), picked: picked, line: line(value))
+            }
+            .buttonStyle(.plain)
+            TextField("", text: long ? $longText : $shortText)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .focused($typing, equals: long)
+                .frame(width: 80)
+                .padding(.horizontal, 8).frame(height: 32)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                .onChange(of: long ? longText : shortText) { size = edgeValue(long) }
+            Text("px").foregroundStyle(.secondary)
+        }
+    }
+
+    private func edgeValue(_ long: Bool) -> ExportSize {
+        let n = max(Int(long ? longText : shortText) ?? 0, ExportSize.smallestEdge)
+        return long ? .longEdge(n) : .shortEdge(n)
+    }
+
+    /// "4096 × 2731 · 11.2 MP" for the photo in front.
+    private func line(_ s: ExportSize?) -> String? {
+        guard let full = fullSize else { return nil }
+        let k = s?.scale(width: full.width, height: full.height) ?? 1
+        let w = Int((Double(full.width) * k).rounded()), h = Int((Double(full.height) * k).rounded())
+        return "\(w) × \(h) · \(String(format: "%.1f", Double(w * h) / 1_000_000)) MP" + (k >= 1 && s != nil ? String(localized: "（原图尺寸）") : "")
     }
 }

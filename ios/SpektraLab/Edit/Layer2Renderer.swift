@@ -96,8 +96,20 @@ final class Layer2Renderer: @unchecked Sendable {
     private struct Size { var width: UInt32; var height: UInt32; var stride: UInt32; var applies: UInt32 }
 
     /// The pass into `out`. `midGrey` is 18 % grey encoded in the picture's space.
-    func apply(_ source: Layer2Source, _ a: Adjustments, midGrey: Float = Layer2Uniforms.displayMidGrey,
-               into out: MTLBuffer) throws {
+    func apply(_ source: Layer2Source, _ a: Adjustments, locals: [LocalAdjustment] = [],
+               midGrey: Float = Layer2Uniforms.displayMidGrey, into out: MTLBuffer) throws {
+        try applyWhole(source, a, midGrey: midGrey, into: out)
+        // 局部调整: each layer's own pass, blended over the whole through its mask (`LocalAdjust.swift`).
+        let acting = locals.filter { !$0.isNeutral }
+        guard !acting.isEmpty, let blend = LocalBlend.shared else { return }
+        let layer = try makeBuffer(width: source.width, height: source.height)
+        for l in acting {
+            try applyWhole(source, a.adding(l), midGrey: midGrey, into: layer)
+            try blend.blend(layer, into: out, source: source, l)
+        }
+    }
+
+    private func applyWhole(_ source: Layer2Source, _ a: Adjustments, midGrey: Float, into out: MTLBuffer) throws {
         let curves: MTLBuffer? = a.curves.isIdentity ? identityCurves : {
             let t = a.curves.tables()
             return device.makeBuffer(bytes: t, length: t.count * 4, options: .storageModeShared)
@@ -124,9 +136,9 @@ final class Layer2Renderer: @unchecked Sendable {
     }
 
     /// The pass, out as a `.rgba16Unorm` texture for the canvas (already sRGB-encoded).
-    func texture(_ source: Layer2Source, _ a: Adjustments) throws -> MTLTexture {
+    func texture(_ source: Layer2Source, _ a: Adjustments, locals: [LocalAdjustment] = []) throws -> MTLTexture {
         let out = try makeBuffer(width: source.width, height: source.height)
-        try apply(source, a, into: out)
+        try apply(source, a, locals: locals, into: out)
         let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Unorm, width: source.width,
                                                          height: source.height, mipmapped: false)
         d.usage = .shaderRead
@@ -137,10 +149,10 @@ final class Layer2Renderer: @unchecked Sendable {
     }
 
     /// The pass, out as a `CGImage` in `space` over the buffer the kernel wrote.
-    func image(_ source: Layer2Source, _ a: Adjustments, space: CGColorSpace,
+    func image(_ source: Layer2Source, _ a: Adjustments, locals: [LocalAdjustment] = [], space: CGColorSpace,
                midGrey: Float = Layer2Uniforms.displayMidGrey) throws -> CGImage {
         let out = try makeBuffer(width: source.width, height: source.height)
-        try apply(source, a, midGrey: midGrey, into: out)
+        try apply(source, a, locals: locals, midGrey: midGrey, into: out)
         return try Self.image(of: Layer2Source(buffer: out, width: source.width, height: source.height), space: space)
     }
 

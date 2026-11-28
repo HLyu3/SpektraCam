@@ -34,7 +34,8 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase, initial: true) { _, phase in
-            if phase == .active { model.sceneBecameActive() }
+            if phase == .active { model.sceneBecameActive(); AutoBackup.shared.run() }
+            if phase == .background { AutoBackup.shared.run(background: true) }
             if phase == .background { model.sceneWentToBackground() }
         }
 #if DEBUG
@@ -87,6 +88,9 @@ struct PhotoLibraryView: View {
     @State private var pairing: PairSpec?
     /// The pair photo `pairing` remakes (编辑双拼), nil for a new pair.
     @State private var pairReplacing: UUID?
+    /// 多重曝光 being set up, and the double exposure it remakes (nil = a new one).
+    @State private var doubling: DoubleSpec?
+    @State private var doubleReplacing: UUID?
     /// 查看: the photo tapped, and the wall's order to swipe through.
     private struct Viewing: Identifiable { let id: UUID; let ids: [UUID] }
     @State private var viewing: Viewing?
@@ -121,6 +125,8 @@ struct PhotoLibraryView: View {
     /// The export button's question: these photos, in wall order, waiting for 导出 or 取消.
     @State private var exportQuestion: [UUID]?
     @State private var exportSettingsOpen = false
+    /// 照片信息 open for this photo.
+    @State private var infoFor: UUID?
     /// A narrow phone: the selection bar's two-photo actions show their icons only, so 粘贴 keeps its room.
 
     private var columns: [GridItem] {
@@ -226,6 +232,10 @@ struct PhotoLibraryView: View {
             // Back from Photos, where a photo may have been deleted.
             if phase == .active { model.pruneDeletedAssets() }
         }
+        .sheet(item: $doubling) { spec in
+            DoubleSheet(model: model, spec: spec, replacing: doubleReplacing) { selected.removeAll() }
+                .onDisappear { doubleReplacing = nil }
+        }
         .sheet(item: $pairing) { spec in
             PairSheet(model: model, spec: spec, replacing: pairReplacing) { selected.removeAll() }
                 .onDisappear { pairReplacing = nil }
@@ -279,6 +289,9 @@ struct PhotoLibraryView: View {
                     ? String(localized: "；\(before.changed) 张在导出后又改过，新成片会和旧的不一样。")
                     : String(localized: "，导出后都没改过，新成片和旧的一样。")) + String(localized: "替换会把旧的移到“最近删除”。")
             Text(String(localized: "每张按自己的配方冲洗，存到“照片”。") + old + "\n" + format)
+        }
+        .sheet(isPresented: Binding(get: { infoFor != nil }, set: { if !$0 { infoFor = nil } })) {
+            if let infoFor { InfoSheet(model: model, id: infoFor) }
         }
         .sheet(isPresented: $exportSettingsOpen) { ExportSettingsSheet(model: model) }
         .confirmationDialog(String(localized: "删除这些照片？"),
@@ -594,7 +607,7 @@ struct PhotoLibraryView: View {
 
     private func matches(_ p: LibraryPhoto, _ f: String) -> Bool {
         switch f {
-        case "imported": return !p.captured && p.pair == nil
+        case "imported": return !p.captured && p.pair == nil && p.double == nil
         case "captured": return p.captured
         case "favorite": return p.favorite
         case "raw": return p.isRAW
@@ -763,6 +776,15 @@ struct PhotoLibraryView: View {
                                 pairing = spec
                             } label: { Label(String(localized: "编辑双拼"), systemImage: "rectangle.split.2x1") }
                         }
+                        Button { infoFor = photo.id } label: { Label(String(localized: "信息"), systemImage: "info.circle") }
+                        if let spec = photo.double,
+                           model.library.contains(where: { $0.id == spec.bottom }),
+                           model.library.contains(where: { $0.id == spec.top }) {
+                            Button {
+                                doubleReplacing = photo.id
+                                doubling = spec
+                            } label: { Label(String(localized: "编辑多重曝光"), systemImage: "square.2.layers.3d") }
+                        }
                         recipeButtons(photo)
                         Divider()
                         Button(role: .destructive) {
@@ -815,6 +837,10 @@ struct PhotoLibraryView: View {
                             }
                             if photo.pair != nil {
                                 Image(systemName: "rectangle.split.2x1.fill").font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.8))
+                            }
+                            if photo.double != nil {
+                                Image(systemName: "square.2.layers.3d.fill").font(.system(size: 7, weight: .bold))
                                     .foregroundStyle(.white.opacity(0.8))
                             }
                             if photo.recipe.hdr == true {
@@ -959,6 +985,10 @@ struct PhotoLibraryView: View {
                         // The wall is newest first; a strip reads left to right, oldest first.
                         pairing = PairSpec(left: ids[1], right: ids[0])
                     } label: { BarTile(title: String(localized: "双拼"), symbol: "rectangle.split.2x1") }
+                    Button {
+                        let ids = model.library.map(\.id).filter { selected.contains($0) }
+                        doubling = DoubleSpec(bottom: ids[1], top: ids[0])
+                    } label: { BarTile(title: String(localized: "多重曝光"), symbol: "square.2.layers.3d") }
                 }
                 if selected.count == 1, let id = selected.first {
                     Button { copyRecipe(from: id) } label: { BarTile(title: String(localized: "复制配方"), symbol: "doc.on.doc") }
@@ -1028,6 +1058,10 @@ struct PhotoLibraryView: View {
                 barAction(String(localized: "双拼"), "rectangle.split.2x1") {
                     let ids = await model.linkAssets(selectedAssets)
                     if ids.count == 2 { pairing = PairSpec(left: ids[0], right: ids[1]) }
+                }
+                barAction(String(localized: "多重曝光"), "square.2.layers.3d") {
+                    let ids = await model.linkAssets(selectedAssets)
+                    if ids.count == 2 { doubling = DoubleSpec(bottom: ids[0], top: ids[1]) }
                 }
             }
             if count == 1 {
