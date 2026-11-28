@@ -39,6 +39,9 @@ final class CameraController: NSObject, @unchecked Sendable {
         let device: AVCaptureDevice
         let millimetres: Int
         var id: String { device.uniqueID }
+        /// Its sensor reads out a true 2× crop (a 48 MP sensor's centre at 12 MP), so twice its length is a lens of its
+        /// own, not digital zoom: the 17 Pro's telephoto, every 48 MP main camera; not a 12 MP telephoto (15 Pro Max …).
+        var nativeDouble: Bool { device.formats.contains { $0.secondaryNativeResolutionZoomFactors.contains(2) } }
     }
 
     /// What the page shows, read on the queue and handed to the main actor.
@@ -89,11 +92,13 @@ final class CameraController: NSObject, @unchecked Sendable {
         let found = AVCaptureDevice.DiscoverySession(deviceTypes: types, mediaType: .video, position: position).devices
         func halfFOV(_ d: AVCaptureDevice) -> Double { max(Double(d.activeFormat.videoFieldOfView) * .pi / 360, 0.01) }
         let wide = found.first { $0.deviceType == .builtInWideAngleCamera }
-        // The main camera is 24 mm since the 48 MP sensor (iPhone 15), 26 mm before it.
+        // The main camera is 24 mm on the Pro phones with a 48 MP sensor (14 Pro on), 26 mm everywhere else — the
+        // 48 MP main of the 15 / 16 / 17 / 16e / Air is 26 mm too, and none of them has a telephoto.
         // Any of its formats, not the active one: before the session is set up the active format is
         // a 16:9 video one with no 48 MP still (logged on an iPhone 17 Pro Max), which read as 26 mm.
+        let hasTele = found.contains { $0.deviceType == .builtInTelephotoCamera }
         let wideMM = wide.map { w in
-            w.formats.contains { $0.supportedMaxPhotoDimensions.contains { megapixels($0) >= 40 } } ? 24.0 : 26.0
+            hasTele && w.formats.contains { $0.supportedMaxPhotoDimensions.contains { megapixels($0) >= 40 } } ? 24.0 : 26.0
         } ?? 24
         return found.map { d -> Lens in
             switch d.deviceType {

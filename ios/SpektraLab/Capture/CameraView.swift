@@ -926,13 +926,13 @@ struct CameraView: View {
 
     // MARK: focal length
 
-    /// The stops in the lens row: each lens's own, and twice the main and the telephoto (Apple's 2× and 8×).
+    /// The stops in the lens row: each lens's own, and twice the main and the telephoto where the sensor crops 2×
+    /// natively (Apple's 2× and 8× on a 17 Pro) — on a 12 MP sensor that stop would only be digital zoom.
     private var stops: [Int] {
         let own = camera.lenses.map(\.millimetres)
-        let main = camera.lenses.first { $0.device.deviceType == .builtInWideAngleCamera }?.millimetres
-        let tele = camera.lenses.first { $0.device.deviceType == .builtInTelephotoCamera }?.millimetres
         if lensesOnly { return own }
-        return Array(Set(own + [main, tele].compactMap { $0.map { $0 * 2 } })).sorted()
+        let doubled = camera.lenses.filter { $0.device.deviceType != .builtInUltraWideCamera && $0.nativeDouble }
+        return Array(Set(own + doubled.map { $0.millimetres * 2 })).sorted()
     }
 
     /// The main camera's focal length: 1× (24 mm on a 48 MP main camera, 26 before).

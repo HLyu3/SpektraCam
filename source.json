@@ -32,10 +32,10 @@
           "version": "2.1.9",
           "buildVersion": "17",
           "date": "2026-11-28",
-          "size": 22522377,
+          "size": 22522179,
           "minOSVersion": "18.0",
           "downloadURL": "https://github.com/HLyu3/SpektraCam/releases/download/v2.1.9/SpektraCam-2.1.9-unsigned.ipa",
-          "localizedDescription": "多重曝光；局部调整（渐变、径向、自动识别主体和人物）；导出尺寸与文件名可选；照片信息页；自动备份到文件夹；新照片默认胶片；观片台版面和海报导出。\nDouble exposure; local adjustments (linear, radial, automatic subject and people masks); export size and file names; photo info; auto backup to a folder; a default film for new photos; light table sheet and poster exports."
+          "localizedDescription": "多重曝光；局部调整（渐变、径向、自动识别主体和人物）；导出尺寸与文件名可选；照片信息页；自动备份到文件夹；新照片默认胶片；观片台版面和海报导出；各机型的镜头焦段显示更准。\nDouble exposure; local adjustments (linear, radial, automatic subject and people masks); export size and file names; photo info; auto backup to a folder; a default film for new photos; light table sheet and poster exports; truer focal lengths on every iPhone."
         },
         {
           "version": "2.1.8",
